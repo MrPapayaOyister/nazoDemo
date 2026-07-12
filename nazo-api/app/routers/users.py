@@ -106,7 +106,11 @@ async def set_user_signature(
             style="custom",
             is_custom=True,
         )
-        session.merge(sig)
+        # Insert the signature row and FLUSH before pointing the user's FK at it —
+        # signature_id has no ORM relationship, so the unit-of-work would otherwise
+        # order the app_user UPDATE before the signature INSERT (FK violation).
+        session.add(sig)
+        session.flush()
         user.signature_id = sig.id
         session.add(user)
 
