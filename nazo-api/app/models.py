@@ -51,6 +51,11 @@ STEP_STATUS_PENDING = "pending"
 STEP_STATUS_ACTIVE = "active"
 STEP_STATUS_DONE = "done"
 STEP_STATUS_REJECTED = "rejected"
+# Extended states for the workflow engine (Phase 3):
+#   waiting    — a chain step temporarily parked while a detour runs beneath it.
+#   superseded — a downstream step voided by a reject-to-requester.
+STEP_STATUS_WAITING = "waiting"
+STEP_STATUS_SUPERSEDED = "superseded"
 
 
 def _json_column() -> Column:
@@ -137,26 +142,45 @@ class CorrespondenceStep(SQLModel, table=True):
     __tablename__ = "correspondence_step"
     __table_args__ = (
         # At most one 'active' step per correspondence (partial unique index).
+        # postgresql_where enforces it on the production Postgres db; sqlite_where
+        # mirrors the same partial-unique semantics so tests on SQLite exercise the
+        # real one-active invariant instead of a full-column unique constraint.
         Index(
             "uq_correspondence_step_active",
             "correspondence_id",
             unique=True,
             postgresql_where=text("status = 'active'"),
+            sqlite_where=text("status = 'active'"),
         ),
     )
 
     id: str = Field(primary_key=True)
     correspondence_id: str = Field(foreign_key="correspondence.id", index=True)
+    # 0-based chain index. Detour steps borrow their PARENT step's step_order so
+    # currentStepIndex reads as the redirector's stage; they are distinguished by
+    # detour_of_step_id being NOT NULL.
     step_order: int
     type: str  # lowercase: approving | reviewing | signing
     role: str
+    # Exactly one demo user per role owns/acts on this step.
+    assignee_id: str = Field(foreign_key="app_user.id", index=True)
+    # When set, this row is a DETOUR spawned by redirect(): its parent is the
+    # 'waiting' chain step it will return to on approve/reject.
+    detour_of_step_id: Optional[str] = Field(
+        default=None, foreign_key="correspondence_step.id"
+    )
     unit_en: str
     unit_ar: str
     rejectable: bool = True
     sign: bool = True
     regenerate: bool = False
-    status: str = STEP_STATUS_PENDING  # pending | active | done | rejected
+    status: str = STEP_STATUS_PENDING  # pending | active | done | rejected | waiting | superseded
     position: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
+    # Audit trail written by the workflow engine (all ISO 'Z' strings).
+    comment: Optional[str] = Field(default=None)
+    acted_at: Optional[str] = Field(default=None)
+    signed_at: Optional[str] = Field(default=None)
+    signature_asset_ref: Optional[str] = Field(default=None)
 
 
 class RefCounter(SQLModel, table=True):
@@ -178,7 +202,10 @@ class WorkflowEvent(SQLModel, table=True):
     id: str = Field(primary_key=True)
     correspondence_id: str = Field(foreign_key="correspondence.id", index=True)
     actor_id: str = Field(foreign_key="app_user.id")
-    event_type: str  # sent | approved | rejected | signed | completed | commented
+    # Values written by app/services/workflow.py:
+    #   created | sent | approved | rejected | signed | completed | commented
+    #   | advanced | returned | redirected | revised
+    event_type: str
     from_step_order: Optional[int] = Field(default=None)
     to_step_order: Optional[int] = Field(default=None)
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())

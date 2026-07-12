@@ -4,11 +4,14 @@ Run as a module:  python -m app.seed.reset
 
 Safety guarantees:
   * Operates ONLY on tables declared in this app's SQLModel metadata (the "nazo"
-    schema). It never DROPs the database and never enumerates other schemas.
+    allowlist). drop_all/create_all act strictly on our own metadata's tables — it
+    never DROPs the database itself and never touches tables outside this app's
+    metadata (a fail-closed current_database=='nazo' guard runs BEFORE any DDL).
   * Qdrant: only ensure_collection() (targeted create of nazo_library). It never
     lists or deletes collections.
-  * Fully idempotent: TRUNCATE the allowlisted tables, re-insert seed rows, reset
-    the ref counter to REF_START.
+  * Fully idempotent: DROP + CREATE the allowlisted tables (so schema changes such
+    as new columns/indexes take effect), re-insert seed rows, and reset the ref
+    counter to REF_START.
 """
 
 from __future__ import annotations
@@ -53,18 +56,20 @@ def _assert_isolated_nazo_db(session: Session) -> None:
         )
 
 
-def _truncate_nazo_tables(session: Session) -> None:
+def _rebuild_nazo_tables(session: Session) -> None:
+    """DROP + CREATE the nazo allowlist so schema changes (new columns/indexes)
+    take effect on reset.
+
+    Still allowlist-scoped: SQLModel.metadata.drop_all only drops tables declared
+    in THIS app's metadata — never anything on the shared server. The fail-closed
+    current_database=='nazo' guard runs BEFORE any destructive DDL.
+    """
     _assert_isolated_nazo_db(session)
     names = _allowlisted_table_names()
-    quoted = ", ".join(f'"{n}"' for n in names)
-    # RESTART IDENTITY resets sequences. NO CASCADE: every interdependent nazo
-    # table is listed together, so the multi-table TRUNCATE satisfies internal
-    # FKs on its own. Omitting CASCADE makes the statement fail-closed — if any
-    # table OUTSIDE the allowlist ever references a nazo table, TRUNCATE errors
-    # instead of silently wiping that foreign table.
-    session.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY"))
-    session.commit()
-    logger.info("Truncated %d nazo tables", len(names))
+    # drop_all/create_all operate strictly on our own metadata's tables.
+    SQLModel.metadata.drop_all(engine)
+    SQLModel.metadata.create_all(engine)
+    logger.info("Rebuilt %d nazo tables (drop + create)", len(names))
 
 
 def _to_user(d: dict) -> AppUser:
@@ -150,7 +155,7 @@ def reset_all() -> None:
     collection, and reset the ref counter to REF_START."""
     create_db_and_tables()
     with Session(engine) as session:
-        _truncate_nazo_tables(session)
+        _rebuild_nazo_tables(session)
         _upsert_seed(session)
         reset_counter(session, settings.ref_start)
         logger.info("Ref counter reset to %d", settings.ref_start)

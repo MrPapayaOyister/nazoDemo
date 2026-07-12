@@ -548,6 +548,17 @@ CORRESPONDENCES: list[dict] = [
 # The live-demo reference (created during the demo; cleared by resetDemo). NOT seeded.
 DEMO_CORR_ID = "corr_031"
 
+# Exactly one demo user per role — the canonical assignee for any step of that
+# role. Used by derive_steps (seed) and the workflow engine (materialize/redirect).
+ROLE_TO_USER_ID: dict[str, str] = {
+    "admin": "u_admin",
+    "requester": "u_req",
+    "dtManager": "u_dt",
+    "director": "u_dir",
+    "gm": "u_gm",
+    "chair": "u_chair",
+}
+
 
 def derive_steps(corr: dict) -> list[dict]:
     """Build normalized correspondence_step rows from a correspondence's snapshot
@@ -564,6 +575,8 @@ def derive_steps(corr: dict) -> list[dict]:
                 "step_order": order,
                 "type": normalize_step_type(step["type"]),
                 "role": step["role"],
+                "assignee_id": ROLE_TO_USER_ID[step["role"]],
+                "detour_of_step_id": None,
                 "unit_en": step["unitEn"],
                 "unit_ar": step["unitAr"],
                 "rejectable": step["rejectable"],
