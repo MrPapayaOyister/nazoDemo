@@ -1,0 +1,407 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   NAZO AI — design tokens (Jira-premium, cinematic). Light = :root, dark = [data-theme="dark"].
+   ========================================================================== */
+:root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-arabic: 'IBM Plex Sans Arabic', 'Inter', system-ui, sans-serif;
+
+  /* Clean, bright NAZO surfaces (white + light blue-gray). */
+  --bg-app: #f5f8fc;
+  --bg-app-2: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-subtle: #eef3fa;
+  --bg-hover: #e7eef8;
+  --bg-sunken: #e3eaf4;
+
+  --border: #dbe4f0;
+  --border-strong: #c2d0e4;
+
+  --text: #14213d;
+  --text-secondary: #41527a;
+  --text-muted: #7486a5;
+  --text-inverse: #ffffff;
+
+  /* NAZO blue — the primary accent. */
+  --brand: #1552b5;
+  --brand-emphasis: #0f3e8c;
+  --brand-subtle: #e6effb;
+
+  /* Deep navy — used for the app rail / sidebar (matches the current NAZO nav). */
+  --navy: #12336b;
+  --navy-2: #0d2a57;
+  --navy-3: #0a2149;
+
+  /* NAZO teal-green secondary. */
+  --accent: #17a07a;
+  --accent-subtle: #e2f6ef;
+
+  /* Gold — echoes the letterhead rule; premium micro-accent. */
+  --gold: #b0871c;
+  --gold-subtle: #f7efd6;
+
+  /* Violet AI accent (the one "new" signal, layered onto the NAZO palette). */
+  --ai: #6e56cf;
+  --ai-emphasis: #5b45b8;
+  --ai-subtle: #efecfb;
+
+  --success: #17a07a;
+  --success-subtle: #e2f6ef;
+  --warning: #b7791f;
+  --warning-subtle: #fbf1d9;
+  --danger: #d64550;
+  --danger-subtle: #fbe9ea;
+  --info: #1552b5;
+  --info-subtle: #e6effb;
+
+  --shadow-e1: 0 1px 2px rgba(16, 42, 90, 0.07), 0 0 1px rgba(16, 42, 90, 0.08);
+  --shadow-e2: 0 6px 18px rgba(16, 42, 90, 0.09), 0 1px 3px rgba(16, 42, 90, 0.06);
+  --shadow-e3: 0 18px 44px rgba(16, 42, 90, 0.14), 0 2px 8px rgba(16, 42, 90, 0.07);
+  --shadow-ai: 0 12px 40px rgba(110, 86, 207, 0.22), 0 2px 10px rgba(110, 86, 207, 0.16);
+
+  --ai-gradient: linear-gradient(120deg, #1552b5 0%, #6e56cf 100%);
+}
+
+[data-theme='dark'] {
+  --bg-app: #0d1017;
+  --bg-app-2: #10141b;
+  --bg-surface: #161b24;
+  --bg-subtle: #1b2230;
+  --bg-hover: #212a3a;
+  --bg-sunken: #0a0d13;
+
+  --border: #29313d;
+  --border-strong: #3a4553;
+
+  --text: #e7ecf3;
+  --text-secondary: #aeb9c8;
+  --text-muted: #7c8aa0;
+  --text-inverse: #0d1017;
+
+  --brand: #4c9aff;
+  --brand-emphasis: #78b4ff;
+  --brand-subtle: #12233d;
+
+  --navy: #0f2a55;
+  --navy-2: #0b2145;
+  --navy-3: #081a38;
+
+  --accent: #45d9a0;
+  --accent-subtle: #0f2b21;
+
+  --gold: #e0b84b;
+  --gold-subtle: #2a2410;
+
+  --ai: #a78bfa;
+  --ai-emphasis: #c4b2ff;
+  --ai-subtle: #1c1633;
+
+  --success: #45d9a0;
+  --success-subtle: #0f2b21;
+  --warning: #f2c94c;
+  --warning-subtle: #2a2410;
+  --danger: #ff6b6b;
+  --danger-subtle: #2e1416;
+  --info: #6fb0ff;
+  --info-subtle: #12233d;
+
+  --shadow-e1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-e2: 0 6px 18px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-e3: 0 18px 44px rgba(0, 0, 0, 0.58), 0 3px 10px rgba(0, 0, 0, 0.4);
+  --shadow-ai: 0 14px 44px rgba(120, 90, 240, 0.4), 0 2px 10px rgba(120, 90, 240, 0.3);
+
+  --ai-gradient: linear-gradient(120deg, #a78bfa 0%, #6fb0ff 100%);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg-app);
+    color: var(--text);
+    font-size: 0.875rem;
+    line-height: 1.4rem;
+  }
+  html[lang='ar'],
+  [dir='rtl'] {
+    font-family: var(--font-arabic);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+  /* refined scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+    background-clip: content-box;
+  }
+  h1,
+  h2,
+  h3 {
+    color: var(--text);
+    font-weight: 600;
+  }
+}
+
+@layer utilities {
+  /* hairline border used across cards (Jira feel) */
+  .hairline {
+    border: 1px solid var(--border);
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  /* AI accent gradient text/surfaces */
+  .text-ai-gradient {
+    background: var(--ai-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-ai-gradient {
+    background: var(--ai-gradient);
+  }
+  /* shimmering AI-thinking sheen */
+  .ai-sheen {
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in srgb, var(--ai) 26%, transparent) 45%,
+      color-mix(in srgb, var(--brand) 22%, transparent) 55%,
+      transparent 80%
+    );
+    background-size: 220% 100%;
+    animation: sheen 1.6s ease-in-out infinite;
+  }
+  .glass {
+    background: color-mix(in srgb, var(--bg-surface) 78%, transparent);
+    backdrop-filter: blur(12px) saturate(1.2);
+  }
+  /* violet cause->effect pulse on AI-touched elements */
+  .ai-touched {
+    animation: ai-pulse 0.9s ease-out;
+  }
+  @keyframes ai-pulse {
+    0% {
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--ai) 55%, transparent);
+    }
+    100% {
+      box-shadow: 0 0 0 14px transparent;
+    }
+  }
+}
+
+/* ==========================================================================
+   Document "paper" — stays light with a border in dark mode.
+   ========================================================================== */
+.nazo-doc {
+  background: #ffffff;
+  color: #16233d;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-e2);
+  padding: 40px 44px 48px;
+  font-size: 14px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+[data-theme='dark'] .nazo-doc {
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.5);
+}
+.nazo-doc .doc-letterhead {
+  margin-bottom: 22px;
+}
+.nazo-doc .doc-lh-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.nazo-doc .doc-crest {
+  flex-shrink: 0;
+  line-height: 0;
+}
+.nazo-doc .doc-lh-titles {
+  flex: 1;
+  min-width: 0;
+}
+.nazo-doc .doc-lh-org {
+  font-weight: 700;
+  font-size: 15px;
+  color: #12336b;
+  letter-spacing: -0.01em;
+}
+.nazo-doc .doc-lh-sub {
+  font-size: 11px;
+  color: #5a6b8c;
+}
+.nazo-doc .doc-lh-meta {
+  text-align: end;
+  font-size: 10.5px;
+  color: #6b7a97;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+.nazo-doc .doc-lh-rule {
+  margin-top: 12px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #12336b 0%, #b0871c 60%, transparent 100%);
+}
+[dir='rtl'] .nazo-doc .doc-lh-rule {
+  background: linear-gradient(270deg, #12336b 0%, #b0871c 60%, transparent 100%);
+}
+.nazo-doc .doc-body h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #12336b;
+  margin: 6px 0 12px;
+}
+.nazo-doc .doc-body h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #16233d;
+  margin: 14px 0 8px;
+}
+.nazo-doc .doc-body p {
+  margin: 9px 0;
+}
+.nazo-doc .doc-body .meta {
+  color: #4a5b7d;
+  font-size: 13px;
+}
+.nazo-doc .var-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  margin: 0 1px;
+  border-radius: 6px;
+  background: var(--brand-subtle);
+  color: var(--brand);
+  border: 1px dashed color-mix(in srgb, var(--brand) 45%, transparent);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nazo-doc .sign-block {
+  display: flex;
+  gap: 34px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+.nazo-doc .doc-sig {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 150px;
+}
+.nazo-doc .doc-sig-img {
+  width: 120px;
+  height: 46px;
+  object-fit: contain;
+}
+.nazo-doc .doc-sig--empty .doc-sig-slot {
+  display: grid;
+  place-items: center;
+  width: 130px;
+  height: 46px;
+  border: 1px dashed #c2cee0;
+  border-radius: 8px;
+  color: #9aa8c2;
+  font-size: 11px;
+}
+.nazo-doc .doc-sig-cap {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #d7deea;
+  width: 140px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #24365a;
+}
+.nazo-doc .doc-sig-role {
+  font-weight: 500;
+  color: #7183a3;
+  font-size: 10px;
+}
+@keyframes sigStamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.35) rotate(-4deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.nazo-doc .doc-sig--stamping {
+  animation: sigStamp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ==========================================================================
+   Workflow canvas (React Flow) — node drop-in + Jira-styled surface.
+   ========================================================================== */
+@keyframes nodeDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rf-enter {
+  animation: nodeDrop 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 130ms);
+}
+.react-flow__attribution {
+  display: none;
+}
+.react-flow__edge-text {
+  font-family: var(--font-sans);
+}
+.nazo-canvas .react-flow__background {
+  background: var(--bg-app);
+}
+
+/* Respect reduced motion as an accessibility fallback (cinematic is the default). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.12s !important;
+    scroll-behavior: auto !important;
+  }
+}
