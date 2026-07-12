@@ -1,0 +1,7 @@
+# Force LF for files that run on the Linux DGX host, regardless of the
+# Windows dev machine's autocrlf setting.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+.env.example text eol=lf

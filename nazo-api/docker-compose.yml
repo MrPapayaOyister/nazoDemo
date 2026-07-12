@@ -1,0 +1,32 @@
+# nazo demo — reuses EXISTING shared services on the DGX host:
+#   Postgres  host.docker.internal:5432 (isolated db "nazo")
+#   Qdrant    host.docker.internal:6333 (isolated collection "nazo_library")
+#   vLLM      host.docker.internal:9000/v1 (model qwen2.5-32b)
+# This compose file therefore starts NO postgres / qdrant / ollama of its own.
+# Only the app and a fresh Gotenberg (with Arabic fonts) are defined here.
+
+services:
+  api:
+    build: .
+    env_file: .env
+    ports:
+      - "8200:8200"
+    extra_hosts:
+      # Lets the container resolve the host's shared pg/qdrant/vllm on Linux.
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - gotenberg
+    restart: unless-stopped
+
+  gotenberg:
+    build: ./gotenberg
+    command:
+      # The gotenberg/gotenberg:8 ENTRYPOINT is an init wrapper (dumb-init) with
+      # CMD ["gotenberg"]. Compose `command:` overrides only CMD, so the binary
+      # name MUST be the first element or the container execs a bare flag and dies.
+      - "gotenberg"
+      - "--libreoffice-auto-start=true"
+      - "--libreoffice-restart-after=0"
+    # No host port published — only the api talks to it over the compose network
+    # at http://gotenberg:3000.
+    restart: unless-stopped
