@@ -16,10 +16,12 @@ Design rules honoured here:
     ~5-8s; the SSE heartbeat (app/sse.py) keeps the UI alive during the call.
   * The served model is config-driven (settings.llm_model) via the provider.
 
-Actions NOT implemented here (structured-output + RAG — Step 6) raise SSEError
-with a friendly "coming in step 6" message: admin.generateTemplate,
-admin.buildWorkflow / admin.validateWorkflow, requester.suggestTemplate, etc.
-Any unmapped action falls through to the same friendly notice.
+Step 6a adds the two VERIFIED structured-output studio actions —
+admin.generateTemplate (HERO generator) and admin.buildWorkflow (NL->chain) —
+which emit setDoc/setVariables/setWorkflow against the DRAFT studio target.
+Actions still deferred to Step 6b (RAG): requester.suggestTemplate /
+requester.draftContent, admin.validateWorkflow, etc. Any unmapped action falls
+through to a friendly "coming soon" SSEError (never a 500).
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from sqlmodel import Session
 
 from app.llm.openai_provider import get_provider
 from app.models import AppUser, Correspondence, Template
+from app.services import generation, workflow_parse
 from app.services.amounts import deterministic_amount, group_number
 from app.sse import SSEError
 
@@ -557,6 +560,124 @@ async def requester_translate(session: Session, user: AppUser, ctx: dict[str, An
 
 
 # ===========================================================================
+# Studio: HERO template generation + NL->workflow (Phase 3 Step 6a).
+# Both target the ephemeral studio TemplateDraft (docId/workflowId == DRAFT) and
+# emit the EXACT setDoc/setVariables/setWorkflow effect shapes the store reducer
+# consumes (mirror src/ai/registry.ts admin.generateTemplate / admin.buildWorkflow).
+# ===========================================================================
+def _chain_summary(steps: list[dict[str, Any]]) -> tuple[str, str]:
+    """Human-readable chain description for the ResultCard, e.g.
+    'DT Manager → Director → GM'."""
+    en = " → ".join(str(s.get("unitEn") or s.get("role") or "") for s in steps)
+    ar = " ← ".join(str(s.get("unitAr") or s.get("role") or "") for s in steps)
+    return en, ar
+
+
+async def admin_generate_template(session: Session, user: AppUser, ctx: dict[str, Any], provider: Any) -> dict[str, Any]:
+    """HERO: NL request -> full studio draft (doc + variables + workflow)."""
+    prompt_text = (ctx.get("prompt") or "").strip()
+    if not prompt_text:
+        raise SSEError(
+            "Describe the memo you'd like me to draft.",
+            "صف المذكرة التي تريد صياغتها.",
+        )
+    try:
+        result = await generation.generate_template(prompt_text, provider, session=session)
+    except Exception as exc:  # noqa: BLE001 - surface as a graceful SSE error, never a 500
+        logger.exception("generate_template failed")
+        raise SSEError(
+            "I couldn't draft the template just now. Please try again.",
+            "تعذّر إنشاء النموذج الآن. يرجى المحاولة مرة أخرى.",
+        ) from exc
+
+    variables = result["variables"]
+    steps = result["workflow"]
+    n_fields = len(variables)
+    m_steps = len(steps)
+    chain_en, chain_ar = _chain_summary(steps)
+
+    patch = {
+        "titleEn": result["titleEn"],
+        "titleAr": result["titleAr"],
+        "lang": result["lang"],
+        "category": result["category"],
+        "docHtml": result["docHtml"],
+        "localePreview": result["lang"],
+    }
+    effects = [
+        {"type": "setDoc", "docId": DRAFT, "patch": patch},
+        {"type": "setVariables", "docId": DRAFT, "variables": variables},
+        {"type": "setWorkflow", "workflowId": DRAFT, "steps": steps},
+    ]
+    card = _card(
+        "Template drafted",
+        "تم إنشاء النموذج",
+        f'Created "{result["titleEn"]}" — {n_fields} fields, {m_steps}-step approval chain.',
+        f'تم إنشاء "{result["titleAr"]}" — {n_fields} حقلاً، مسار اعتماد من {m_steps} خطوات.',
+        bullets_en=[
+            f"Category: {result['category']}",
+            f"Fields detected: {n_fields}",
+            f"Chain: {chain_en}" if chain_en else "Chain: (none)",
+        ],
+        bullets_ar=[
+            f"التصنيف: {result['category']}",
+            f"الحقول المكتشفة: {n_fields}",
+            f"المسار: {chain_ar}" if chain_ar else "المسار: (لا يوجد)",
+        ],
+        # Navigation-only CTA: the workflow is ALREADY built and pushed to DRAFT by
+        # this handler, so the CTA must NOT re-run admin.buildWorkflow — doing so
+        # would (a) arrive with an empty prompt in the live path and error, and
+        # (b) clobber the richer workflow just set. Navigating is sufficient.
+        cta={
+            "labelEn": "Open in Canvas",
+            "labelAr": "فتح في اللوحة",
+            "to": "/admin/workflows",
+        },
+    )
+    return {"card": card, "effects": effects}
+
+
+async def admin_build_workflow(session: Session, user: AppUser, ctx: dict[str, Any], provider: Any) -> dict[str, Any]:
+    """NL description of an approval chain -> canvas WorkflowStep[] (studio draft)."""
+    prompt_text = (ctx.get("prompt") or "").strip()
+    if not prompt_text:
+        raise SSEError(
+            "Describe the approval chain you'd like me to build.",
+            "صف مسار الاعتماد الذي تريد بناءه.",
+        )
+    try:
+        ir = await workflow_parse.parse_workflow_ir(prompt_text, provider)
+        steps = workflow_parse.expand_ir_to_steps(ir, session=session)
+    except Exception as exc:  # noqa: BLE001 - graceful SSE error, never a 500
+        logger.exception("build_workflow failed")
+        raise SSEError(
+            "I couldn't build the workflow just now. Please try again.",
+            "تعذّر بناء المسار الآن. يرجى المحاولة مرة أخرى.",
+        ) from exc
+
+    if not steps:
+        raise SSEError(
+            "I couldn't identify any approval steps in that description.",
+            "لم أتمكن من تحديد أي خطوات اعتماد في هذا الوصف.",
+        )
+
+    m_steps = len(steps)
+    n_sign = sum(1 for s in steps if s.get("sign"))
+    n_reject = sum(1 for s in steps if s.get("rejectable"))
+    chain_en, chain_ar = _chain_summary(steps)
+    effects = [{"type": "setWorkflow", "workflowId": DRAFT, "steps": steps}]
+    card = _card(
+        "Workflow built",
+        "تم بناء المسار",
+        f"{m_steps} nodes wired — {n_sign} signing, {n_reject} with reject paths.",
+        f"تم ربط {m_steps} عُقد — {n_sign} توقيع، {n_reject} بمسارات رفض.",
+        bullets_en=[f"Chain: {chain_en}"] if chain_en else None,
+        bullets_ar=[f"المسار: {chain_ar}"] if chain_ar else None,
+    )
+    return {"card": card, "effects": effects}
+
+
+# ===========================================================================
 # Dispatch table + stage declarations.
 # ===========================================================================
 HANDLERS = {
@@ -568,6 +689,8 @@ HANDLERS = {
     "requester.autoFill": requester_auto_fill,
     "requester.translate": requester_translate,
     "admin.translateTemplate": admin_translate_template,
+    "admin.generateTemplate": admin_generate_template,
+    "admin.buildWorkflow": admin_build_workflow,
 }
 
 
@@ -610,6 +733,18 @@ STAGES: dict[str, list[dict[str, str]]] = {
     "admin.translateTemplate": [
         _stage("translate", "Translating to the other language…", "الترجمة للغة الأخرى…", "Translating the template…", "ترجمة النموذج…"),
         _stage("layout", "Applying the layout…", "تطبيق التخطيط…", "Formatting the preview…", "تنسيق المعاينة…"),
+    ],
+    "admin.generateTemplate": [
+        _stage("read", "Reading your request…", "قراءة طلبك…", "Understanding the request…", "فهم الطلب…"),
+        _stage("draft", "Drafting an official EHCD memo…", "صياغة مذكرة رسمية…", "Writing the letter…", "كتابة الخطاب…"),
+        _stage("structure", "Structuring justification & budget…", "هيكلة المبررات والميزانية…", "Structuring the memo…", "هيكلة المذكرة…"),
+        _stage("detect", "Detecting fields to make reusable…", "اكتشاف الحقول القابلة لإعادة الاستخدام…", "Detecting fields…", "اكتشاف الحقول…"),
+    ],
+    "admin.buildWorkflow": [
+        _stage("read", "Reading your flow…", "قراءة المسار…", "Reading the chain…", "قراءة السلسلة…"),
+        _stage("place", "Placing approval nodes…", "إضافة عُقد الاعتماد…", "Placing nodes…", "إضافة العُقد…"),
+        _stage("wire", "Wiring the chain…", "ربط السلسلة…", "Wiring the chain…", "ربط السلسلة…"),
+        _stage("enable", "Enabling sign & reject…", "تفعيل التوقيع والرفض…", "Enabling sign & reject…", "تفعيل التوقيع والرفض…"),
     ],
 }
 

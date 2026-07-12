@@ -27,6 +27,20 @@ class LLMProvider(Protocol):
         """Return the assistant message content for a chat completion."""
         ...
 
+    async def complete_structured(
+        self,
+        messages: list[dict[str, Any]],
+        schema: dict[str, Any],
+        *,
+        name: str = "out",
+        temperature: float = 0.2,
+        max_tokens: int = 1200,
+        **opts: Any,
+    ) -> dict[str, Any]:
+        """Return a schema-validated JSON object (json_schema strict, with a
+        json_object retry fallback)."""
+        ...
+
     def astream(
         self,
         messages: list[dict[str, Any]],

@@ -65,20 +65,24 @@ function PanelBody({ onCollapse }: { onCollapse: () => void }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages])
 
-  const fire = (actionId: AiActionId) => {
+  const fire = (actionId: AiActionId, prompt?: string) => {
     if (isRunning) return
     run({
       actionId,
       role: user.role,
       currentUserId: user.id,
       corrId: viewerCorrId ?? undefined,
+      prompt,
     })
   }
 
   const onSend = () => {
     if (!input.trim() || isRunning || !chips.length) return
+    // Capture the typed text BEFORE clearing so the live SSE bridge receives the
+    // prompt the Step-6a handlers (generateTemplate / buildWorkflow) require.
+    const text = input.trim()
     setInput('')
-    fire(chips[0].actionId)
+    fire(chips[0].actionId, text)
   }
 
   return (
