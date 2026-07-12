@@ -14,6 +14,10 @@ services:
     extra_hosts:
       # Lets the container resolve the host's shared pg/qdrant/vllm on Linux.
       - "host.docker.internal:host-gateway"
+    volumes:
+      # Serve the built SPA (nazo-ai/dist) at / via StaticFiles (STATIC_DIR=/app/static).
+      # dist is git-ignored; build it locally (vite) and copy to ../nazo-ai/dist on the host.
+      - ../nazo-ai/dist:/app/static:ro
     depends_on:
       - gotenberg
     restart: unless-stopped

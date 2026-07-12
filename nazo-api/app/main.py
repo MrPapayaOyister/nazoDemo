@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.db import create_db_and_tables
 from app.routers import (
@@ -82,9 +83,20 @@ app.include_router(correspondences.router)
 app.include_router(documents.router)
 app.include_router(ai.router)
 
-# Mount the SPA last so /api/* routes take precedence.
-if os.path.isdir(STATIC_DIR):
-    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="spa")
+# Mount the SPA last so /api/* routes take precedence. SPA fallback: any unknown
+# non-/api path (client routes like /profile) serves index.html instead of 404.
+class _SPAStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise
+
+
+if os.path.isdir(STATIC_DIR) and os.path.isfile(os.path.join(STATIC_DIR, "index.html")):
+    app.mount("/", _SPAStaticFiles(directory=STATIC_DIR, html=True), name="spa")
     logger.info("Serving built frontend from %s", STATIC_DIR)
 else:
     logger.info("No built frontend at %s; skipping static mount", STATIC_DIR)
