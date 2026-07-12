@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from sqlalchemy import JSON, Column, Index, Text, text
+from sqlalchemy import JSON, Column, Index, LargeBinary, Text, UniqueConstraint, text
 from sqlmodel import Field, SQLModel
 
 # ---------------------------------------------------------------------------
@@ -216,12 +216,29 @@ class CorrespondenceVersion(SQLModel, table=True):
     """Rendered document snapshots per revision (later phases)."""
 
     __tablename__ = "correspondence_version"
+    __table_args__ = (
+        # One row per (correspondence, version). Two overlapping background
+        # snapshots that computed the same next-version number collide here on
+        # INSERT; snapshot_version retries (recomputing the max) on the resulting
+        # IntegrityError instead of writing a duplicate version.
+        UniqueConstraint(
+            "correspondence_id", "version", name="uq_corr_version_number"
+        ),
+    )
 
     id: str = Field(primary_key=True)
     correspondence_id: str = Field(foreign_key="correspondence.id", index=True)
     version: int = 1
     doc_html: str = Field(sa_column=Column(Text))
     values: dict[str, str] = Field(default_factory=dict, sa_column=_json_column())
+    # Rendered document bytes (Phase 3 STEP 7). Nullable bytea/LargeBinary — a
+    # snapshot may store the signed PDF and a best-effort DOCX for audit/download.
+    pdf_bytes: Optional[bytes] = Field(
+        default=None, sa_column=Column(LargeBinary, nullable=True)
+    )
+    docx_bytes: Optional[bytes] = Field(
+        default=None, sa_column=Column(LargeBinary, nullable=True)
+    )
     created_at: str  # ISO string
 
 

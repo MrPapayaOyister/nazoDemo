@@ -11,7 +11,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Iterator, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -19,6 +19,7 @@ from app.deps import get_current_user, get_session
 from app.models import AppUser, Correspondence, CorrespondenceStep
 from app.routers.serializers import order_correspondences, serialize_correspondence
 from app.services import graph, workflow
+from app.services.documents import snapshot_version_bg
 from app.services.workflow import WorkflowError
 
 router = APIRouter(prefix="/api/correspondences", tags=["correspondences"])
@@ -195,6 +196,7 @@ def send(
 @router.post("/{corr_id}/approve")
 def approve(
     corr_id: str,
+    background_tasks: BackgroundTasks,
     body: ApproveBody = ApproveBody(),
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
@@ -210,6 +212,8 @@ def approve(
         )
         session.commit()
         session.refresh(corr)
+    # Post-commit audit snapshot (renders signed PDF/DOCX) — non-blocking, best-effort.
+    background_tasks.add_task(snapshot_version_bg, corr.id)
     return _serialize(session, corr)
 
 
@@ -231,6 +235,7 @@ def reject(
 @router.post("/{corr_id}/revise")
 def revise(
     corr_id: str,
+    background_tasks: BackgroundTasks,
     body: ReviseBody = ReviseBody(),
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
@@ -240,6 +245,8 @@ def revise(
         workflow.revise(session, current_user, corr, values=body.values)
         session.commit()
         session.refresh(corr)
+    # Post-commit audit snapshot — non-blocking, best-effort.
+    background_tasks.add_task(snapshot_version_bg, corr.id)
     return _serialize(session, corr)
 
 
