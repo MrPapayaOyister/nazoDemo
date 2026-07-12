@@ -110,25 +110,119 @@ GENERATION_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
 }
 
+# Arabic-native generation schema (F2). Same structural-first ordering so the long
+# bodyAr decodes LAST and only its tail can truncate; titleAr is primary, bodyAr is
+# a FULL Arabic memo, and content labels are Arabic-first.
+GENERATION_SCHEMA_AR: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "titleAr": {"type": "string"},
+        "titleEn": {"type": "string"},
+        "category": {"type": "string", "enum": ["Approval", "Circular", "Announcement"]},
+        "contentVariables": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "tag": {"type": "string"},
+                    "labelAr": {"type": "string"},
+                    "labelEn": {"type": "string"},
+                    "type": {"type": "string", "enum": ["Text", "Date"]},
+                    "group": {"type": "string", "enum": ["Requester"]},
+                },
+                "required": ["tag", "labelAr", "labelEn", "type", "group"],
+                "additionalProperties": False,
+            },
+        },
+        "workflow_ir": WORKFLOW_IR_SCHEMA,
+        "bodyAr": {"type": "string"},
+    },
+    "required": [
+        "titleAr",
+        "titleEn",
+        "category",
+        "contentVariables",
+        "workflow_ir",
+        "bodyAr",
+    ],
+    "additionalProperties": False,
+}
+
 _GEN_SYSTEM = (
-    "You are Nazo, drafting official bilingual (English/Arabic) memos for the EHCD "
-    "government e-correspondence system. Produce a reusable TEMPLATE, not a filled "
-    "letter: put reusable data behind {{PLACEHOLDER}} tokens (e.g. {{VENDOR}}, "
-    "{{AMOUNT}}, {{SUBJECT}}, {{AUDIENCE}}) — NEVER write a literal money amount or "
-    "reference number. bodyEn is the English letter BODY as one or more HTML "
-    "<p> paragraphs (no letterhead, no subject heading, no signature block — those "
-    "are added automatically). Every {{PLACEHOLDER}} you use in bodyEn (other than "
-    "reference number, date, or signatures) MUST be declared in contentVariables. "
-    "contentVariables lists ONLY the requester-filled Text/Date placeholders you "
-    "used in the body (group 'Requester'); do NOT list reference number, date, or "
-    "signatures. workflow_ir is the approval chain. The Arabic view is produced by "
-    "a separate translation step, so do NOT write an Arabic body here. "
-    "Keep it concise and formal. Reply with ONLY the JSON object."
+    "You are Nazo, drafting official government memos for the EHCD e-correspondence "
+    "system. Produce a reusable TEMPLATE, not a filled letter: put reusable data "
+    "behind {{PLACEHOLDER}} tokens (e.g. {{VENDOR}}, {{AMOUNT}}, {{SUBJECT}}, "
+    "{{AUDIENCE}}) — NEVER write a literal money amount or reference number. "
+    "bodyEn MUST be a COMPLETE, full-page official memo of roughly 350-500 words, "
+    "written as multiple HTML <p> paragraphs and organised into clearly labelled "
+    "sections IN THIS ORDER: (1) an opening/reference line addressing the recipient; "
+    "(2) a <strong>Background</strong> paragraph giving the context and mandate; "
+    "(3) a <strong>Justification</strong> paragraph explaining the rationale and "
+    "expected benefit; (4) a <strong>Details / Scope</strong> paragraph or an "
+    "itemised <ul> breakdown; (5) an explicit <strong>Request / Recommendation</strong> "
+    "paragraph stating precisely what approval or action is sought; (6) a courteous "
+    "closing line. Do NOT include the letterhead, the subject heading, or the "
+    "signature block — those are added automatically. Every {{PLACEHOLDER}} you use "
+    "in bodyEn (other than reference number, date, or signatures) MUST be declared in "
+    "contentVariables. contentVariables lists ONLY the requester-filled Text/Date "
+    "placeholders you used in the body (group 'Requester'); do NOT list reference "
+    "number, date, or signatures. workflow_ir is the approval chain. The Arabic view "
+    "is produced by a separate call, so do NOT write any Arabic body here. Be "
+    "comprehensive, detailed, and formal. Reply with ONLY the JSON object."
+)
+
+# Arabic-native generation system prompt (F2). The Arabic memo is drafted in its
+# OWN structured call — never emitted alongside the English body (that truncates).
+_GEN_SYSTEM_AR = (
+    "أنت نازو، تُعِدّ مذكّرات حكومية رسمية لنظام المراسلات الإلكترونية EHCD. "
+    "Produce a reusable Arabic TEMPLATE. Write EVERYTHING in formal Modern Standard "
+    "Arabic. bodyAr MUST be a COMPLETE full-page official Arabic memo of roughly "
+    "350-500 words, written as multiple HTML <p> paragraphs and organised into "
+    "clearly labelled Arabic sections IN THIS ORDER: سطر افتتاحي/الإشارة، ثم فقرة "
+    "بعنوان <strong>الخلفية</strong>، ثم فقرة <strong>المبررات</strong>، ثم فقرة "
+    "<strong>التفاصيل والنطاق</strong> (أو قائمة <ul>)، ثم فقرة <strong>الطلب/"
+    "التوصية</strong> تُبيّن بوضوح ما هو مطلوب اعتماده، ثم خاتمة مهذّبة. Put reusable "
+    "data behind {{PLACEHOLDER}} tokens (e.g. {{VENDOR}}, {{AMOUNT}}, {{SUBJECT}}) — "
+    "NEVER write a literal money amount or reference number. Do NOT include the "
+    "letterhead, the subject heading, or the signature block. Every {{PLACEHOLDER}} "
+    "used in bodyAr (other than reference number, date, or signatures) MUST be "
+    "declared in contentVariables with an Arabic labelAr. contentVariables lists "
+    "ONLY the requester-filled Text/Date placeholders (group 'Requester'). titleAr "
+    "is the Arabic subject; titleEn is a short English gloss of it. workflow_ir is "
+    "the approval chain. Be comprehensive and detailed, but do NOT exceed ~550 "
+    "words in bodyAr. Reply with ONLY the JSON object."
+)
+
+# Stronger reinforcement appended for the length-floor regeneration (F1).
+_LENGTH_FLOOR_EN = (
+    "Your previous draft was too short. Rewrite bodyEn as a COMPREHENSIVE, DETAILED "
+    "memo of at least 350 words with MULTIPLE FULL PARAGRAPHS covering every labelled "
+    "section (Background, Justification, Details/Scope, Request/Recommendation, "
+    "closing). Do not be terse. Reply with ONLY the JSON object."
+)
+_LENGTH_FLOOR_AR = (
+    "كانت مسودتك السابقة قصيرة جداً. أعِد كتابة bodyAr كمذكرة شاملة ومفصّلة لا تقل عن "
+    "350 كلمة ولا تتجاوز 550 كلمة، بعدّة فقرات كاملة تغطي كل الأقسام (الخلفية، المبررات، "
+    "التفاصيل والنطاق، الطلب/التوصية، الخاتمة). لا تختصر. أجب بكائن JSON فقط."
 )
 
 _TAG_RE = re.compile(r"^\{\{[A-Z0-9_]+\}\}$")
 _HTML_HINT_RE = re.compile(r"<[a-zA-Z/]")
 _TOKEN_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
+_STRIP_TAGS_RE = re.compile(r"<[^>]+>")
+# Arabic-script and Latin codepoints (used to auto-detect an Arabic prompt for F2).
+_ARABIC_RE = re.compile(
+    "[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]"
+)
+_LATIN_RE = re.compile("[A-Za-z]")
+# Minimum body word count before the length-floor regeneration kicks in (F1).
+_BODY_WORD_FLOOR = 220
+# Token budgets. English 500 words ~= 700 tokens fits 2200 with headroom. Arabic
+# tokenizes on Qwen at ~2-3 tokens/word, so a 350-500 word AR memo plus HTML tags,
+# contentVariables, workflow_ir, titles and JSON escaping can reach ~2000-2600
+# tokens; give it real headroom so a truncated (unparseable) reply can't occur.
+_EN_MAX_TOKENS = 2200
+_AR_MAX_TOKENS = 3400
 # Literal money the model was told never to emit (e.g. "AED 75,000", "$1,200").
 _AMOUNT_RE = re.compile(r"(?:AED|USD|\$|SAR|EUR|€)\s*[0-9][0-9,\.]*", re.IGNORECASE)
 
@@ -204,9 +298,12 @@ def _body_to_html(body: str) -> str:
     return "\n".join(f"<p>{b}</p>" for b in blocks)
 
 
-def _clean_content_variables(raw: Any) -> list[dict[str, Any]]:
+def _clean_content_variables(raw: Any, lang: str = "en") -> list[dict[str, Any]]:
     """Sanitize the LLM contentVariables: valid tag, Text/Date only, group
-    Requester, deduped and excluding the standard/reserved tags."""
+    Requester, deduped and excluding the standard/reserved tags.
+
+    lang selects which label is authoritative: for 'ar' the Arabic label is primary
+    (English falls back to it), for 'en' the English label is primary."""
     out: list[dict[str, Any]] = []
     seen: set[str] = set(_STANDARD_TAGS)
     reserved = {t for (t, _, _) in _ROLE_SIG.values()}
@@ -219,8 +316,13 @@ def _clean_content_variables(raw: Any) -> list[dict[str, Any]]:
         vtype = v.get("type")
         if vtype not in ("Text", "Date"):
             vtype = "Text"
-        label_en = str(v.get("labelEn") or tag.strip("{}").replace("_", " ").title()).strip()
-        label_ar = str(v.get("labelAr") or label_en).strip()
+        fallback = tag.strip("{}").replace("_", " ").title()
+        if lang == "ar":
+            label_ar = str(v.get("labelAr") or fallback).strip()
+            label_en = str(v.get("labelEn") or label_ar).strip()
+        else:
+            label_en = str(v.get("labelEn") or fallback).strip()
+            label_ar = str(v.get("labelAr") or label_en).strip()
         seen.add(tag)
         out.append(
             {
@@ -295,15 +397,132 @@ def _assemble_doc_html(
     return "\n" + "\n".join(parts) + "\n"
 
 
+def _assemble_doc_html_ar(
+    title_ar: str,
+    body_html: str,
+    content_vars: list[dict[str, Any]],
+    sig_tags: list[str],
+) -> str:
+    """Arabic (F2) counterpart of _assemble_doc_html: RTL wrapper + Arabic
+    letterhead ({{LETTERHEAD}} resolves to the Arabic org block when lang='ar'),
+    Arabic subject/meta labels, Arabic body, Amiri / Noto Naskh font-family. Every
+    variable tag is still GUARANTEED to appear so the renderer highlights it."""
+    parts: list[str] = ["{{LETTERHEAD}}", f"<h1>الموضوع: {title_ar}</h1>"]
+    parts.append(
+        '<p class="meta"><strong>الإشارة:</strong> {{REF_NO}} &nbsp;&nbsp; '
+        "<strong>التاريخ:</strong> {{DATE}}</p>"
+    )
+    if body_html:
+        parts.append(body_html)
+
+    assembled = "\n".join(parts)
+    missing = [v for v in content_vars if v["tag"] not in assembled]
+    if missing:
+        cells = " &nbsp;&nbsp; ".join(
+            f"<strong>{v['labelAr']}:</strong> {v['tag']}" for v in missing
+        )
+        parts.append(f'<p class="meta">{cells}</p>')
+
+    parts.append("<p>وتفضلوا بقبول فائق الاحترام،</p>")
+    if sig_tags:
+        parts.append('<div class="sign-block">' + "".join(sig_tags) + "</div>")
+
+    inner = "\n".join(parts)
+    return (
+        '\n<div dir="rtl" style="font-family:\'Amiri\',\'Noto Naskh Arabic\','
+        "'Scheherazade New',serif\">\n" + inner + "\n</div>\n"
+    )
+
+
+def _word_count(html_or_text: str) -> int:
+    """Whitespace-token count of body text with any HTML tags stripped."""
+    text = _STRIP_TAGS_RE.sub(" ", html_or_text or "")
+    return len(text.split())
+
+
+def _detect_lang(prompt: str) -> str:
+    """Ratio-based auto-detect: 'ar' only when Arabic is the DOMINANT script.
+
+    A predominantly-English request that merely mentions one Arabic entity name
+    (a vendor, a person, 'مكتب' …) must stay 'en'. We return 'ar' only when
+    Arabic-script letters outnumber Latin letters (>50% of alphabetic chars).
+    An explicit `lang` argument to generate_template overrides this entirely."""
+    text = prompt or ""
+    arabic = len(_ARABIC_RE.findall(text))
+    latin = len(_LATIN_RE.findall(text))
+    if arabic == 0:
+        return "en"
+    if latin == 0:
+        return "ar"
+    return "ar" if arabic > latin else "en"
+
+
+def _build_variables_and_doc(
+    *,
+    lang: str,
+    title_primary: str,
+    body_html: str,
+    content_vars: list[dict[str, Any]],
+    workflow: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Shared tail for both languages: build the signature vars, assemble docHtml,
+    reconcile orphan tokens, and return (docHtml, full variables list)."""
+    sig_vars = _signature_vars_for(workflow)
+    sig_tags = [v["tag"] for v in sig_vars]
+    if lang == "ar":
+        doc_html = _assemble_doc_html_ar(title_primary, body_html, content_vars, sig_tags)
+    else:
+        doc_html = _assemble_doc_html(title_primary, body_html, content_vars, sig_tags)
+
+    known_tags = (
+        _STANDARD_TAGS
+        | {v["tag"] for v in content_vars}
+        | set(sig_tags)
+        | {"{{LETTERHEAD}}"}
+    )
+    orphan_vars = _reconcile_orphan_tokens(doc_html, known_tags)
+    content_vars = content_vars + orphan_vars
+    variables = [dict(v) for v in STANDARD_VARS] + content_vars + sig_vars
+    return doc_html, variables
+
+
+def _resolve_workflow(data: dict[str, Any], session: Optional[Any]) -> list[dict[str, Any]]:
+    """Deterministic workflow from the IR, with the seeded STANDARD chain fallback."""
+    ir = data.get("workflow_ir") if isinstance(data.get("workflow_ir"), dict) else {"steps": []}
+    workflow = workflow_parse.expand_ir_to_steps(ir, session=session)
+    if not workflow:
+        workflow = workflow_parse.expand_ir_to_steps(_DEFAULT_IR, session=session)
+    return workflow
+
+
+def _category_of(data: dict[str, Any]) -> str:
+    category = data.get("category")
+    return category if category in _CATEGORIES else "Approval"
+
+
 async def generate_template(
     prompt: str,
     provider: Optional[Any] = None,
     *,
     session: Optional[Any] = None,
+    lang: Optional[str] = None,
 ) -> dict[str, Any]:
     """HERO generator. Returns a studio draft:
-    {titleEn, titleAr, category, lang:'en', docHtml, variables, workflow}."""
+    {titleEn, titleAr, category, lang, docHtml, variables, workflow}.
+
+    Target language = explicit `lang` when 'en'/'ar', else auto-detected from the
+    prompt (Arabic characters -> 'ar'). Arabic runs as its OWN structured call
+    (never emitted alongside English) so a full Arabic memo is produced."""
     provider = provider or get_provider()
+    target_lang = lang if lang in ("en", "ar") else _detect_lang(prompt)
+    if target_lang == "ar":
+        return await _generate_ar(prompt, provider, session)
+    return await _generate_en(prompt, provider, session)
+
+
+async def _generate_en(
+    prompt: str, provider: Any, session: Optional[Any]
+) -> dict[str, Any]:
     messages = [
         {"role": "system", "content": _GEN_SYSTEM},
         {"role": "user", "content": (prompt or "").strip() or "Draft a standard approval memo."},
@@ -313,49 +532,98 @@ async def generate_template(
         GENERATION_SCHEMA,
         name="template_generation",
         temperature=0.3,
-        max_tokens=1400,
+        max_tokens=_EN_MAX_TOKENS,
     )
+    body_raw = str(data.get("bodyEn") or "")
+
+    # Length floor (F1): a too-short body triggers ONE stronger regeneration; the
+    # longer of the two drafts wins so we never regress below the first attempt.
+    if _word_count(body_raw) < _BODY_WORD_FLOOR:
+        try:
+            data2 = await provider.complete_structured(
+                messages + [{"role": "system", "content": _LENGTH_FLOOR_EN}],
+                GENERATION_SCHEMA,
+                name="template_generation",
+                temperature=0.35,
+                max_tokens=_EN_MAX_TOKENS,
+            )
+            if _word_count(str(data2.get("bodyEn") or "")) > _word_count(body_raw):
+                data, body_raw = data2, str(data2.get("bodyEn") or "")
+        except Exception:  # noqa: BLE001 - keep the first draft if the retry fails
+            logger.warning("EN length-floor regeneration failed; keeping first draft")
 
     title_en = str(data.get("titleEn") or "Official Memo").strip()
     title_ar = str(data.get("titleAr") or title_en).strip()
-    category = data.get("category")
-    if category not in _CATEGORIES:
-        category = "Approval"
-
-    # Workflow (deterministic ids/units/positions; assignee enum-locked upstream).
-    ir = data.get("workflow_ir") if isinstance(data.get("workflow_ir"), dict) else {"steps": []}
-    workflow = workflow_parse.expand_ir_to_steps(ir, session=session)
-    if not workflow:
-        # Empty / all-off-enum IR — fall back to the seeded STANDARD chain so the
-        # hero always produces a signable, wired template.
-        workflow = workflow_parse.expand_ir_to_steps(_DEFAULT_IR, session=session)
-
-    # Variables: STANDARD + LLM content + one Signature per signing step.
-    content_vars = _clean_content_variables(data.get("contentVariables"))
-    sig_vars = _signature_vars_for(workflow)
-
-    body_html = _body_to_html(_scrub_amounts(str(data.get("bodyEn") or "")))
-    sig_tags = [v["tag"] for v in sig_vars]
-    doc_html = _assemble_doc_html(title_en, body_html, content_vars, sig_tags)
-
-    # Reconcile doc -> variables: register any stray {{TOKEN}} the model wove into
-    # the body but did not declare, so every placeholder in docHtml is highlighted.
-    known_tags = (
-        _STANDARD_TAGS
-        | {v["tag"] for v in content_vars}
-        | set(sig_tags)
-        | {"{{LETTERHEAD}}"}
+    category = _category_of(data)
+    workflow = _resolve_workflow(data, session)
+    content_vars = _clean_content_variables(data.get("contentVariables"), lang="en")
+    body_html = _body_to_html(_scrub_amounts(body_raw))
+    doc_html, variables = _build_variables_and_doc(
+        lang="en",
+        title_primary=title_en,
+        body_html=body_html,
+        content_vars=content_vars,
+        workflow=workflow,
     )
-    orphan_vars = _reconcile_orphan_tokens(doc_html, known_tags)
-    content_vars = content_vars + orphan_vars
-
-    variables = [dict(v) for v in STANDARD_VARS] + content_vars + sig_vars
-
     return {
         "titleEn": title_en,
         "titleAr": title_ar,
         "category": category,
         "lang": "en",
+        "docHtml": doc_html,
+        "variables": variables,
+        "workflow": workflow,
+    }
+
+
+async def _generate_ar(
+    prompt: str, provider: Any, session: Optional[Any]
+) -> dict[str, Any]:
+    messages = [
+        {"role": "system", "content": _GEN_SYSTEM_AR},
+        {"role": "user", "content": (prompt or "").strip() or "أعدّ مذكرة اعتماد رسمية."},
+    ]
+    data = await provider.complete_structured(
+        messages,
+        GENERATION_SCHEMA_AR,
+        name="template_generation_ar",
+        temperature=0.3,
+        max_tokens=_AR_MAX_TOKENS,
+    )
+    body_raw = str(data.get("bodyAr") or "")
+
+    if _word_count(body_raw) < _BODY_WORD_FLOOR:
+        try:
+            data2 = await provider.complete_structured(
+                messages + [{"role": "system", "content": _LENGTH_FLOOR_AR}],
+                GENERATION_SCHEMA_AR,
+                name="template_generation_ar",
+                temperature=0.35,
+                max_tokens=_AR_MAX_TOKENS,
+            )
+            if _word_count(str(data2.get("bodyAr") or "")) > _word_count(body_raw):
+                data, body_raw = data2, str(data2.get("bodyAr") or "")
+        except Exception:  # noqa: BLE001 - keep the first draft if the retry fails
+            logger.warning("AR length-floor regeneration failed; keeping first draft")
+
+    title_ar = str(data.get("titleAr") or "مذكرة رسمية").strip()
+    title_en = str(data.get("titleEn") or title_ar).strip()
+    category = _category_of(data)
+    workflow = _resolve_workflow(data, session)
+    content_vars = _clean_content_variables(data.get("contentVariables"), lang="ar")
+    body_html = _body_to_html(_scrub_amounts(body_raw))
+    doc_html, variables = _build_variables_and_doc(
+        lang="ar",
+        title_primary=title_ar,
+        body_html=body_html,
+        content_vars=content_vars,
+        workflow=workflow,
+    )
+    return {
+        "titleEn": title_en,
+        "titleAr": title_ar,
+        "category": category,
+        "lang": "ar",
         "docHtml": doc_html,
         "variables": variables,
         "workflow": workflow,

@@ -12,14 +12,23 @@ Safety guarantees:
   * Fully idempotent: DROP + CREATE the allowlisted tables (so schema changes such
     as new columns/indexes take effect), re-insert seed rows, and reset the ref
     counter to REF_START.
+
+Custom-signature PRESERVATION:
+  * BEFORE the drop+create, every Signature row with is_custom=True (a user's own
+    uploaded/drawn signature) is backed up in memory. After the normal re-seed
+    (which restores the default is_custom=False signatures), those custom rows are
+    re-inserted and their owning users' signature_id re-pointed to them.
+  * Net effect: demo state (correspondences / steps / templates / ref_counter)
+    resets to seed, but user-customized signatures PERSIST across reset. The
+    fail-closed current_database=='nazo' guard and the allowlist scope are unchanged.
 """
 
 from __future__ import annotations
 
 import logging
 
-from sqlalchemy import make_url, text
-from sqlmodel import Session, SQLModel
+from sqlalchemy import inspect as sa_inspect, make_url, text
+from sqlmodel import Session, SQLModel, select
 
 from app.config import settings
 from app.db import create_db_and_tables, engine
@@ -150,14 +159,86 @@ def _upsert_seed(session: Session) -> None:
     )
 
 
+def _backup_custom_signatures(session: Session) -> list[dict]:
+    """Read the is_custom=True signature rows to preserve across the rebuild.
+
+    Runs in its OWN short-lived session (closed before the drop) so its ACCESS SHARE
+    lock on `signature` never blocks the drop_all.
+
+    Only the genuine pre-migration case — the `is_custom` column not existing yet —
+    is treated as 'nothing to preserve'. It is detected up front by inspecting the
+    live schema, NOT by catching every exception around the query. That way a real
+    backup failure on a healthy post-migration DB (connection blip, lock/deadlock,
+    serialization failure) PROPAGATES and aborts reset_all() BEFORE the destructive
+    drop runs, so custom signatures are never silently wiped."""
+    try:
+        cols = {c["name"] for c in sa_inspect(engine).get_columns(Signature.__tablename__)}
+    except Exception as exc:  # noqa: BLE001 - table itself absent on a fresh DB
+        logger.info("signature table not present yet; nothing to preserve (%s)", exc)
+        return []
+    if "is_custom" not in cols:
+        logger.info("is_custom column absent (pre-migration DB); nothing to preserve")
+        return []
+    # Real query — any failure here raises and aborts reset BEFORE drop_all.
+    rows = list(
+        session.exec(
+            select(Signature).where(Signature.is_custom == True)  # noqa: E712
+        ).all()
+    )
+    backup = [
+        {
+            "id": r.id,
+            "owner_id": r.owner_id,
+            "data_uri": r.data_uri,
+            "style": r.style,
+        }
+        for r in rows
+    ]
+    if backup:
+        logger.info("Preserving %d custom signature(s) across reset", len(backup))
+    return backup
+
+
+def _restore_custom_signatures(session: Session, backup: list[dict]) -> None:
+    """Re-insert the backed-up custom signatures (is_custom=True) and re-point their
+    owning users' signature_id at them, overriding the just-seeded defaults."""
+    if not backup:
+        return
+    for b in backup:
+        session.merge(
+            Signature(
+                id=b["id"],
+                owner_id=b["owner_id"],
+                data_uri=b["data_uri"],
+                style=b["style"],
+                is_custom=True,
+            )
+        )
+        user = session.get(AppUser, b["owner_id"])
+        if user is not None:
+            user.signature_id = b["id"]
+            session.add(user)
+    session.commit()
+    logger.info("Restored %d custom signature(s)", len(backup))
+
+
 def reset_all() -> None:
     """Create tables, truncate the nazo allowlist, re-seed, ensure the Qdrant
-    collection, and reset the ref counter to REF_START."""
+    collection, and reset the ref counter to REF_START.
+
+    User-customized signatures (is_custom=True) are preserved across the rebuild —
+    see the module docstring."""
     create_db_and_tables()
+    # Back up custom signatures FIRST, in a session that closes (releasing its lock)
+    # before the destructive drop+create.
+    with Session(engine) as backup_session:
+        custom_sigs = _backup_custom_signatures(backup_session)
+
     with Session(engine) as session:
         _rebuild_nazo_tables(session)
         _upsert_seed(session)
         reset_counter(session, settings.ref_start)
+        _restore_custom_signatures(session, custom_sigs)
         logger.info("Ref counter reset to %d", settings.ref_start)
 
     if ensure_collection():

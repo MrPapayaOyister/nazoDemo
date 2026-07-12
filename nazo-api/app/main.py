@@ -16,7 +16,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.db import create_db_and_tables
-from app.routers import ai, bootstrap, correspondences, documents, health, users
+from app.routers import (
+    ai,
+    bootstrap,
+    correspondences,
+    documents,
+    health,
+    templates,
+    users,
+)
 from app.services.rag import ensure_collection
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -69,6 +77,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(users.router)
 app.include_router(bootstrap.router)
+app.include_router(templates.router)
 app.include_router(correspondences.router)
 app.include_router(documents.router)
 app.include_router(ai.router)

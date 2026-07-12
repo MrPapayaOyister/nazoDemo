@@ -96,6 +96,29 @@ _IR_SYSTEM = (
 )
 
 
+def _role_has_signature(role: str, session: Optional[Any] = None) -> bool:
+    """True when the demo user who owns `role` currently has a signature on file.
+
+    Checked DYNAMICALLY against the DB (a signature-less user may gain a custom
+    signature via POST /api/users/{id}/signature, after which their signing steps
+    should no longer be downgraded). Falls back to the static seed mirror when no
+    session is supplied. Never raises — a lookup failure is treated as 'no signature'."""
+    uid = ROLE_TO_USER_ID.get(role)
+    if not uid:
+        return False
+    if session is not None:
+        try:
+            user = session.get(AppUser, uid)
+        except Exception:  # noqa: BLE001 - resolution must never break a stream
+            user = None
+        if user is not None:
+            return bool(user.signature_id)
+    seed = _USER_BY_ID.get(uid)
+    if seed:
+        return bool(seed.get("signatureId"))
+    return False
+
+
 def _role_units(role: str, session: Optional[Any] = None) -> tuple[str, str]:
     """(unitEn, unitAr) for a role, resolved from the seeded AppUser. Uses the DB
     row when a session is given, otherwise the static seed mirror. Falls back to
@@ -157,14 +180,46 @@ def expand_ir_to_steps(ir: dict[str, Any], session: Optional[Any] = None) -> lis
     """Deterministically expand a workflow IR into frontend WorkflowStep dicts.
 
     Ids, units, positions, Capitalized types and flags are computed here — the LLM
-    is never trusted for any of them."""
+    is never trusted for any of them.
+
+    Two determinism/quality passes make the suggested chain always sensible:
+      (a) CONSECUTIVE duplicate assignees are collapsed into ONE step (no
+          'Director -> Director'). When they differ, the STRONGER intent wins:
+          a 'review then sign by the same role' chain keeps the signing step (and
+          OR-merges the sign/reject flags) so an explicitly requested signature is
+          never silently dropped.
+      (b) a 'Signing' step whose assignee has NO signature on file (checked live via
+          the session) is DOWNGRADED to 'Approving' (sign=False) so we never suggest
+          an unsignable signing step."""
     steps_in = (ir or {}).get("steps") or []
-    out: list[dict[str, Any]] = []
-    seen: dict[str, int] = {}
-    for i, s in enumerate(steps_in):
+
+    # Pass (a): drop off-enum rows and collapse consecutive duplicate assignees.
+    normalized: list[dict[str, Any]] = []
+    for s in steps_in:
+        if not isinstance(s, dict):
+            continue
         role = s.get("assignee")
         if role not in ROLE_ENUM:
             continue
+        if normalized and normalized[-1].get("assignee") == role:
+            # Same role back-to-back — collapse into one, keeping the STRONGER
+            # intent. Merge sign/reject so a 'review then sign' pair still signs;
+            # if the incoming row signs and the retained one does not, adopt its
+            # signing action/type.
+            prev = normalized[-1]
+            prev_sign = bool(prev.get("sign", False)) or prev.get("action") == "sign"
+            cur_sign = bool(s.get("sign", False)) or s.get("action") == "sign"
+            if cur_sign and not prev_sign:
+                prev["action"] = s.get("action", prev.get("action", "approve"))
+            prev["sign"] = prev_sign or cur_sign
+            prev["reject"] = bool(prev.get("reject", True)) or bool(s.get("reject", True))
+            continue
+        normalized.append(dict(s))
+
+    out: list[dict[str, Any]] = []
+    seen: dict[str, int] = {}
+    for s in normalized:
+        role = s.get("assignee")
         action = s.get("action", "approve")
         sign = bool(s.get("sign", False))
         reject = bool(s.get("reject", True))
@@ -175,6 +230,11 @@ def expand_ir_to_steps(ir: dict[str, Any], session: Optional[Any] = None) -> lis
             step_type = "Reviewing"
         else:
             step_type = "Approving"
+
+        # Pass (b): an assignee with no signature cannot sign — downgrade to Approving.
+        if step_type == "Signing" and not _role_has_signature(role, session):
+            step_type = "Approving"
+            sign = False
 
         suffix = _ROLE_ID_SUFFIX.get(role, role)
         n = seen.get(role, 0)
