@@ -2,12 +2,17 @@
 
 Endpoints used:
   GET  {base}/models            -> health (configured model must be listed)
-  POST {base}/chat/completions  -> complete
+  POST {base}/chat/completions  -> complete / astream
+
+The served model is config-driven (settings.llm_model). Swapping to a newer Qwen
+(or any other OpenAI-compatible model the shared vLLM serves) is a single env var
+change (LLM_MODEL) — no code change here.
 """
 
 from __future__ import annotations
 
-from typing import Any
+import json
+from typing import Any, AsyncIterator
 
 import httpx
 
@@ -20,7 +25,7 @@ class OpenAIProvider:
         self,
         base_url: str | None = None,
         model: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = 60.0,
     ) -> None:
         self.base_url = (base_url or settings.llm_base_url).rstrip("/")
         self.model = model or settings.llm_model
@@ -31,19 +36,16 @@ class OpenAIProvider:
         messages: list[dict[str, Any]],
         *,
         temperature: float = 0.2,
-        max_tokens: int = 1024,
+        max_tokens: int = 700,
         **kwargs: Any,
     ) -> str:
-        """Minimal working chat-completions call.
-
-        Phase-2 note: no AI action wires this in yet, but the transport is real so
-        later phases can call it directly.
-        """
+        """Non-streaming chat-completions call. Returns the message content."""
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "stream": False,
         }
         payload.update(kwargs)
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -51,6 +53,55 @@ class OpenAIProvider:
             resp.raise_for_status()
             data = resp.json()
         return data["choices"][0]["message"]["content"]
+
+    async def astream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 700,
+        **kwargs: Any,
+    ) -> AsyncIterator[str]:
+        """Stream token deltas from vLLM.
+
+        POSTs with stream=true, parses the OpenAI-style Server-Sent-Event body
+        ("data: {json}\\n\\n" lines), and yields each content delta as it arrives.
+        Terminates on the sentinel "data: [DONE]". Malformed/keepalive lines are
+        skipped defensively so a stray chunk never aborts a hero call.
+        """
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        payload.update(kwargs)
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with client.stream(
+                "POST", f"{self.base_url}/chat/completions", json=payload
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line:
+                        continue
+                    line = line.strip()
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[len("data:"):].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = chunk.get("choices") or []
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta") or {}
+                    content = delta.get("content")
+                    if content:
+                        yield content
 
     async def health(self) -> LLMHealth:
         try:
