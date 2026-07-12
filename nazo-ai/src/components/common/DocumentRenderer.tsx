@@ -3,6 +3,7 @@ import type { Lang, TemplateVariable } from '@/types'
 import { Letterhead } from '@/components/common/Letterhead'
 import { SIGNATURE_BY_ID } from '@/data/signatures'
 import { USER_BY_ID } from '@/data/users'
+import { useStore } from '@/store'
 import { cn } from '@/lib/cn'
 
 interface DocumentRendererProps {
@@ -33,6 +34,8 @@ export function DocumentRenderer({
   className,
 }: DocumentRendererProps) {
   const isAr = lang === 'ar'
+  // custom (drawn/uploaded) signatures override the seeded scribbles at render time.
+  const customSignatures = useStore((s) => s.customSignatures)
 
   const bodyHtml = useMemo(() => {
     // strip the letterhead token (rendered as a component) and keep the body
@@ -49,15 +52,18 @@ export function DocumentRenderer({
 
       if (isSig) {
         const sigId = val
-        const sig = sigId ? SIGNATURE_BY_ID[sigId] : undefined
-        if (sig) {
-          const owner = USER_BY_ID[sig.ownerId]
+        const seeded = sigId ? SIGNATURE_BY_ID[sigId] : undefined
+        const dataUri = sigId ? (customSignatures[sigId] ?? seeded?.dataUri) : undefined
+        if (dataUri) {
+          // owner: seeded signature owner, else the 'sig_<userId>' this id encodes.
+          const ownerId = seeded?.ownerId ?? (sigId!.startsWith('sig_') ? sigId!.slice(4) : '')
+          const owner = USER_BY_ID[ownerId]
           const nm = owner ? (isAr ? owner.nameAr : owner.nameEn) : ''
           const ti = owner ? (isAr ? owner.titleAr : owner.titleEn) : ''
           const stampCls = tag === stampTag ? ' doc-sig--stamping' : ''
           return (
             `<span class="doc-sig">` +
-            `<img src="${sig.dataUri}" alt="signature" class="doc-sig-img${stampCls}"/>` +
+            `<img src="${dataUri}" alt="signature" class="doc-sig-img${stampCls}"/>` +
             `<span class="doc-sig-cap">${escapeHtml(nm)}<br/><span class="doc-sig-role">${escapeHtml(ti)}</span></span>` +
             `</span>`
           )
@@ -72,7 +78,7 @@ export function DocumentRenderer({
       }
       return ''
     })
-  }, [docHtml, values, variables, isAr, showTokens, stampTag])
+  }, [docHtml, values, variables, isAr, showTokens, stampTag, customSignatures])
 
   return (
     <div className={cn('nazo-doc', className)} dir={isAr ? 'rtl' : 'ltr'} lang={lang}>

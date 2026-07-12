@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { motion } from 'framer-motion'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, useCurrentUser } from '@/store'
 import { useLocalized } from '@/i18n'
@@ -45,7 +45,26 @@ export function UserSwitcher() {
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="z-50 w-[19rem] rounded-2xl bg-surface hairline shadow-e3 p-1.5"
           >
-            <div className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+            <DropdownMenu.Item
+              onSelect={() => navigate('/profile')}
+              className="flex items-center gap-3 rounded-xl px-2 py-2 cursor-pointer outline-none transition-colors data-[highlighted]:bg-hover"
+            >
+              <span className="grid place-items-center size-[34px] rounded-full bg-brand-subtle text-brand shrink-0">
+                <UserRound className="size-[18px]" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold text-ink">
+                  {tr('My Profile', 'ملفّي الشخصي')}
+                </span>
+                <span className="block text-[11px] text-ink-muted">
+                  {tr('Identity, preferences & signature', 'الهوية والتفضيلات والتوقيع')}
+                </span>
+              </span>
+            </DropdownMenu.Item>
+
+            <DropdownMenu.Separator className="my-1.5 h-px bg-line" />
+
+            <div className="px-2.5 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
               {tr('Switch identity — no login', 'تبديل الهوية — بدون تسجيل دخول')}
             </div>
             {users.map((u) => {

@@ -28,3 +28,6 @@ secrets/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# agent/editor scratch
+.claude/

@@ -18,6 +18,7 @@ import type {
   WorkflowStep,
 } from '@/types'
 import { USERS, USER_BY_ID } from '@/data/users'
+import { SIGNATURE_BY_ID } from '@/data/signatures'
 import {
   SEED_CORRESPONDENCES,
   TEMPLATES,
@@ -85,6 +86,11 @@ interface AppState {
   currentUserId: string
   ui: UiState
 
+  // custom signatures drawn/uploaded on the Profile page (signatureId -> dataUri).
+  // Overrides the seeded SIGNATURE_BY_ID at render time; persisted across reloads
+  // and preserved on resetDemo (mirrors the backend's preserve-on-reset decision).
+  customSignatures: Record<string, string>
+
   // domain data
   templates: Template[]
   correspondences: Correspondence[]
@@ -105,6 +111,8 @@ interface AppState {
 
   // ui actions
   switchUser: (id: string) => void
+  /** Store the active user's custom signature so the scripted app stamps it. */
+  setActiveUserSignature: (dataUri: string) => void
   setTheme: (t: Theme) => void
   toggleTheme: () => void
   setLang: (l: Lang) => void
@@ -157,6 +165,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       users: USERS,
       currentUserId: 'u_admin',
+      customSignatures: {},
       ui: { theme: 'light', lang: 'en', aiPanelOpen: true, navCollapsed: false },
 
       templates: TEMPLATES,
@@ -175,6 +184,18 @@ export const useStore = create<AppState>()(
 
       // ---- ui ----
       switchUser: (id) => set({ currentUserId: id }),
+      setActiveUserSignature: (dataUri) =>
+        set((s) => {
+          const uid = s.currentUserId
+          const user = s.users.find((u) => u.id === uid)
+          // The signature id the active user effectively owns — seeded, or a
+          // deterministic 'sig_<userId>' for identities with no seeded id.
+          // DocumentRenderer / effectiveSignatureId() both decode this form, so
+          // we key customSignatures off it directly and keep users[] untouched
+          // (single source of truth — no dead users[] mutation to drift).
+          const sigId = user?.signatureId ?? `sig_${uid}`
+          return { customSignatures: { ...s.customSignatures, [sigId]: dataUri } }
+        }),
       setTheme: (theme) => set((s) => ({ ui: { ...s.ui, theme } })),
       toggleTheme: () =>
         set((s) => ({ ui: { ...s.ui, theme: s.ui.theme === 'light' ? 'dark' : 'light' } })),
@@ -473,11 +494,20 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'nazo-ui',
-      // persist only theme + lang; everything else re-seeds each load.
-      partialize: (s) => ({ ui: { theme: s.ui.theme, lang: s.ui.lang } }),
+      // persist theme + lang + custom signatures; everything else re-seeds each load.
+      partialize: (s) => ({
+        ui: { theme: s.ui.theme, lang: s.ui.lang },
+        customSignatures: s.customSignatures,
+      }),
       merge: (persisted, current) => {
-        const p = persisted as { ui?: Partial<UiState> } | undefined
-        return { ...current, ui: { ...current.ui, ...(p?.ui ?? {}) } }
+        const p = persisted as
+          | { ui?: Partial<UiState>; customSignatures?: Record<string, string> }
+          | undefined
+        return {
+          ...current,
+          ui: { ...current.ui, ...(p?.ui ?? {}) },
+          customSignatures: { ...current.customSignatures, ...(p?.customSignatures ?? {}) },
+        }
       },
     },
   ),
@@ -511,6 +541,20 @@ export function useCorrespondence(id: string | null): Correspondence | undefined
 
 export function useTemplate(id: string | null): Template | undefined {
   return useStore((s) => (id ? s.templates.find((t) => t.id === id) : undefined))
+}
+
+/** The signature id a user effectively owns — seeded, or the deterministic
+ *  'sig_<userId>' minted for non-approvers who draw a custom signature. */
+export function effectiveSignatureId(user: Pick<User, 'id' | 'signatureId'>): string {
+  return user.signatureId ?? `sig_${user.id}`
+}
+
+/** Resolve a signature id to a data-URI: a stored custom signature wins over the
+ *  seeded scribble. Returns undefined when neither exists. */
+export function useSignatureUri(sigId: string | null | undefined): string | undefined {
+  const custom = useStore((s) => s.customSignatures)
+  if (!sigId) return undefined
+  return custom[sigId] ?? SIGNATURE_BY_ID[sigId]?.dataUri
 }
 
 /** Workflow steps re-exported for convenience where needed. */

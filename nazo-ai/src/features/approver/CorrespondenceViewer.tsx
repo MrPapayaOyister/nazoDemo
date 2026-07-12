@@ -20,11 +20,10 @@ import { ChainStepper, signedRolesOf } from '@/components/common/ChainStepper'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { PageTransition } from '@/components/common/PageTransition'
-import { useStore, useCurrentUser } from '@/store'
+import { useStore, useCurrentUser, useSignatureUri, effectiveSignatureId } from '@/store'
 import { useAI } from '@/ai/useAI'
 import { useLocalized } from '@/i18n'
 import { TEMPLATE_BY_ID } from '@/data/seed'
-import { SIGNATURE_BY_ID } from '@/data/signatures'
 import { aiReveal, EASE } from '@/lib/motion'
 import type { Lang, ResultCard } from '@/types'
 import { cn } from '@/lib/cn'
@@ -207,7 +206,7 @@ function ActionBar({
 
   const tpl = TEMPLATE_BY_ID[corr.templateId]
   const sigVar = tpl?.variables.find((v) => v.type === 'Signature' && v.group === user.role)
-  const sig = user.signatureId ? SIGNATURE_BY_ID[user.signatureId] : undefined
+  const sigUri = useSignatureUri(effectiveSignatureId(user))
   const comment = tr2(viewerComment, viewerCommentAr || viewerComment)
 
   const isLast = corr.currentStepIndex >= corr.workflow.length - 1
@@ -278,12 +277,12 @@ function ActionBar({
         </div>
 
         {/* signature */}
-        {mode === 'approve' && sig && (
+        {mode === 'approve' && sigUri && (
           <button
             onClick={() => setApplySig((v) => !v)}
             className="w-full flex items-center gap-3 rounded-xl hairline bg-app px-3 py-2 hover:bg-hover transition-colors"
           >
-            <img src={sig.dataUri} alt="signature" className="h-8 w-20 object-contain" />
+            <img src={sigUri} alt="signature" className="h-8 w-20 object-contain" />
             <span className="flex-1 text-start text-[12px] text-ink-secondary">{tr('Apply my signature', 'ختم توقيعي')}</span>
             <span className={cn('relative h-4 w-7 rounded-full transition-colors', applySig ? 'bg-ai' : 'bg-line-strong')}>
               <span className={cn('absolute top-0.5 size-3 rounded-full bg-white transition-all', applySig ? 'start-3.5' : 'start-0.5')} />
