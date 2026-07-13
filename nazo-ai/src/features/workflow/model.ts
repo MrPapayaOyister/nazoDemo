@@ -193,7 +193,9 @@ export interface WFValidation {
 
 /** Whether a user structurally OWNS a signature slot (a designated signer). */
 function ownsSignature(user: User): boolean {
-  return !!user.signatureId
+  // A user "owns a signature" if they have a default pointer OR any in their gallery
+  // (item 1 — multiple signatures per user).
+  return !!user.signatureId || (user.signatures?.length ?? 0) > 0
 }
 
 /**

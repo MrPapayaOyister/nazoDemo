@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.deps import get_current_user, get_session
-from app.models import AppUser, Template
+from app.models import AppUser, Correspondence, Template
 from app.routers.serializers import order_templates, serialize_template
 
 router = APIRouter(prefix="/api/templates", tags=["templates"])
@@ -110,6 +110,59 @@ def create_template(
         updated_at=_now_iso(),
         usage_count=0,
     )
+    session.add(tpl)
+    session.commit()
+    session.refresh(tpl)
+    return serialize_template(tpl)
+
+
+@router.put("/{template_id}")
+def update_template(
+    template_id: str,
+    body: CreateTemplateBody,
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+) -> dict:
+    """Update an existing template in place (item 4 — edit a saved template).
+
+    FUTURE-ONLY by construction: before overwriting the shared row, every existing
+    correspondence created from this template that has NOT already snapshotted its
+    own body/variables is FROZEN to the pre-edit template (its doc_html_override /
+    variables_override are set to the current template's body + variables). The
+    renderer + viewer resolve overrides first, so historical documents never change;
+    only correspondences created AFTER the edit use the new template. (Workflow is
+    already snapshotted per-correspondence at send-time, so it needs no freeze.)
+    """
+    tpl = session.get(Template, template_id)
+    if tpl is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template '{template_id}' not found.",
+        )
+
+    # Freeze existing correspondences to the PRE-edit body/variables (future-only).
+    frozen_doc = tpl.doc_html
+    frozen_vars = list(tpl.variables or [])
+    existing = session.exec(
+        select(Correspondence).where(Correspondence.template_id == template_id)
+    ).all()
+    for c in existing:
+        if c.doc_html_override is None:
+            c.doc_html_override = frozen_doc
+        if c.variables_override is None:
+            c.variables_override = frozen_vars
+        session.add(c)
+
+    # Overwrite the shared template with the edited content (validated like create).
+    tpl.name_en = (body.titleEn or "").strip() or tpl.name_en
+    tpl.name_ar = (body.titleAr or "").strip() or tpl.name_en
+    tpl.lang = body.lang if body.lang in ("en", "ar") else tpl.lang
+    tpl.category = body.category if body.category in _CATEGORIES else tpl.category
+    tpl.doc_html = body.docHtml or ""
+    tpl.variables = list(body.variables or [])
+    tpl.workflow = list(body.workflow or [])
+    tpl.updated_at = _now_iso()
+    # PRESERVE desc_*, twin_id, usage_count (not carried by the studio draft).
     session.add(tpl)
     session.commit()
     session.refresh(tpl)

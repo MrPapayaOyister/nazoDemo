@@ -29,7 +29,7 @@ import { useAI } from '@/ai/useAI'
 import { useLocalized } from '@/i18n'
 import { TEMPLATE_BY_ID } from '@/data/seed'
 import { aiReveal, EASE } from '@/lib/motion'
-import type { Lang, ResultCard } from '@/types'
+import type { Lang, ResultCard, SignatureMeta } from '@/types'
 import { cn } from '@/lib/cn'
 
 export function CorrespondenceViewer() {
@@ -222,7 +222,14 @@ function ActionBar({
   const [mode, setMode] = useState<'approve' | 'reject'>('approve')
   const [busy, setBusy] = useState(false)
   const [applySig, setApplySig] = useState(true)
+  const [selectedSigId, setSelectedSigId] = useState<string | undefined>(undefined)
   const tr2 = useLocalized()
+
+  // Action + signature UI are driven by the ACTIVE step's TYPE (item 2): only a
+  // Signing step signs; Approving/Reviewing steps just approve/review (no signature).
+  const activeStep = corr.workflow[corr.currentStepIndex]
+  const isSigning = activeStep?.type === 'Signing'
+  const isReviewing = activeStep?.type === 'Reviewing'
 
   const templates = useStore((s) => s.templates)
   const vars =
@@ -231,9 +238,21 @@ function ActionBar({
     TEMPLATE_BY_ID[corr.templateId]?.variables ??
     []
   const sigVar = vars.find((v) => v.type === 'Signature' && v.group === user.role)
-  const sigUri = useSignatureUri(effectiveSignatureId(user))
-  const comment = tr2(viewerComment, viewerCommentAr || viewerComment)
 
+  // The signer's signature gallery (item 1): live users carry `signatures` from
+  // bootstrap; fall back to the single resolved seed/custom ink when offline.
+  const fallbackUri = useSignatureUri(effectiveSignatureId(user))
+  const sigs: SignatureMeta[] =
+    user.signatures && user.signatures.length
+      ? user.signatures
+      : fallbackUri
+        ? [{ id: effectiveSignatureId(user), label: '', dataUri: fallbackUri, isDefault: true }]
+        : []
+  const defaultSigId = (sigs.find((s) => s.isDefault) ?? sigs[0])?.id
+  const activeSigId = selectedSigId ?? defaultSigId
+  const selectedSig = sigs.find((s) => s.id === activeSigId)
+
+  const comment = tr2(viewerComment, viewerCommentAr || viewerComment)
   const isLast = corr.currentStepIndex >= corr.workflow.length - 1
 
   const submit = async () => {
@@ -251,9 +270,11 @@ function ActionBar({
       return
     }
     setBusy(true)
-    await approveAndSign(corr.id, viewerComment, applySig)
+    // Stamp ONLY on a Signing step (item 2), with the chosen signature (item 1).
+    const doSign = isSigning && applySig
+    await approveAndSign(corr.id, viewerComment, doSign, doSign ? activeSigId : undefined)
     setBusy(false)
-    onSigned(applySig ? sigVar?.tag : undefined, isLast)
+    onSigned(doSign ? sigVar?.tag : undefined, isLast)
     if (!isLast) toast(tr('Approved — routed to the next approver.', 'تم الاعتماد — أُرسلت للمعتمِد التالي.'))
   }
 
@@ -270,7 +291,7 @@ function ActionBar({
             className={cn('flex items-center justify-center gap-1.5 rounded-xl py-2 text-[13px] font-semibold transition-colors', mode === 'approve' ? 'bg-success text-white' : 'hairline bg-app text-ink-secondary hover:bg-hover')}
           >
             <Check className="size-4" />
-            {tr('Approve', 'اعتماد')}
+            {tr(isReviewing ? 'Review' : 'Approve', isReviewing ? 'مراجعة' : 'اعتماد')}
           </button>
           <button
             onClick={() => setMode('reject')}
@@ -306,18 +327,49 @@ function ActionBar({
           />
         </div>
 
-        {/* signature */}
-        {mode === 'approve' && sigUri && (
-          <button
-            onClick={() => setApplySig((v) => !v)}
-            className="w-full flex items-center gap-3 rounded-xl hairline bg-app px-3 py-2 hover:bg-hover transition-colors"
-          >
-            <img src={sigUri} alt="signature" className="h-8 w-20 object-contain" />
-            <span className="flex-1 text-start text-[12px] text-ink-secondary">{tr('Apply my signature', 'ختم توقيعي')}</span>
-            <span className={cn('relative h-4 w-7 rounded-full transition-colors', applySig ? 'bg-ai' : 'bg-line-strong')}>
-              <span className={cn('absolute top-0.5 size-3 rounded-full bg-white transition-all', applySig ? 'start-3.5' : 'start-0.5')} />
-            </span>
-          </button>
+        {/* signature — ONLY on a Signing step (item 2), with a multi-signature
+            picker when the signer owns more than one (item 1). */}
+        {mode === 'approve' && isSigning && sigs.length > 0 && (
+          <div className="space-y-2">
+            {sigs.length > 1 && (
+              <div className="rounded-xl hairline bg-app p-2">
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-muted mb-1.5">
+                  <PenTool className="size-3" />
+                  {tr('Choose a signature', 'اختر توقيعاً')}
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {sigs.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSelectedSigId(s.id)}
+                      className={cn(
+                        'flex items-center gap-2 rounded-lg border px-2 py-1.5 transition-colors',
+                        s.id === activeSigId ? 'border-ai bg-ai/[0.06]' : 'border-line hover:bg-hover',
+                      )}
+                    >
+                      <img src={s.dataUri} alt="" className="h-6 w-12 object-contain shrink-0" />
+                      <span className="min-w-0 flex-1 text-start text-[11px] text-ink-secondary truncate">
+                        {s.label || (s.isDefault ? tr('Default', 'الافتراضي') : tr('Signature', 'توقيع'))}
+                      </span>
+                      {s.id === activeSigId && <Check className="size-3.5 text-ai shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button
+              onClick={() => setApplySig((v) => !v)}
+              className="w-full flex items-center gap-3 rounded-xl hairline bg-app px-3 py-2 hover:bg-hover transition-colors"
+            >
+              {selectedSig && <img src={selectedSig.dataUri} alt="signature" className="h-8 w-20 object-contain" />}
+              <span className="flex-1 text-start text-[12px] text-ink-secondary">
+                {sigs.length > 1 ? tr('Apply selected signature', 'ختم التوقيع المحدد') : tr('Apply my signature', 'ختم توقيعي')}
+              </span>
+              <span className={cn('relative h-4 w-7 rounded-full transition-colors', applySig ? 'bg-ai' : 'bg-line-strong')}>
+                <span className={cn('absolute top-0.5 size-3 rounded-full bg-white transition-all', applySig ? 'start-3.5' : 'start-0.5')} />
+              </span>
+            </button>
+          </div>
         )}
 
         {/* attach a supporting / marked-up file with this decision */}
@@ -337,8 +389,14 @@ function ActionBar({
           onClick={submit}
           disabled={busy}
         >
-          {mode === 'reject' ? <X className="size-4" /> : <PenTool className="size-4" />}
-          {mode === 'reject' ? tr('Return for changes', 'إعادة للتعديل') : tr('Approve & Sign', 'اعتماد وتوقيع')}
+          {mode === 'reject' ? <X className="size-4" /> : isSigning ? <PenTool className="size-4" /> : <Check className="size-4" />}
+          {mode === 'reject'
+            ? tr('Return for changes', 'إعادة للتعديل')
+            : isSigning
+              ? tr('Approve & Sign', 'اعتماد وتوقيع')
+              : isReviewing
+                ? tr('Mark as reviewed', 'تأكيد المراجعة')
+                : tr('Approve', 'اعتماد')}
         </Button>
 
         <RedirectRow corrId={corr.id} disabled={busy} />

@@ -37,6 +37,7 @@ from app.models import (
     AppUser,
     Correspondence,
     CorrespondenceStep,
+    Signature,
     Template,
     WorkflowEvent,
     normalize_step_type,
@@ -359,8 +360,13 @@ def approve(
     corr: Correspondence,
     comment: Optional[str] = None,
     apply_signature: bool = True,
+    signature_id: Optional[str] = None,
 ) -> Correspondence:
-    """Approve (and optionally sign) the active step, then advance or return."""
+    """Approve (and optionally sign) the active step, then advance or return.
+
+    `signature_id` (item 1) picks WHICH of the actor's signatures to stamp; it must
+    be one the actor owns, else the request is rejected. Omitted → the actor's
+    default (current_user.signature_id)."""
     _lock_correspondence(session, corr)
     steps = _locked_steps(session, corr.id)
     step = _active_step(steps)
@@ -383,18 +389,26 @@ def approve(
     # (detour_of_step_id is None) — a redirect is consultation-only and must NOT
     # stamp the role's official document signature before its real signing stage —
     # when the actor opted in and actually owns a signature.
+    # Pick WHICH signature to stamp (item 1): an explicit, OWNED id, else the default.
+    chosen_sig_id = current_user.signature_id
+    if signature_id:
+        chosen = session.get(Signature, signature_id)
+        if chosen is None or chosen.owner_id != current_user.id:
+            raise ForbiddenError("That signature does not belong to you.")
+        chosen_sig_id = signature_id
+
     if (
         step.sign
         and apply_signature
-        and current_user.signature_id
+        and chosen_sig_id
         and step.detour_of_step_id is None
     ):
         template = session.get(Template, corr.template_id)
         tag = _signature_tag_for_role(template, step.role) if template else None
         if tag:
-            corr.values = {**corr.values, tag: current_user.signature_id}
+            corr.values = {**corr.values, tag: chosen_sig_id}
         step.signed_at = now
-        step.signature_asset_ref = current_user.signature_id
+        step.signature_asset_ref = chosen_sig_id
         _append_history(corr, current_user.id, "Signed", at=now)
         _emit_event(
             session, corr, current_user.id, "signed", from_step_order=step.step_order

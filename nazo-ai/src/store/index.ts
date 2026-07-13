@@ -14,6 +14,7 @@ import type {
   ResultCard,
   ScenarioStep,
   SideEffect,
+  SignatureMeta,
   Template,
   TemplateDraft,
   TemplateVariable,
@@ -25,6 +26,7 @@ import type {
 import { USERS, USER_BY_ID } from '@/data/users'
 import { SIGNATURE_BY_ID } from '@/data/signatures'
 import { makeDefaultStep, validateWorkflowGraph, isUnassigned } from '@/features/workflow/model'
+import { sortByUpdatedDesc } from '@/lib/sort'
 import { SEED_CORRESPONDENCES, TEMPLATES } from '@/data/seed'
 import { genId } from '@/data/ids'
 import { AI_SPEED, DEFAULT_ORG_CONFIG } from '@/lib/constants'
@@ -120,6 +122,9 @@ interface AppState {
 
   // ephemeral working surfaces (AI side-effect targets)
   studioDraft: TemplateDraft | null
+  /** When editing an EXISTING template (item 4), the id being edited — so Save
+   *  updates that row in place instead of creating a new template. null = new draft. */
+  editingTemplateId: string | null
   createDraft: CreateDraft
   /** The real backend Draft correspondence the create wizard operates on
    *  (create-first). Used by genRef/allocRef; cleared once the draft is sent. */
@@ -146,6 +151,10 @@ interface AppState {
   signOut: () => void
   /** Store the active user's custom signature so the app stamps it. */
   setActiveUserSignature: (dataUri: string) => void
+  /** Replace a user's signature gallery (item 1) from the server response: updates
+   *  users[] (list + default pointer) and mirrors each signature's ink into
+   *  customSignatures so the picker/renderer resolve it. */
+  setUserSignatures: (userId: string, signatures: SignatureMeta[]) => void
   setTheme: (t: Theme) => void
   toggleTheme: () => void
   setLang: (l: Lang) => void
@@ -156,6 +165,9 @@ interface AppState {
 
   // working-surface actions
   setStudioDraft: (d: TemplateDraft | null) => void
+  /** Load an EXISTING template into the studio for editing (item 4): seeds
+   *  studioDraft + canvasSteps from it and records editingTemplateId. */
+  editTemplate: (tpl: Template) => void
   setCanvasSteps: (steps: WorkflowStep[]) => void
   /** Builder CRUD — canvasSteps is the source of truth (mirrored into
    *  studioDraft.workflow when a draft exists, like setWorkflow does). */
@@ -199,7 +211,7 @@ interface AppState {
 
   // correspondence lifecycle (backed by the real API)
   sendCorrespondence: (args?: { templateId?: string; values?: Record<string, string> }) => Promise<string>
-  approveAndSign: (corrId: string, comment?: string, applySig?: boolean) => Promise<void>
+  approveAndSign: (corrId: string, comment?: string, applySig?: boolean, signatureId?: string) => Promise<void>
   rejectCorrespondence: (corrId: string, comment: string) => Promise<void>
   /** Resolves to the correspondence id on success, or '' on failure (so the caller
    *  doesn't show the success overlay for a revision that didn't actually resend). */
@@ -224,6 +236,9 @@ interface AppState {
 
   // demo
   publishTemplate: (t: Template) => Promise<void>
+  /** Update an existing template in place (item 4). Future-only: the server freezes
+   *  historical correspondences to the pre-edit body/variables. */
+  updateTemplate: (t: Template) => Promise<void>
   resetDemo: () => Promise<void>
 }
 
@@ -302,6 +317,7 @@ async function persistCreateOverride(
  *  Profile page. Mirrors effectiveSignatureId + useSignatureUri. */
 function makeHasSignatureAsset(state: AppState): (u: User) => boolean {
   return (u: User) => {
+    if ((u.signatures?.length ?? 0) > 0) return true // gallery (item 1)
     const sigId = u.signatureId ?? `sig_${u.id}`
     return !!(state.customSignatures[sigId] ?? SIGNATURE_BY_ID[sigId])
   }
@@ -440,6 +456,7 @@ export const useStore = create<AppState>()(
       orgConfig: DEFAULT_ORG_CONFIG,
 
       studioDraft: null,
+      editingTemplateId: null,
       createDraft: emptyCreateDraft(),
       createDraftCorrId: null,
       viewer: emptyViewer(),
@@ -523,6 +540,18 @@ export const useStore = create<AppState>()(
           const sigId = user?.signatureId ?? `sig_${uid}`
           return { customSignatures: { ...s.customSignatures, [sigId]: dataUri } }
         }),
+      setUserSignatures: (userId, signatures) =>
+        set((s) => {
+          const defaultId = signatures.find((x) => x.isDefault)?.id ?? signatures[0]?.id
+          const ink: Record<string, string> = { ...s.customSignatures }
+          for (const sig of signatures) ink[sig.id] = sig.dataUri
+          return {
+            customSignatures: ink,
+            users: s.users.map((u) =>
+              u.id === userId ? { ...u, signatures, signatureId: defaultId ?? u.signatureId } : u,
+            ),
+          }
+        }),
       setTheme: (theme) => set((s) => ({ ui: { ...s.ui, theme } })),
       toggleTheme: () =>
         set((s) => ({ ui: { ...s.ui, theme: s.ui.theme === 'light' ? 'dark' : 'light' } })),
@@ -533,7 +562,26 @@ export const useStore = create<AppState>()(
       toggleNav: () => set((s) => ({ ui: { ...s.ui, navCollapsed: !s.ui.navCollapsed } })),
 
       // ---- working surfaces ----
-      setStudioDraft: (studioDraft) => set({ studioDraft }),
+      // Discarding a draft (null) also exits edit mode so the next generation is a
+      // fresh NEW template, never mistaken for an update.
+      setStudioDraft: (studioDraft) =>
+        set(studioDraft == null ? { studioDraft: null, editingTemplateId: null } : { studioDraft }),
+      // Load an existing template into the studio for editing (item 4).
+      editTemplate: (tpl) =>
+        set({
+          studioDraft: {
+            titleEn: tpl.nameEn,
+            titleAr: tpl.nameAr,
+            lang: tpl.lang,
+            category: tpl.category,
+            docHtml: tpl.docHtml,
+            variables: tpl.variables,
+            workflow: tpl.workflow,
+            localePreview: tpl.lang,
+          },
+          canvasSteps: tpl.workflow,
+          editingTemplateId: tpl.id,
+        }),
       setCanvasSteps: (canvasSteps) => set({ canvasSteps }),
       // Builder CRUD. Each mirrors the new chain into studioDraft.workflow when a
       // draft exists, so the studio's suggested-workflow preview stays in lock-step.
@@ -1069,10 +1117,10 @@ export const useStore = create<AppState>()(
         }
       },
 
-      approveAndSign: async (corrId, comment, applySig = true) => {
+      approveAndSign: async (corrId, comment, applySig = true, signatureId) => {
         const lang = get().ui.lang
         try {
-          const updated = await api.approveCorr(corrId, { comment, applySignature: applySig })
+          const updated = await api.approveCorr(corrId, { comment, applySignature: applySig, signatureId })
           set((s) => ({ correspondences: upsertCorr(s.correspondences, updated) }))
         } catch (e) {
           toast(t2(lang, 'Could not record your approval.', 'تعذّر تسجيل الاعتماد.'))
@@ -1159,6 +1207,37 @@ export const useStore = create<AppState>()(
         }
       },
 
+      updateTemplate: async (t) => {
+        const lang = get().ui.lang
+        try {
+          await api.updateTemplate(t.id, {
+            titleEn: t.nameEn,
+            titleAr: t.nameAr,
+            lang: t.lang,
+            category: t.category,
+            docHtml: t.docHtml,
+            variables: t.variables,
+            workflow: t.workflow,
+          })
+          const templates = await api.listTemplates()
+          set({
+            templates: templates.length ? templates : get().templates,
+            studioDraft: null,
+            editingTemplateId: null,
+          })
+          toast(t2(lang, 'Template updated.', 'تم تحديث النموذج.'))
+        } catch (e) {
+          // Degrade: replace the row in place by id so the edit is visible locally.
+          set((s) => ({
+            templates: s.templates.map((x) => (x.id === t.id ? t : x)),
+            studioDraft: null,
+            editingTemplateId: null,
+          }))
+          toast(t2(lang, 'Updated locally — server unavailable.', 'حُدّث محلياً — الخادم غير متاح.'))
+          console.warn('[nazo] updateTemplate failed', e)
+        }
+      },
+
       updateOrgConfig: async (patch) => {
         const lang = get().ui.lang
         const prev = get().orgConfig
@@ -1192,6 +1271,7 @@ export const useStore = create<AppState>()(
           // the gate can be reached on demand via Sign out.
           sessionUserId: 'u_admin',
           studioDraft: null,
+          editingTemplateId: null,
           createDraft: emptyCreateDraft(),
           createDraftCorrId: null,
           viewer: emptyViewer(),
@@ -1268,14 +1348,25 @@ export function useInboxFor(userId: string): Correspondence[] {
   const all = useStore((s) => s.correspondences)
   return useMemo(() => {
     const role = USER_BY_ID[userId]?.role
-    return all.filter(
-      (c) =>
-        c.status === 'InReview' &&
-        (c.currentAssigneeId != null
-          ? c.currentAssigneeId === userId
-          : c.workflow[c.currentStepIndex]?.role === role),
+    return sortByUpdatedDesc(
+      all.filter(
+        (c) =>
+          c.status === 'InReview' &&
+          (c.currentAssigneeId != null
+            ? c.currentAssigneeId === userId
+            : c.workflow[c.currentStepIndex]?.role === role),
+      ),
     )
   }, [all, userId])
+}
+
+/** Everything the current identity personally created/sent (item 6), regardless of
+ *  current workflow state or who holds it — keyed on requesterId. Draft rows are
+ *  already excluded from the store list, so this shows InReview/Completed/Rejected. */
+export function useSentByMe(): Correspondence[] {
+  const all = useStore((s) => s.correspondences)
+  const uid = useStore((s) => s.currentUserId)
+  return useMemo(() => sortByUpdatedDesc(all.filter((c) => c.requesterId === uid)), [all, uid])
 }
 
 export function useCorrespondence(id: string | null): Correspondence | undefined {
@@ -1290,22 +1381,24 @@ export function useSearchCorrespondences(query: string): Correspondence[] {
   return useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return []
-    return all.filter((c) => {
-      const requester = USER_BY_ID[c.requesterId]
-      const hay = [
-        c.titleEn,
-        c.titleAr,
-        c.ref,
-        c.status,
-        requester?.nameEn,
-        requester?.nameAr,
-        ...Object.values(c.values ?? {}),
-        ...c.history.flatMap((h) => [h.comment, h.commentAr ?? '']),
-      ]
-        .join(' • ')
-        .toLowerCase()
-      return hay.includes(q)
-    })
+    return sortByUpdatedDesc(
+      all.filter((c) => {
+        const requester = USER_BY_ID[c.requesterId]
+        const hay = [
+          c.titleEn,
+          c.titleAr,
+          c.ref,
+          c.status,
+          requester?.nameEn,
+          requester?.nameAr,
+          ...Object.values(c.values ?? {}),
+          ...c.history.flatMap((h) => [h.comment, h.commentAr ?? '']),
+        ]
+          .join(' • ')
+          .toLowerCase()
+        return hay.includes(q)
+      }),
+    )
   }, [all, query])
 }
 

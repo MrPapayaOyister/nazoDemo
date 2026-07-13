@@ -18,6 +18,7 @@ import {
   GitCompare,
   ListChecks,
   Lightbulb,
+  Send,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -41,6 +42,7 @@ export const ICONS = {
   GitCompare,
   ListChecks,
   Lightbulb,
+  Send,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

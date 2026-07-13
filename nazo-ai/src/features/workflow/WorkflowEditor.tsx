@@ -13,6 +13,7 @@ import {
   type Edge,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Sparkles,
@@ -29,6 +30,7 @@ import {
   Users as UsersIcon,
   Briefcase,
   CircleDashed,
+  ArrowLeft,
 } from 'lucide-react'
 import { useStore } from '@/store'
 import { useAI } from '@/ai/useAI'
@@ -97,12 +99,16 @@ export function WorkflowEditor() {
 function EditorInner() {
   const tr = useLocalized()
   const lang = useLang()
+  const navigate = useNavigate()
   const canvasSteps = useStore((s) => s.canvasSteps)
   const users = useStore((s) => s.users)
   const customSignatures = useStore((s) => s.customSignatures)
   const studioDraft = useStore((s) => s.studioDraft)
+  const editingTemplateId = useStore((s) => s.editingTemplateId)
+  const templates = useStore((s) => s.templates)
   const addCanvasStep = useStore((s) => s.addCanvasStep)
   const publishTemplate = useStore((s) => s.publishTemplate)
+  const updateTemplate = useStore((s) => s.updateTemplate)
   const { run, isRunning, runningAction } = useAI()
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<FlowNodeData>>([])
@@ -116,6 +122,7 @@ function EditorInner() {
   // Live signature-asset predicate (seed ink OR a custom drawn signature).
   const hasSignatureAsset = useCallback(
     (u: User) => {
+      if ((u.signatures?.length ?? 0) > 0) return true // gallery (item 1)
       const sigId = u.signatureId ?? `sig_${u.id}`
       return !!(customSignatures[sigId] ?? SIGNATURE_BY_ID[sigId])
     },
@@ -196,22 +203,30 @@ function EditorInner() {
       return
     }
     if (studioDraft) {
+      // In edit mode, update the existing template in place (future-only); else new.
+      const source = editingTemplateId ? templates.find((t) => t.id === editingTemplateId) : undefined
       const tpl: Template = {
-        id: genId('tpl'),
+        id: editingTemplateId ?? genId('tpl'),
         nameEn: studioDraft.titleEn || 'Untitled Template',
         nameAr: studioDraft.titleAr || studioDraft.titleEn || 'نموذج بدون عنوان',
         lang: studioDraft.lang,
         category: studioDraft.category,
-        descEn: 'Published from the workflow canvas.',
-        descAr: 'منشور من لوحة المسار.',
+        descEn: source?.descEn ?? 'Published from the workflow canvas.',
+        descAr: source?.descAr ?? 'منشور من لوحة المسار.',
         docHtml: studioDraft.docHtml,
         variables: studioDraft.variables,
         workflow: canvasSteps,
+        twinId: source?.twinId,
         updatedAt: '2026-07-10T09:12:00Z',
-        usageCount: 0,
+        usageCount: source?.usageCount ?? 0,
       }
-      void publishTemplate(tpl)
-      toast(tr('Template published with this workflow.', 'تم نشر النموذج بهذا المسار.'))
+      if (editingTemplateId) {
+        void updateTemplate(tpl)
+        toast(tr('Template updated with this workflow.', 'تم تحديث النموذج بهذا المسار.'))
+      } else {
+        void publishTemplate(tpl)
+        toast(tr('Template published with this workflow.', 'تم نشر النموذج بهذا المسار.'))
+      }
     } else {
       // No draft to publish the workflow into — the chain belongs to a template.
       toast(tr('Generate or open a template first to publish this workflow.', 'أنشئ نموذجاً أو افتح واحداً أولاً لنشر هذا المسار.'))
@@ -223,6 +238,14 @@ function EditorInner() {
       {/* header */}
       <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-line bg-surface">
         <div className="flex items-center gap-3">
+          {/* Non-destructive exit back to the template studio — studioDraft + the
+              canvas edits are preserved in the store, so the in-progress draft resumes. */}
+          {studioDraft && (
+            <Button variant="ghost" size="sm" onClick={() => navigate('/admin/templates')}>
+              <ArrowLeft className="size-4 rtl:rotate-180" />
+              {tr('Back to template', 'العودة إلى النموذج')}
+            </Button>
+          )}
           <span className="grid place-items-center size-9 rounded-xl bg-brand-subtle text-brand">
             <WorkflowIcon className="size-5" />
           </span>

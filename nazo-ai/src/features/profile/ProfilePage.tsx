@@ -12,6 +12,8 @@ import {
   AlertCircle,
   Loader2,
   CloudOff,
+  Star,
+  Trash2,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -33,9 +35,11 @@ import {
   getUserProfile,
   saveSignatureDataUri,
   saveSignatureFile,
+  setDefaultSignature,
+  deleteSignature,
 } from '@/api/client'
 import { riseItem } from '@/lib/motion'
-import type { RoleId } from '@/types'
+import type { RoleId, SignatureMeta } from '@/types'
 import { toast } from 'sonner'
 import { cn } from '@/lib/cn'
 
@@ -59,17 +63,28 @@ export function ProfilePage() {
   const tr = useLocalized()
   const user = useCurrentUser()
   const setActiveUserSignature = useStore((s) => s.setActiveUserSignature)
+  const setUserSignatures = useStore((s) => s.setUserSignatures)
 
   // current signature: server value (if the API is live) wins, else custom/seeded.
   const localSig = useSignatureUri(effectiveSignatureId(user))
   const [serverSig, setServerSig] = useState<string | null>(null)
   const currentSig = serverSig ?? localSig ?? null
 
+  // The user's signature gallery (item 1). Live users carry `signatures` from the
+  // store; offline we synthesize a single entry from the resolved current ink.
+  const gallery: SignatureMeta[] =
+    user.signatures && user.signatures.length
+      ? user.signatures
+      : currentSig
+        ? [{ id: effectiveSignatureId(user), label: '', dataUri: currentSig, isDefault: true }]
+        : []
+
   const [mode, setMode] = useState<Mode>('draw')
   const [drawn, setDrawn] = useState<string | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [uploadPreview, setUploadPreview] = useState<string | null>(null)
   const [uploadKey, setUploadKey] = useState(0)
+  const [label, setLabel] = useState('')
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState<Status>(null)
   const padRef = useRef<SignaturePadHandle>(null)
@@ -77,13 +92,33 @@ export function ProfilePage() {
   const pending = mode === 'draw' ? drawn : uploadPreview
   const canSave = !!pending && !saving
 
+  const onSetDefault = async (sigId: string) => {
+    try {
+      const res = await setDefaultSignature(user.id, sigId)
+      setUserSignatures(user.id, res.signatures)
+    } catch {
+      /* offline — no-op */
+    }
+  }
+  const onDelete = async (sigId: string) => {
+    try {
+      const res = await deleteSignature(user.id, sigId)
+      setUserSignatures(user.id, res.signatures)
+    } catch {
+      /* offline — no-op */
+    }
+  }
+
   // Pull the canonical signature from the API when available; stay silent on
   // failure so the fully-scripted (offline) demo keeps working.
   useEffect(() => {
     let cancelled = false
     getUserProfile(user.id)
       .then((p) => {
-        if (!cancelled && p.signatureDataUri) setServerSig(p.signatureDataUri)
+        if (cancelled) return
+        if (p.signatureDataUri) setServerSig(p.signatureDataUri)
+        // Hydrate the full gallery into the store so the picker + this page match.
+        if (p.signatures) setUserSignatures(user.id, p.signatures)
       })
       .catch(() => {
         /* offline demo — fall back to seeded / custom signature */
@@ -91,7 +126,7 @@ export function ProfilePage() {
     return () => {
       cancelled = true
     }
-  }, [user.id])
+  }, [user.id, setUserSignatures])
 
   // reset the pending edit whenever the active identity changes
   useEffect(() => {
@@ -127,14 +162,17 @@ export function ProfilePage() {
     try {
       const res =
         mode === 'draw'
-          ? await saveSignatureDataUri(user.id, drawn!)
-          : await saveSignatureFile(user.id, uploadFile!)
+          ? await saveSignatureDataUri(user.id, drawn!, undefined, label.trim() || undefined)
+          : await saveSignatureFile(user.id, uploadFile!, label.trim() || undefined)
       const uri = res.dataUri || pending
       setActiveUserSignature(uri)
       setServerSig(uri)
+      // Sync the whole gallery (new signature appended) into the store.
+      if (res.signatures) setUserSignatures(user.id, res.signatures)
       resetPending()
-      setStatus({ kind: 'success', msg: tr('Signature saved.', 'تم حفظ التوقيع.') })
-      toast(tr('Signature updated', 'تم تحديث التوقيع'))
+      setLabel('')
+      setStatus({ kind: 'success', msg: tr('Signature added.', 'تمت إضافة التوقيع.') })
+      toast(tr('Signature added', 'تمت إضافة التوقيع'))
     } catch (e) {
       // Treat "no signature API here" as an offline demo: network failure
       // (status 0) OR a 404/405 (the endpoint isn't mounted — Vite's SPA
@@ -264,24 +302,72 @@ export function ProfilePage() {
           </div>
 
           <div className="p-5 space-y-4">
-            {/* current signature */}
+            {/* signature gallery (item 1 — a user may store several; the starred one
+                is the default stamped when none is picked at sign-time) */}
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mb-1.5">
-                {tr('Current', 'الحالي')}
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                  {tr('My signatures', 'توقيعاتي')}
+                </div>
+                {gallery.length > 0 && <span className="text-[11px] text-ink-muted">{gallery.length}</span>}
               </div>
-              <div className="grid place-items-center rounded-xl bg-white hairline h-[92px]">
-                {currentSig ? (
-                  <img
-                    src={currentSig}
-                    alt={tr('Current signature', 'التوقيع الحالي')}
-                    className="max-h-16 max-w-[75%] object-contain"
-                  />
-                ) : (
+              {gallery.length === 0 ? (
+                <div className="grid place-items-center rounded-xl bg-white hairline h-[92px]">
                   <span className="text-[12px] text-[#9aa8c2]">
-                    {tr('No signature on file yet', 'لا يوجد توقيع محفوظ بعد')}
+                    {tr('No signatures yet — add one below', 'لا توجد توقيعات بعد — أضف واحداً بالأسفل')}
                   </span>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {gallery.map((s) => (
+                    <div
+                      key={s.id}
+                      className={cn('rounded-xl bg-white hairline p-2', s.isDefault && 'ring-2 ring-brand')}
+                    >
+                      <div className="grid place-items-center h-14">
+                        <img
+                          src={s.dataUri}
+                          alt={s.label || tr('Signature', 'توقيع')}
+                          className="max-h-12 max-w-[85%] object-contain"
+                        />
+                      </div>
+                      <div className="mt-1 flex items-center gap-1">
+                        <span className="min-w-0 flex-1 truncate text-[11px] text-ink-secondary">
+                          {s.label || (s.isDefault ? tr('Default', 'الافتراضي') : tr('Signature', 'توقيع'))}
+                        </span>
+                        {s.isDefault ? (
+                          <span title={tr('Default', 'الافتراضي')} className="inline-flex text-brand">
+                            <Star className="size-3.5 fill-current" />
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            title={tr('Make default', 'اجعله افتراضياً')}
+                            onClick={() => onSetDefault(s.id)}
+                            className="text-ink-muted hover:text-brand"
+                          >
+                            <Star className="size-3.5" />
+                          </button>
+                        )}
+                        {gallery.length > 1 && (
+                          <button
+                            type="button"
+                            title={tr('Delete', 'حذف')}
+                            onClick={() => onDelete(s.id)}
+                            className="text-ink-muted hover:text-danger"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+              {tr('Add a signature', 'أضف توقيعاً')}
             </div>
 
             {/* segmented control */}
@@ -344,6 +430,19 @@ export function ProfilePage() {
               </div>
             )}
 
+            {/* optional label to tell signatures apart in the picker */}
+            <div>
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+                {tr('Label (optional)', 'تسمية (اختياري)')}
+              </label>
+              <input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder={tr('e.g. Formal · Initials', 'مثال: رسمي · أحرف أولى')}
+                className="mt-1 w-full rounded-lg hairline bg-app px-2.5 py-1.5 text-[12.5px] text-ink placeholder:text-ink-muted outline-none focus:ring-2 focus:ring-ai/30"
+              />
+            </div>
+
             {/* status */}
             {status && (
               <div
@@ -369,7 +468,7 @@ export function ProfilePage() {
                 ) : (
                   <Check className="size-4" />
                 )}
-                {tr('Save signature', 'حفظ التوقيع')}
+                {tr('Add signature', 'إضافة توقيع')}
               </Button>
               <Button
                 variant="secondary"

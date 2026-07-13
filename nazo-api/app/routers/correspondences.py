@@ -58,6 +58,8 @@ class CreateBody(BaseModel):
 class ApproveBody(BaseModel):
     comment: Optional[str] = None
     applySignature: bool = True
+    # Which of the actor's signatures to stamp (item 1). None → their default.
+    signatureId: Optional[str] = None
 
 
 class RejectBody(BaseModel):
@@ -288,6 +290,7 @@ def approve(
             corr,
             comment=body.comment,
             apply_signature=body.applySignature,
+            signature_id=body.signatureId,
         )
         session.commit()
         session.refresh(corr)

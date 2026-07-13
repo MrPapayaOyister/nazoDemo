@@ -176,10 +176,19 @@ _GM_PATHS = (
     '<path d="M18 74 C 90 68, 160 68, 214 72" stroke-width="1.8" opacity="0.75"/>'
 )
 
+# A second GM signature — an "MH" initials monogram — so the sign-time picker
+# (item 1) has more than one option to choose from out of the box.
+_GM_INITIALS_PATHS = (
+    '<path d="M26 62 L 32 30 L 48 54 L 64 30 L 70 62"/>'
+    '<path d="M92 30 L 92 62 M 92 46 L 118 46 M 118 30 L 118 62"/>'
+    '<path d="M26 72 C 70 66, 120 66, 150 70" stroke-width="1.6" opacity="0.7"/>'
+)
+
 SIGNATURES: list[dict] = [
-    {"id": "sig_dt", "ownerId": "u_dt", "style": "cursive", "dataUri": _sig(_DT_PATHS, "cursive")},
-    {"id": "sig_dir", "ownerId": "u_dir", "style": "cursive", "dataUri": _sig(_DIR_PATHS, "cursive")},
-    {"id": "sig_gm", "ownerId": "u_gm", "style": "block", "dataUri": _sig(_GM_PATHS, "block")},
+    {"id": "sig_dt", "ownerId": "u_dt", "style": "cursive", "label": "Formal", "dataUri": _sig(_DT_PATHS, "cursive")},
+    {"id": "sig_dir", "ownerId": "u_dir", "style": "cursive", "label": "Formal", "dataUri": _sig(_DIR_PATHS, "cursive")},
+    {"id": "sig_gm", "ownerId": "u_gm", "style": "block", "label": "Formal", "dataUri": _sig(_GM_PATHS, "block")},
+    {"id": "sig_gm_alt", "ownerId": "u_gm", "style": "cursive", "label": "Initials", "dataUri": _sig(_GM_INITIALS_PATHS, "cursive")},
 ]
 
 # ===========================================================================
@@ -193,7 +202,8 @@ STANDARD_CHAIN: list[dict] = [
         "unitAr": "التحول الرقمي",
         "type": "Reviewing",
         "rejectable": True,
-        "sign": True,
+        # Reviewing/Approving steps do NOT sign (item 2) — only the Signing step does.
+        "sign": False,
         "regenerate": True,
         "position": {"x": 120, "y": 160},
     },
@@ -204,7 +214,7 @@ STANDARD_CHAIN: list[dict] = [
         "unitAr": "إدارة الرقمنة",
         "type": "Approving",
         "rejectable": True,
-        "sign": True,
+        "sign": False,
         "regenerate": False,
         "position": {"x": 400, "y": 160},
     },
@@ -229,7 +239,8 @@ CIRCULAR_CHAIN: list[dict] = [
         "unitAr": "إدارة الرقمنة",
         "type": "Approving",
         "rejectable": True,
-        "sign": True,
+        # Approving step does NOT sign (item 2) — only the Signing GM step does.
+        "sign": False,
         "regenerate": True,
         "position": {"x": 200, "y": 160},
     },
@@ -272,7 +283,7 @@ TUTORING_EN_BODY = """
 <p>The total contract value is <strong>AED {{AMOUNT}}</strong> for a twelve (12) month term, funded from the approved Digitalization budget line.</p>
 <p>Your kind approval and signature are appreciated to proceed with procurement.</p>
 <p>Respectfully,</p>
-<div class="sign-block">{{SIG_DT}}{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 """
 
 TUTORING_AR_BODY = """
@@ -284,7 +295,7 @@ TUTORING_AR_BODY = """
 <p>تبلغ القيمة الإجمالية للعقد <strong>{{AMOUNT}} درهم إماراتي</strong> لمدة اثني عشر (12) شهراً، تُموَّل من بند ميزانية الرقمنة المعتمد.</p>
 <p>نأمل التكرم بالاعتماد والتوقيع للمضي في إجراءات الشراء.</p>
 <p>وتفضلوا بقبول فائق الاحترام،</p>
-<div class="sign-block">{{SIG_DT}}{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 """
 
 CIRCULAR_EN_BODY = """
@@ -294,7 +305,7 @@ CIRCULAR_EN_BODY = """
 <h2>Subject: {{SUBJECT}}</h2>
 <p>{{BODY}}</p>
 <p>For compliance and necessary action, please.</p>
-<div class="sign-block">{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 """
 
 CIRCULAR_AR_BODY = """
@@ -304,7 +315,7 @@ CIRCULAR_AR_BODY = """
 <h2>الموضوع: {{SUBJECT}}</h2>
 <p>{{BODY}}</p>
 <p>للعلم والعمل بموجبه، وتفضلوا بقبول الاحترام.</p>
-<div class="sign-block">{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 """
 
 HOLIDAY_EN_BODY = """
@@ -325,8 +336,6 @@ TUTORING_VARS: list[dict] = [
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{VENDOR}}", "labelEn": "Vendor / Platform", "labelAr": "المزوّد / المنصة", "type": "Text", "group": "Requester", "placeholder": "e.g. TutorCloud", "required": True},
     {"tag": "{{AMOUNT}}", "labelEn": "Contract Value (AED)", "labelAr": "قيمة العقد (درهم)", "type": "Text", "group": "Requester", "placeholder": "75,000", "required": True},
-    {"tag": "{{SIG_DT}}", "labelEn": "DT Manager Signature", "labelAr": "توقيع مدير التحول الرقمي", "type": "Signature", "group": "dtManager"},
-    {"tag": "{{SIG_DIR}}", "labelEn": "Director Signature", "labelAr": "توقيع المدير", "type": "Signature", "group": "director"},
     {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
 ]
 
@@ -336,7 +345,6 @@ CIRCULAR_VARS: list[dict] = [
     {"tag": "{{AUDIENCE}}", "labelEn": "Audience", "labelAr": "الجهة المستهدفة", "type": "Text", "group": "Requester", "placeholder": "All Departments", "required": True},
     {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
     {"tag": "{{BODY}}", "labelEn": "Body", "labelAr": "النص", "type": "Text", "group": "Requester", "required": True},
-    {"tag": "{{SIG_DIR}}", "labelEn": "Director Signature", "labelAr": "توقيع المدير", "type": "Signature", "group": "director"},
     {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
 ]
 

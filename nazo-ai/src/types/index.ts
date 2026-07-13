@@ -63,6 +63,18 @@ export type HistoryAction =
 export type WorkflowNodeType = 'start' | 'approval' | 'review' | 'sign' | 'condition' | 'end'
 
 // ---------- Core entities ----------
+/** One of a user's stored signatures (item 1 — a user may own several). */
+export interface SignatureMeta {
+  id: string
+  label: string
+  style?: string
+  /** canonical PNG data-URI (resolved by the backend so the picker/gallery has ink). */
+  dataUri: string
+  /** the user's DEFAULT signature (stamped when none is explicitly picked). */
+  isDefault: boolean
+  isCustom?: boolean
+}
+
 export interface User {
   id: string
   role: RoleId
@@ -76,8 +88,10 @@ export interface User {
   initials: string
   /** avatar accent (hex) */
   color: string
-  /** signature id (approvers only) */
+  /** DEFAULT signature id (approvers only) — the full set is `signatures`. */
   signatureId?: string
+  /** The user's signature gallery (item 1). Hydrated from bootstrap; may be empty. */
+  signatures?: SignatureMeta[]
 }
 
 export interface Signature {
@@ -86,6 +100,8 @@ export interface Signature {
   /** Inline SVG data-URI — stamped into the document. Zero external assets. */
   dataUri: string
   style: 'cursive' | 'block'
+  /** Human label to distinguish a user's multiple signatures (item 1). */
+  label?: string
 }
 
 export interface TemplateVariable {

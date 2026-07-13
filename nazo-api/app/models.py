@@ -91,12 +91,18 @@ class Signature(SQLModel, table=True):
     __tablename__ = "signature"
 
     id: str = Field(primary_key=True)
+    # owner_id is indexed but NOT unique: a user may own MANY signatures (item 1 —
+    # multiple signatures per user, selectable at sign-time).
     owner_id: str = Field(index=True)
     data_uri: str = Field(sa_column=Column(Text))
     style: str  # 'cursive' | 'block' | 'custom'
+    # Human label to tell a user's signatures apart in the sign-time picker
+    # (e.g. 'Formal', 'Initials'). Empty on the seed ink.
+    label: str = Field(default="")
     # True once a user replaces the seed ink with their own uploaded/drawn signature.
     # Custom signatures are PRESERVED across `python -m app.seed.reset` (see reset.py).
     is_custom: bool = Field(default=False)
+    created_at: str = Field(default="")
 
 
 class Template(SQLModel, table=True):

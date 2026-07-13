@@ -35,10 +35,18 @@ const GM_PATHS =
   `<path d="M128 60 C 146 28, 168 34, 154 58 C 174 40, 198 46, 184 64 C 200 54, 216 58, 210 62"/>` +
   `<path d="M18 74 C 90 68, 160 68, 214 72" stroke-width="1.8" opacity="0.75"/>`
 
+// A second GM signature — an "MH" initials monogram — so the sign-time picker
+// (item 1) has more than one option out of the box.
+const GM_INITIALS_PATHS =
+  `<path d="M26 62 L 32 30 L 48 54 L 64 30 L 70 62"/>` +
+  `<path d="M92 30 L 92 62 M 92 46 L 118 46 M 118 30 L 118 62"/>` +
+  `<path d="M26 72 C 70 66, 120 66, 150 70" stroke-width="1.6" opacity="0.7"/>`
+
 export const SIGNATURES: Signature[] = [
-  { id: 'sig_dt', ownerId: 'u_dt', style: 'cursive', dataUri: sig(DT_PATHS, 'cursive') },
-  { id: 'sig_dir', ownerId: 'u_dir', style: 'cursive', dataUri: sig(DIR_PATHS, 'cursive') },
-  { id: 'sig_gm', ownerId: 'u_gm', style: 'block', dataUri: sig(GM_PATHS, 'block') },
+  { id: 'sig_dt', ownerId: 'u_dt', style: 'cursive', label: 'Formal', dataUri: sig(DT_PATHS, 'cursive') },
+  { id: 'sig_dir', ownerId: 'u_dir', style: 'cursive', label: 'Formal', dataUri: sig(DIR_PATHS, 'cursive') },
+  { id: 'sig_gm', ownerId: 'u_gm', style: 'block', label: 'Formal', dataUri: sig(GM_PATHS, 'block') },
+  { id: 'sig_gm_alt', ownerId: 'u_gm', style: 'cursive', label: 'Initials', dataUri: sig(GM_INITIALS_PATHS, 'cursive') },
 ]
 
 export const SIGNATURE_BY_ID = Object.fromEntries(

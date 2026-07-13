@@ -20,7 +20,8 @@ export const STANDARD_CHAIN: WorkflowStep[] = [
     unitAr: 'التحول الرقمي',
     type: 'Reviewing',
     rejectable: true,
-    sign: true,
+    // Reviewing/Approving steps do NOT sign (item 2) — only the Signing step does.
+    sign: false,
     regenerate: true,
     position: { x: 120, y: 160 },
   },
@@ -31,7 +32,7 @@ export const STANDARD_CHAIN: WorkflowStep[] = [
     unitAr: 'إدارة الرقمنة',
     type: 'Approving',
     rejectable: true,
-    sign: true,
+    sign: false,
     regenerate: false,
     position: { x: 400, y: 160 },
   },
@@ -56,7 +57,7 @@ export const CIRCULAR_CHAIN: WorkflowStep[] = [
     unitAr: 'إدارة الرقمنة',
     type: 'Approving',
     rejectable: true,
-    sign: true,
+    sign: false,
     regenerate: true,
     position: { x: 200, y: 160 },
   },
@@ -100,7 +101,7 @@ const TUTORING_EN_BODY = `
 <p>The total contract value is <strong>AED {{AMOUNT}}</strong> for a twelve (12) month term, funded from the approved Digitalization budget line.</p>
 <p>Your kind approval and signature are appreciated to proceed with procurement.</p>
 <p>Respectfully,</p>
-<div class="sign-block">{{SIG_DT}}{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 `
 
 const TUTORING_AR_BODY = `
@@ -112,7 +113,7 @@ const TUTORING_AR_BODY = `
 <p>تبلغ القيمة الإجمالية للعقد <strong>{{AMOUNT}} درهم إماراتي</strong> لمدة اثني عشر (12) شهراً، تُموَّل من بند ميزانية الرقمنة المعتمد.</p>
 <p>نأمل التكرم بالاعتماد والتوقيع للمضي في إجراءات الشراء.</p>
 <p>وتفضلوا بقبول فائق الاحترام،</p>
-<div class="sign-block">{{SIG_DT}}{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 `
 
 const CIRCULAR_EN_BODY = `
@@ -122,7 +123,7 @@ const CIRCULAR_EN_BODY = `
 <h2>Subject: {{SUBJECT}}</h2>
 <p>{{BODY}}</p>
 <p>For compliance and necessary action, please.</p>
-<div class="sign-block">{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 `
 
 const CIRCULAR_AR_BODY = `
@@ -132,7 +133,7 @@ const CIRCULAR_AR_BODY = `
 <h2>الموضوع: {{SUBJECT}}</h2>
 <p>{{BODY}}</p>
 <p>للعلم والعمل بموجبه، وتفضلوا بقبول الاحترام.</p>
-<div class="sign-block">{{SIG_DIR}}{{SIG_GM}}</div>
+<div class="sign-block">{{SIG_GM}}</div>
 `
 
 const HOLIDAY_EN_BODY = `
@@ -150,8 +151,6 @@ const TUTORING_VARS: Template['variables'] = [
   { tag: '{{DATE}}', labelEn: 'Date', labelAr: 'التاريخ', type: 'Date', group: 'Requester', required: true },
   { tag: '{{VENDOR}}', labelEn: 'Vendor / Platform', labelAr: 'المزوّد / المنصة', type: 'Text', group: 'Requester', placeholder: 'e.g. TutorCloud', required: true },
   { tag: '{{AMOUNT}}', labelEn: 'Contract Value (AED)', labelAr: 'قيمة العقد (درهم)', type: 'Text', group: 'Requester', placeholder: '75,000', required: true },
-  { tag: '{{SIG_DT}}', labelEn: 'DT Manager Signature', labelAr: 'توقيع مدير التحول الرقمي', type: 'Signature', group: 'dtManager' },
-  { tag: '{{SIG_DIR}}', labelEn: 'Director Signature', labelAr: 'توقيع المدير', type: 'Signature', group: 'director' },
   { tag: '{{SIG_GM}}', labelEn: 'General Manager Signature', labelAr: 'توقيع المدير العام', type: 'Signature', group: 'gm' },
 ]
 
@@ -161,7 +160,6 @@ const CIRCULAR_VARS: Template['variables'] = [
   { tag: '{{AUDIENCE}}', labelEn: 'Audience', labelAr: 'الجهة المستهدفة', type: 'Text', group: 'Requester', placeholder: 'All Departments', required: true },
   { tag: '{{SUBJECT}}', labelEn: 'Subject', labelAr: 'الموضوع', type: 'Text', group: 'Requester', required: true },
   { tag: '{{BODY}}', labelEn: 'Body', labelAr: 'النص', type: 'Text', group: 'Requester', required: true },
-  { tag: '{{SIG_DIR}}', labelEn: 'Director Signature', labelAr: 'توقيع المدير', type: 'Signature', group: 'director' },
   { tag: '{{SIG_GM}}', labelEn: 'General Manager Signature', labelAr: 'توقيع المدير العام', type: 'Signature', group: 'gm' },
 ]
 

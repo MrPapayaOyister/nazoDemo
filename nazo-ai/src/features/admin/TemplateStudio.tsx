@@ -11,6 +11,7 @@ import {
   RotateCcw,
   AlertTriangle,
   Building2,
+  Pencil,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -47,6 +48,9 @@ export function TemplateStudio() {
   const draft = useStore((s) => s.studioDraft)
   const setStudioDraft = useStore((s) => s.setStudioDraft)
   const publishTemplate = useStore((s) => s.publishTemplate)
+  const updateTemplate = useStore((s) => s.updateTemplate)
+  const editTemplate = useStore((s) => s.editTemplate)
+  const editingTemplateId = useStore((s) => s.editingTemplateId)
   const templates = useStore((s) => s.templates)
 
   const [prompt, setPrompt] = useState('')
@@ -68,21 +72,25 @@ export function TemplateStudio() {
 
   const onSave = () => {
     if (!draft) return
+    // Editing an existing template → update in place (future-only); else publish new.
+    const source = editingTemplateId ? templates.find((t) => t.id === editingTemplateId) : undefined
     const tpl: Template = {
-      id: genId('tpl'),
+      id: editingTemplateId ?? genId('tpl'),
       nameEn: draft.titleEn,
       nameAr: draft.titleAr,
       lang: draft.lang,
       category: draft.category,
-      descEn: 'AI-generated template.',
-      descAr: 'نموذج مُولّد بالذكاء الاصطناعي.',
+      descEn: source?.descEn ?? 'AI-generated template.',
+      descAr: source?.descAr ?? 'نموذج مُولّد بالذكاء الاصطناعي.',
       docHtml: draft.docHtml,
       variables: draft.variables,
       workflow: draft.workflow,
+      twinId: source?.twinId,
       updatedAt: '2026-07-10T09:12:00Z',
-      usageCount: 0,
+      usageCount: source?.usageCount ?? 0,
     }
-    publishTemplate(tpl)
+    if (editingTemplateId) void updateTemplate(tpl)
+    else void publishTemplate(tpl)
   }
 
   return (
@@ -179,7 +187,7 @@ export function TemplateStudio() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {templates.map((tpl) => (
-              <TemplateCard key={tpl.id} tpl={tpl} />
+              <TemplateCard key={tpl.id} tpl={tpl} onEdit={() => editTemplate(tpl)} />
             ))}
           </div>
         </motion.div>
@@ -230,6 +238,7 @@ function DraftReveal({
   const tr = useLocalized()
   const draft = useStore((s) => s.studioDraft)!
   const users = useStore((s) => s.users)
+  const editingTemplateId = useStore((s) => s.editingTemplateId)
   const updateStudioDoc = useStore((s) => s.updateStudioDoc)
   const setStudioVariables = useStore((s) => s.setStudioVariables)
   const [saved, setSaved] = useState(false)
@@ -248,8 +257,10 @@ function DraftReveal({
     <motion.div variants={aiReveal} initial="initial" animate="animate" className="mt-6">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="inline-flex items-center gap-2 rounded-full bg-ai/12 text-ai px-3 py-1 text-[12px] font-semibold">
-          <Sparkles className="size-3.5" />
-          {tr('Draft ready — everything is editable', 'المسودة جاهزة — كل شيء قابل للتعديل')}
+          {editingTemplateId ? <Pencil className="size-3.5" /> : <Sparkles className="size-3.5" />}
+          {editingTemplateId
+            ? tr(`Editing “${draft.titleEn}” — changes apply to future correspondence only`, `تعديل «${draft.titleAr}» — تُطبَّق التغييرات على المراسلات المستقبلية فقط`)
+            : tr('Draft ready — everything is editable', 'المسودة جاهزة — كل شيء قابل للتعديل')}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" onClick={() => setShowLetterhead((v) => !v)}>
@@ -283,7 +294,11 @@ function DraftReveal({
             }
           >
             {saved ? <Check className="size-4" /> : null}
-            {saved ? tr('Saved', 'تم الحفظ') : tr('Save template', 'حفظ النموذج')}
+            {saved
+              ? tr('Saved', 'تم الحفظ')
+              : editingTemplateId
+                ? tr('Update template', 'تحديث النموذج')
+                : tr('Save template', 'حفظ النموذج')}
           </Button>
         </div>
       </div>
@@ -361,17 +376,29 @@ function SuggestedWorkflow({ steps }: { steps: { id: string; role: string; unitE
   )
 }
 
-function TemplateCard({ tpl }: { tpl: Template }) {
+function TemplateCard({ tpl, onEdit }: { tpl: Template; onEdit: () => void }) {
   const tr = useLocalized()
   const CAT = tr(tpl.category, CATEGORY_AR[tpl.category])
   return (
-    <motion.div {...{ whileHover: { y: -3 } }} className="group rounded-2xl hairline bg-surface shadow-e1 p-4 cursor-pointer transition-shadow hover:shadow-e2">
+    <motion.button
+      type="button"
+      {...{ whileHover: { y: -3 } }}
+      onClick={onEdit}
+      title={tr('Edit this template', 'تعديل هذا النموذج')}
+      className="group text-start rounded-2xl hairline bg-surface shadow-e1 p-4 cursor-pointer transition-shadow hover:shadow-e2 focus:outline-none focus-visible:ring-2 focus-visible:ring-ai/40"
+    >
       <div className="flex items-start justify-between">
         <span className="grid place-items-center size-9 rounded-xl bg-brand-subtle text-brand">
           <FileText className="size-[18px]" />
         </span>
-        <span className="text-[10px] font-semibold uppercase tracking-wide rounded-full bg-subtle text-ink-muted px-2 py-0.5">
-          {CAT}
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide rounded-full bg-subtle text-ink-muted px-2 py-0.5">
+            {CAT}
+          </span>
+          <span className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 rounded-full bg-ai/12 text-ai px-2 py-0.5 text-[10px] font-semibold">
+            <Pencil className="size-3" />
+            {tr('Edit', 'تعديل')}
+          </span>
         </span>
       </div>
       <div className="mt-3 text-[14px] font-semibold text-ink">{tr(tpl.nameEn, tpl.nameAr)}</div>
@@ -382,6 +409,6 @@ function TemplateCard({ tpl }: { tpl: Template }) {
         <span>{tpl.lang.toUpperCase()}</span>
         <span className="ms-auto">{tpl.usageCount} {tr('uses', 'استخدام')}</span>
       </div>
-    </motion.div>
+    </motion.button>
   )
 }

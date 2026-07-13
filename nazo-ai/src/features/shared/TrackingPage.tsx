@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Radar } from 'lucide-react'
@@ -10,12 +11,15 @@ import { useStore } from '@/store'
 import { TEMPLATE_BY_ID } from '@/data/seed'
 import { useLocalized } from '@/i18n'
 import { riseItem, staggerContainer } from '@/lib/motion'
+import { sortByUpdatedDesc } from '@/lib/sort'
 
 export function TrackingPage() {
   const tr = useLocalized()
   const navigate = useNavigate()
   const all = useStore((s) => s.correspondences)
   const templates = useStore((s) => s.templates)
+  // Most-recently-updated first, consistent with every other correspondence list.
+  const rows = useMemo(() => sortByUpdatedDesc(all), [all])
 
   return (
     <PageTransition>
@@ -25,11 +29,11 @@ export function TrackingPage() {
         icon={<Radar className="size-5" />}
       />
 
-      {all.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState icon={<Radar className="size-7" />} title={tr('Nothing to track yet', 'لا شيء للتتبّع بعد')} />
       ) : (
         <motion.div variants={staggerContainer(0.04, 0.05)} initial="initial" animate="animate" className="mt-6 space-y-2">
-          {all.map((c) => {
+          {rows.map((c) => {
             const vars =
               c.variablesOverride ??
               templates.find((t) => t.id === c.templateId)?.variables ??

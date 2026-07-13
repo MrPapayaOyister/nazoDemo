@@ -15,6 +15,7 @@ from app.models import (
     Correspondence,
     CorrespondenceStep,
     OrgConfig,
+    Signature,
     Template,
 )
 from app.routers.serializers import (
@@ -31,10 +32,20 @@ from app.seed import data as seed_data
 router = APIRouter(prefix="/api", tags=["bootstrap"])
 
 
+def _signatures_by_owner(session: Session) -> dict[str, list[dict]]:
+    """All signatures grouped by owner_id → the frontend gallery shape (item 1)."""
+    rows = list(session.exec(select(Signature)).all())
+    by_owner: dict[str, list[Signature]] = {}
+    for r in rows:
+        by_owner.setdefault(r.owner_id, []).append(r)
+    return by_owner
+
+
 @router.get("/bootstrap")
 def bootstrap(session: Session = Depends(get_session)) -> dict:
     users = order_users(list(session.exec(select(AppUser)).all()))
     templates = order_templates(list(session.exec(select(Template)).all()))
+    sigs_by_owner = _signatures_by_owner(session)
     correspondences = order_correspondences(list(session.exec(select(Correspondence)).all()))
 
     # Group steps by correspondence for currentStepIndex derivation.
@@ -67,8 +78,23 @@ def bootstrap(session: Session = Depends(get_session)) -> dict:
         }
     )
 
+    def _user_sigs(u: AppUser) -> list[dict]:
+        rows = sigs_by_owner.get(u.id, [])
+        rows = sorted(rows, key=lambda r: (r.id != u.signature_id, r.created_at or "", r.id))
+        return [
+            {
+                "id": r.id,
+                "label": r.label or "",
+                "style": r.style,
+                "dataUri": r.data_uri,
+                "isDefault": r.id == u.signature_id,
+                "isCustom": r.is_custom,
+            }
+            for r in rows
+        ]
+
     return {
-        "users": [serialize_user(u) for u in users],
+        "users": [serialize_user(u, _user_sigs(u)) for u in users],
         "templates": [serialize_template(t) for t in templates],
         "correspondences": [
             serialize_correspondence(

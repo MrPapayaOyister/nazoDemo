@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { useStore, useCurrentUser } from '@/store'
 import { useLocalized } from '@/i18n'
 import { riseItem, staggerContainer } from '@/lib/motion'
+import { sortByUpdatedDesc } from '@/lib/sort'
 import { cn } from '@/lib/cn'
 import type { CorrespondenceStatus } from '@/types'
 
@@ -30,7 +31,7 @@ export function RequesterDashboard() {
   const all = useStore((s) => s.correspondences)
   const [filter, setFilter] = useState<Filter>('all')
 
-  const mine = useMemo(() => all.filter((c) => c.requesterId === user.id), [all, user.id])
+  const mine = useMemo(() => sortByUpdatedDesc(all.filter((c) => c.requesterId === user.id)), [all, user.id])
   const kpis = useMemo(
     () => ({
       total: mine.length,

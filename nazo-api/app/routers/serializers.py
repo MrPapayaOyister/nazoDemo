@@ -35,7 +35,7 @@ def order_correspondences(rows: list[Correspondence]) -> list[Correspondence]:
     return sorted(rows, key=lambda r: (_CORR_ORDER.get(r.id, len(_CORR_ORDER)), r.id))
 
 
-def serialize_user(u: AppUser) -> dict:
+def serialize_user(u: AppUser, signatures: list[dict] | None = None) -> dict:
     out = {
         "id": u.id,
         "role": u.role,
@@ -49,9 +49,14 @@ def serialize_user(u: AppUser) -> dict:
         "initials": u.initials,
         "color": u.color,
     }
-    # signatureId is optional on the frontend (approvers only).
+    # signatureId is the DEFAULT signature pointer; optional (approvers only).
     if u.signature_id:
         out["signatureId"] = u.signature_id
+    # The user's full signature gallery (item 1: id/label/dataUri/isDefault). Present
+    # only when the caller resolved it (users list + bootstrap) so the sign-time
+    # picker and Profile gallery have every option without an extra fetch.
+    if signatures is not None:
+        out["signatures"] = signatures
     return out
 
 

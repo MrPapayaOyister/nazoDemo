@@ -22,6 +22,7 @@ import { ApproverInbox } from '@/features/approver/ApproverInbox'
 import { CorrespondenceViewer } from '@/features/approver/CorrespondenceViewer'
 import { TrackingPage } from '@/features/shared/TrackingPage'
 import { SearchResults } from '@/features/shared/SearchResults'
+import { SentByMe } from '@/features/shared/SentByMe'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 
 function RootRedirect() {
@@ -66,6 +67,7 @@ function AnimatedRoutes() {
         <Route path="/correspondence/:id" element={<CorrespondenceViewer />} />
         <Route path="/tracking" element={<TrackingPage />} />
         <Route path="/search" element={<SearchResults />} />
+        <Route path="/sent" element={<SentByMe />} />
         <Route path="/profile" element={<ProfilePage />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

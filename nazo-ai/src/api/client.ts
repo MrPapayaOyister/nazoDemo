@@ -11,6 +11,7 @@ import type {
   OrgConfig,
   ResultCard,
   SideEffect,
+  SignatureMeta,
   Template,
   TemplateVariable,
   User,
@@ -175,13 +176,14 @@ export function sendCorr(id: string): Promise<Correspondence> {
 
 export function approveCorr(
   id: string,
-  body?: { comment?: string; applySignature?: boolean },
+  body?: { comment?: string; applySignature?: boolean; signatureId?: string },
 ): Promise<Correspondence> {
   return request<Correspondence>(`/correspondences/${encodeURIComponent(id)}/approve`, {
     method: 'POST',
     json: {
       comment: body?.comment ?? null,
       applySignature: body?.applySignature ?? true,
+      signatureId: body?.signatureId ?? null,
     },
   })
 }
@@ -229,6 +231,23 @@ export interface TemplateDraftBody {
 export function saveTemplate(body: TemplateDraftBody): Promise<Template> {
   return request<Template>('/templates', {
     method: 'POST',
+    json: {
+      titleEn: body.titleEn,
+      titleAr: body.titleAr ?? '',
+      lang: body.lang ?? 'en',
+      category: body.category ?? 'Approval',
+      docHtml: body.docHtml,
+      variables: body.variables ?? [],
+      workflow: body.workflow ?? [],
+    },
+  })
+}
+
+/** PUT /templates/{id} — update an existing template in place (item 4). The server
+ *  freezes existing correspondences to the pre-edit body/variables (future-only). */
+export function updateTemplate(id: string, body: TemplateDraftBody): Promise<Template> {
+  return request<Template>(`/templates/${encodeURIComponent(id)}`, {
+    method: 'PUT',
     json: {
       titleEn: body.titleEn,
       titleAr: body.titleAr ?? '',
@@ -501,15 +520,18 @@ export interface UserProfile {
   email?: string
   signatureId?: string
   hasCustomSignature?: boolean
-  /** canonical PNG data-URI of the current signature, when one exists. */
+  /** canonical PNG data-URI of the DEFAULT signature, when one exists. */
   signatureDataUri?: string | null
+  /** the user's full signature gallery (item 1). */
+  signatures?: SignatureMeta[]
 }
 
-/** POST /signature response — canonical stored signature. */
+/** POST /signature response — the newly-added signature + the full gallery. */
 export interface SaveSignatureResult {
   signatureId: string
   /** canonical PNG data-URI as stored by the server. */
   dataUri: string
+  signatures?: SignatureMeta[]
 }
 
 /** GET /api/users/{id} — throws ApiError on network/HTTP failure. */
@@ -526,18 +548,20 @@ export async function getUserProfile(id: string): Promise<UserProfile> {
   return (await res.json()) as UserProfile
 }
 
-/** POST /api/users/{id}/signature as JSON { dataUri, style? }. */
+/** POST /api/users/{id}/signature as JSON { dataUri, style?, label? } — ADDS a
+ *  signature (item 1); the first one becomes the default. */
 export async function saveSignatureDataUri(
   id: string,
   dataUri: string,
   style?: 'cursive' | 'block',
+  label?: string,
 ): Promise<SaveSignatureResult> {
   let res: Response
   try {
     res = await fetch(`${API_BASE}/users/${encodeURIComponent(id)}/signature`, {
       method: 'POST',
       headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(style ? { dataUri, style } : { dataUri }),
+      body: JSON.stringify({ dataUri, ...(style ? { style } : {}), ...(label ? { label } : {}) }),
     })
   } catch (e) {
     throw new ApiError(e instanceof Error ? e.message : 'Network error')
@@ -546,13 +570,15 @@ export async function saveSignatureDataUri(
   return (await res.json()) as SaveSignatureResult
 }
 
-/** POST /api/users/{id}/signature as multipart with field 'file'. */
+/** POST /api/users/{id}/signature as multipart with field 'file' (+ optional label). */
 export async function saveSignatureFile(
   id: string,
   file: File,
+  label?: string,
 ): Promise<SaveSignatureResult> {
   const form = new FormData()
   form.append('file', file)
+  if (label) form.append('label', label)
   let res: Response
   try {
     res = await fetch(`${API_BASE}/users/${encodeURIComponent(id)}/signature`, {
@@ -565,4 +591,20 @@ export async function saveSignatureFile(
   }
   if (!res.ok) throw new ApiError(await readError(res), res.status)
   return (await res.json()) as SaveSignatureResult
+}
+
+/** POST /api/users/{id}/signature/{sigId}/default — make it the default (item 1). */
+export function setDefaultSignature(id: string, sigId: string): Promise<{ signatures: SignatureMeta[] }> {
+  return request<{ signatures: SignatureMeta[] }>(
+    `/users/${encodeURIComponent(id)}/signature/${encodeURIComponent(sigId)}/default`,
+    { method: 'POST' },
+  )
+}
+
+/** DELETE /api/users/{id}/signature/{sigId} — remove one signature (item 1). */
+export function deleteSignature(id: string, sigId: string): Promise<{ signatures: SignatureMeta[] }> {
+  return request<{ signatures: SignatureMeta[] }>(
+    `/users/${encodeURIComponent(id)}/signature/${encodeURIComponent(sigId)}`,
+    { method: 'DELETE' },
+  )
 }

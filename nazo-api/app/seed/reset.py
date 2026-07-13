@@ -100,7 +100,13 @@ def _to_user(d: dict) -> AppUser:
 
 
 def _to_signature(d: dict) -> Signature:
-    return Signature(id=d["id"], owner_id=d["ownerId"], data_uri=d["dataUri"], style=d["style"])
+    return Signature(
+        id=d["id"],
+        owner_id=d["ownerId"],
+        data_uri=d["dataUri"],
+        style=d["style"],
+        label=d.get("label", ""),
+    )
 
 
 def _to_template(d: dict) -> Template:
@@ -190,18 +196,39 @@ def _backup_custom_signatures(session: Session) -> list[dict]:
     if "is_custom" not in cols:
         logger.info("is_custom column absent (pre-migration DB); nothing to preserve")
         return []
-    # Real query — any failure here raises and aborts reset BEFORE drop_all.
-    rows = list(
-        session.exec(
-            select(Signature).where(Signature.is_custom == True)  # noqa: E712
-        ).all()
-    )
+    # Query ONLY columns that pre-exist on the LIVE table (id/owner_id/data_uri/style/
+    # is_custom). `label`/`created_at` are NEW (item 1); on the first reset after deploy
+    # the live table lacks them, so `select(Signature)` (which references every model
+    # column) would raise "column does not exist" and abort reset. Selecting the old
+    # columns explicitly is migration-safe; the new fields are read only when present.
+    has_label = "label" in cols
+    has_created = "created_at" in cols
+    sel_cols = [
+        Signature.id,
+        Signature.owner_id,
+        Signature.data_uri,
+        Signature.style,
+        Signature.is_custom,
+    ]
+    if has_label:
+        sel_cols.append(Signature.label)
+    if has_created:
+        sel_cols.append(Signature.created_at)
+    rows = list(session.exec(select(*sel_cols).where(Signature.is_custom == True)).all())  # noqa: E712
+    # A user may own MANY custom signatures (item 1). Capture the label/created_at and
+    # WHICH one is the owner's default so the whole gallery + the chosen default survive.
     backup = [
         {
             "id": r.id,
             "owner_id": r.owner_id,
             "data_uri": r.data_uri,
             "style": r.style,
+            "label": getattr(r, "label", "") if has_label else "",
+            "created_at": getattr(r, "created_at", "") if has_created else "",
+            "is_default": (
+                (u := session.get(AppUser, r.owner_id)) is not None
+                and u.signature_id == r.id
+            ),
         }
         for r in rows
     ]
@@ -222,13 +249,22 @@ def _restore_custom_signatures(session: Session, backup: list[dict]) -> None:
                 owner_id=b["owner_id"],
                 data_uri=b["data_uri"],
                 style=b["style"],
+                label=b.get("label", ""),
                 is_custom=True,
+                created_at=b.get("created_at", ""),
             )
         )
-        user = session.get(AppUser, b["owner_id"])
-        if user is not None:
-            user.signature_id = b["id"]
-            session.add(user)
+    session.flush()
+    # Re-point each user's default at the signature that WAS their default (item 1):
+    # a user's default may be a custom sig they'd chosen — preserve that exact choice
+    # rather than last-wins. If the default was a seed sig, _upsert_seed already set
+    # it, so we only override for users whose default was one of these custom rows.
+    for b in backup:
+        if b.get("is_default"):
+            user = session.get(AppUser, b["owner_id"])
+            if user is not None:
+                user.signature_id = b["id"]
+                session.add(user)
     session.commit()
     logger.info("Restored %d custom signature(s)", len(backup))
 
