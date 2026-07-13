@@ -1,0 +1,69 @@
+# =============================================================================
+# nazo generation LLM — Qwen3-30B-A3B MoE (the latency fix).
+#
+# WHY: the resident dense qwen2.5-32b (vllm-text :9000, shared with aganeti) is
+# memory-bandwidth-bound on the GB10 (~12 tok/s) → a full-page memo is ~80s.
+# This MoE activates only ~3B of 30B params/token → ~74 tok/s → ~12s generation,
+# with better quality than the 7B (which truncates JSON). It coexists with the
+# 32B (both aganeti + nazo work); ~90/128 GB used.
+#
+# STATE: already running on the Spark as a plain `docker run` container named
+# `nazo-moe-test` (restart=unless-stopped, so it survives reboots). This file is
+# the version-controlled reproduction — apply it ONLY if that container is lost:
+#   docker compose -f docker-compose.moe.yml up -d
+# (Applying while nazo-moe-test is up will recreate it → ~80s model reload.)
+#
+# nazo-api reaches it via .env: LLM_BASE_URL=http://host.docker.internal:9003/v1
+#                              LLM_MODEL=qwen3-30b-a3b
+#
+# Model weights: /data/models/Qwen3-30B-A3B-Instruct-2507-AWQ-4bit
+#   (cpatonn/Qwen3-30B-A3B-Instruct-2507-AWQ-4bit, compressed-tensors 4-bit,
+#    128 experts, ~17 GB — downloaded via `hf download`).
+# =============================================================================
+services:
+  moe:
+    image: nvcr.io/nvidia/vllm:26.05-py3
+    container_name: nazo-moe-test
+    restart: unless-stopped
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    ports:
+      - "9003:9003"
+    environment:
+      VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+      NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - /data/models:/models:ro
+      - hf_cache:/root/.cache/huggingface
+    command: >
+      vllm serve
+      /models/Qwen3-30B-A3B-Instruct-2507-AWQ-4bit
+      --host 0.0.0.0
+      --port 9003
+      --served-model-name qwen3-30b-a3b
+      --gpu-memory-utilization 0.22
+      --max-model-len 32768
+      --max-num-seqs 2
+      --trust-remote-code
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 150s
+
+# The hf_cache volume is the shared matrix project's cache (external so we don't
+# create a duplicate). /data/models is the Spark host model directory.
+volumes:
+  hf_cache:
+    external: true
+    name: matrix_hf_cache
