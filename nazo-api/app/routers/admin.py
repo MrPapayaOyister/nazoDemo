@@ -14,11 +14,9 @@ from __future__ import annotations
 import logging
 
 import anyio
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from app.deps import get_current_user
-from app.models import AppUser
 from app.seed.reset import reset_all
 
 logger = logging.getLogger("nazo.admin")
@@ -27,8 +25,14 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.post("/reset")
-async def reset_demo(current_user: AppUser = Depends(get_current_user)) -> JSONResponse:
-    """Run the guarded reset_all() off the event loop and re-seed the demo."""
+async def reset_demo() -> JSONResponse:
+    """Run the guarded reset_all() off the event loop and re-seed the demo.
+
+    NOTE: intentionally takes NO get_current_user/get_session dependency. Holding
+    an open request-scoped session keeps an ACCESS SHARE lock on app_user for the
+    whole request, which would deadlock reset_all()'s drop_all (ACCESS EXCLUSIVE)
+    running in the worker thread. Reset is a global demo op — no user needed.
+    """
     try:
         await anyio.to_thread.run_sync(reset_all)
     except Exception as exc:  # noqa: BLE001 - report gracefully, never crash the app
