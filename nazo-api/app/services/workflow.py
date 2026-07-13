@@ -193,6 +193,24 @@ def _signature_tag_for_role(template: Template, role: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 # Materialization (shared by send + revise).
 # ---------------------------------------------------------------------------
+# The six switchable demo identities — the only valid explicit user assignments.
+_VALID_USER_IDS: frozenset[str] = frozenset(ROLE_TO_USER_ID.values())
+
+
+def _resolve_assignee_id(ws: dict[str, Any], role: str) -> str:
+    """Resolve a snapshot step to its concrete assignee.
+
+    Honors an ADDITIVE `assignment` field: kind=='user' routes to that specific
+    user (when it is one of the six demo users), otherwise (role/absent/invalid)
+    falls back to the role's canonical user. role_label stays the step's role."""
+    assignment = ws.get("assignment")
+    if isinstance(assignment, dict) and assignment.get("kind") == "user":
+        ref = assignment.get("ref")
+        if isinstance(ref, str) and ref in _VALID_USER_IDS:
+            return ref
+    return ROLE_TO_USER_ID[role]
+
+
 def _materialize_chain(session: Session, corr: Correspondence) -> None:
     """Create CorrespondenceStep rows from corr.workflow_snapshot: index 0 active,
     the rest pending; all chain steps (detour_of_step_id=None)."""
@@ -205,7 +223,7 @@ def _materialize_chain(session: Session, corr: Correspondence) -> None:
                 step_order=i,
                 type=normalize_step_type(ws["type"]),
                 role=role,
-                assignee_id=ROLE_TO_USER_ID[role],
+                assignee_id=_resolve_assignee_id(ws, role),
                 detour_of_step_id=None,
                 unit_en=ws.get("unitEn", ""),
                 unit_ar=ws.get("unitAr", ""),

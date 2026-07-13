@@ -20,6 +20,7 @@ import type {
 } from '@/types'
 import { USERS, USER_BY_ID } from '@/data/users'
 import { SIGNATURE_BY_ID } from '@/data/signatures'
+import { makeDefaultStep, validateWorkflowGraph } from '@/features/workflow/model'
 import { SEED_CORRESPONDENCES, TEMPLATES } from '@/data/seed'
 import { genId } from '@/data/ids'
 import { AI_SPEED } from '@/lib/constants'
@@ -128,6 +129,12 @@ interface AppState {
   // working-surface actions
   setStudioDraft: (d: TemplateDraft | null) => void
   setCanvasSteps: (steps: WorkflowStep[]) => void
+  /** Builder CRUD — canvasSteps is the source of truth (mirrored into
+   *  studioDraft.workflow when a draft exists, like setWorkflow does). */
+  addCanvasStep: (afterId?: string | null, seed?: Partial<WorkflowStep>) => void
+  removeCanvasStep: (id: string) => void
+  moveCanvasStep: (id: string, dir: 'up' | 'down') => void
+  setCanvasStep: (id: string, patch: Partial<WorkflowStep>) => void
   startCreate: (templateId: string) => void
   setCreateValue: (tag: string, value: string) => void
   resetCreate: () => void
@@ -200,53 +207,49 @@ const visible = (rows: Correspondence[]) => rows.filter((c) => c.status !== 'Dra
 // ---------------------------------------------------------------------------
 // Client-side orphan-action resolution (no backend handler).
 // ---------------------------------------------------------------------------
-function validateCanvasStep(steps: WorkflowStep[]): ScenarioStep {
-  const problems: string[] = []
-  const problemsAr: string[] = []
-  if (steps.length === 0) {
-    problems.push('Add at least one approval step.')
-    problemsAr.push('أضف خطوة اعتماد واحدة على الأقل.')
+/** Live signature-asset predicate: seed ink OR a custom signature drawn on the
+ *  Profile page. Mirrors effectiveSignatureId + useSignatureUri. */
+function makeHasSignatureAsset(state: AppState): (u: User) => boolean {
+  return (u: User) => {
+    const sigId = u.signatureId ?? `sig_${u.id}`
+    return !!(state.customSignatures[sigId] ?? SIGNATURE_BY_ID[sigId])
   }
-  for (let i = 1; i < steps.length; i++) {
-    if (steps[i].role === steps[i - 1].role) {
-      problems.push(`Duplicate consecutive step: ${steps[i].role}.`)
-      problemsAr.push(`خطوة متكررة متتالية: ${steps[i].role}.`)
-    }
-  }
-  for (const s of steps) {
-    if (s.type === 'Signing' || s.sign) {
-      const signer = USERS.find((u) => u.role === s.role && u.signatureId)
-      if (!signer) {
-        problems.push(`No resolvable signer for role "${s.role}".`)
-        problemsAr.push(`لا يوجد موقّع للدور "${s.role}".`)
-      }
-    }
-  }
-  const ok = problems.length === 0 && steps.length > 0
+}
+
+/** Thin AI wrapper around the deterministic validateWorkflowGraph — reports the
+ *  same errors/warnings through the AI panel as a ResultCard. */
+function validateCanvasStep(state: AppState): ScenarioStep {
+  const steps = state.canvasSteps
+  const { errors, warnings } = validateWorkflowGraph(
+    steps,
+    state.users,
+    makeHasSignatureAsset(state),
+  )
+  const ok = errors.length === 0
   const result: ResultCard = ok
     ? {
-        titleEn: 'Workflow valid ✓',
-        titleAr: 'المسار صالح ✓',
-        summaryEn: `Connected chain of ${steps.length} step(s); every signing role has a signer, no duplicate consecutive steps.`,
-        summaryAr: `سلسلة متصلة من ${steps.length} خطوة؛ لكل دور موقِّع، بلا خطوات مكررة متتالية.`,
-        bulletsEn: steps.map((s) => `${s.role} — ${s.type}${s.sign ? ' · signs' : ''}`),
-        bulletsAr: steps.map((s) => `${s.role} — ${s.type}${s.sign ? ' · يوقّع' : ''}`),
+        titleEn: warnings.length ? `Valid — ${warnings.length} warning(s)` : 'Workflow valid ✓',
+        titleAr: warnings.length ? `صالح — ${warnings.length} تنبيه` : 'المسار صالح ✓',
+        summaryEn: `Connected chain of ${steps.length} step(s); every step resolves to a real assignee, every signer owns a signature, no duplicate consecutive assignees.`,
+        summaryAr: `سلسلة متصلة من ${steps.length} خطوة؛ كل خطوة تُحال إلى مُسنَد حقيقي، وكل موقّع يملك توقيعاً، بلا مُسنَدين متكررين على التوالي.`,
+        bulletsEn: warnings.length ? warnings.map((w) => `⚠ ${w.en}`) : undefined,
+        bulletsAr: warnings.length ? warnings.map((w) => `⚠ ${w.ar}`) : undefined,
       }
     : {
-        titleEn: `${problems.length} issue(s) found`,
-        titleAr: `${problems.length} مشكلة`,
+        titleEn: `${errors.length} issue(s) found`,
+        titleAr: `${errors.length} مشكلة`,
         summaryEn: 'Resolve the following before publishing.',
         summaryAr: 'عالج ما يلي قبل النشر.',
-        bulletsEn: problems,
-        bulletsAr: problemsAr,
+        bulletsEn: [...errors.map((e) => e.en), ...warnings.map((w) => `⚠ ${w.en}`)],
+        bulletsAr: [...errors.map((e) => e.ar), ...warnings.map((w) => `⚠ ${w.ar}`)],
       }
   return {
     actionId: 'admin.validateWorkflow',
     delayMs: 1200,
     revealAnim: 'fade',
     undoable: false,
-    thinkingEn: ['Checking the chain…', 'Confirming every step signs…'],
-    thinkingAr: ['فحص السلسلة…', 'التأكد من توقيع كل خطوة…'],
+    thinkingEn: ['Checking the chain…', 'Resolving every assignee…', 'Confirming signers & order…'],
+    thinkingAr: ['فحص السلسلة…', 'حلّ كل مُسنَد…', 'تأكيد الموقّعين والترتيب…'],
     result,
     effects: ok
       ? [{ type: 'toast', textEn: 'Workflow valid — ready to publish.', textAr: 'المسار صالح — جاهز للنشر.' }]
@@ -282,7 +285,7 @@ function suggestVariablesStep(draft: TemplateDraft | null): ScenarioStep {
 
 /** Resolve the concrete step for a client-side / scripted action. */
 function clientStep(ctx: AiContext, state: AppState): ScenarioStep {
-  if (ctx.actionId === 'admin.validateWorkflow') return validateCanvasStep(state.canvasSteps)
+  if (ctx.actionId === 'admin.validateWorkflow') return validateCanvasStep(state)
   if (ctx.actionId === 'admin.suggestVariables') return suggestVariablesStep(state.studioDraft)
   // common.nextAction (role heuristic) + requester.draftContent (scripted stub).
   return resolveScenario(ctx)
@@ -409,6 +412,57 @@ export const useStore = create<AppState>()(
       // ---- working surfaces ----
       setStudioDraft: (studioDraft) => set({ studioDraft }),
       setCanvasSteps: (canvasSteps) => set({ canvasSteps }),
+      // Builder CRUD. Each mirrors the new chain into studioDraft.workflow when a
+      // draft exists, so the studio's suggested-workflow preview stays in lock-step.
+      addCanvasStep: (afterId, seed) =>
+        set((s) => {
+          const step = makeDefaultStep(s.canvasSteps, s.users, seed)
+          let steps: WorkflowStep[]
+          if (afterId == null) {
+            steps = [...s.canvasSteps, step]
+          } else {
+            const idx = s.canvasSteps.findIndex((x) => x.id === afterId)
+            steps =
+              idx === -1
+                ? [...s.canvasSteps, step]
+                : [...s.canvasSteps.slice(0, idx + 1), step, ...s.canvasSteps.slice(idx + 1)]
+          }
+          return {
+            canvasSteps: steps,
+            ...(s.studioDraft ? { studioDraft: { ...s.studioDraft, workflow: steps } } : {}),
+          }
+        }),
+      removeCanvasStep: (id) =>
+        set((s) => {
+          const steps = s.canvasSteps.filter((x) => x.id !== id)
+          return {
+            canvasSteps: steps,
+            ...(s.studioDraft ? { studioDraft: { ...s.studioDraft, workflow: steps } } : {}),
+          }
+        }),
+      moveCanvasStep: (id, dir) =>
+        set((s) => {
+          const idx = s.canvasSteps.findIndex((x) => x.id === id)
+          if (idx === -1) return {}
+          const j = dir === 'up' ? idx - 1 : idx + 1
+          if (j < 0 || j >= s.canvasSteps.length) return {}
+          const steps = s.canvasSteps.slice()
+          const tmp = steps[idx]
+          steps[idx] = steps[j]
+          steps[j] = tmp
+          return {
+            canvasSteps: steps,
+            ...(s.studioDraft ? { studioDraft: { ...s.studioDraft, workflow: steps } } : {}),
+          }
+        }),
+      setCanvasStep: (id, patch) =>
+        set((s) => {
+          const steps = s.canvasSteps.map((x) => (x.id === id ? { ...x, ...patch } : x))
+          return {
+            canvasSteps: steps,
+            ...(s.studioDraft ? { studioDraft: { ...s.studioDraft, workflow: steps } } : {}),
+          }
+        }),
       startCreate: (templateId) =>
         set({
           createDraft: { ...emptyCreateDraft(), templateId },

@@ -24,6 +24,22 @@ export type VariableGroup = 'Requester' | RoleId
 
 export type WorkflowStepType = 'Approving' | 'Reviewing' | 'Signing'
 
+/** Template-level actions a step exposes. `redirect` is a RUNTIME capability of
+ *  every chain step (detour), not a template action, so it is intentionally not
+ *  a member here. Additive: legacy steps derive their actions from the
+ *  rejectable/sign/type flags (see deriveActions in features/workflow/model.ts). */
+export type WorkflowAction = 'approve' | 'reject' | 'sign' | 'review' | 'request-revision'
+
+/** How a step is assigned. `user` pins a specific User.id; `role` targets the
+ *  demo user who owns that RoleId. Additive/back-compat: when absent, a step
+ *  resolves by its `role` (kind: 'role', ref: step.role). No department / level /
+ *  org-unit scoping (deferred by the product owner). */
+export interface WorkflowAssignment {
+  kind: 'user' | 'role'
+  /** userId when kind==='user', RoleId when kind==='role'. */
+  ref: string
+}
+
 export type CorrespondenceStatus =
   | 'Draft'
   | 'InReview'
@@ -91,6 +107,12 @@ export interface WorkflowStep {
   regenerate: boolean
   /** Canvas layout (React Flow); kept in seed so the demo canvas is deterministic. */
   position: { x: number; y: number }
+  /** ADDITIVE (back-compat). Explicit action set; derived from the legacy
+   *  rejectable/sign/type flags when absent. */
+  actions?: WorkflowAction[]
+  /** ADDITIVE (back-compat). Explicit assignment; defaults to { kind:'role',
+   *  ref: role } when absent so existing seeds/templates resolve unchanged. */
+  assignment?: WorkflowAssignment
 }
 
 export type TemplateCategory = 'Approval' | 'Circular' | 'Announcement'

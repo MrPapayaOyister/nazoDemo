@@ -1,6 +1,7 @@
 import { Position, type Edge, type Node } from '@xyflow/react'
-import type { Lang, RoleId, WorkflowStep } from '@/types'
+import type { Lang, RoleId, WorkflowAction, WorkflowStep } from '@/types'
 import { USERS } from '@/data/users'
+import { deriveActions, resolveAssignee } from '@/features/workflow/model'
 
 export interface FlowNodeData {
   labelEn: string
@@ -13,17 +14,21 @@ export interface FlowNodeData {
   rejectable?: boolean
   sign?: boolean
   regenerate?: boolean
+  /** The canvasStep id this node mirrors (undefined for start/end). Lets node
+   *  toolbars call the store CRUD directly. */
+  stepId?: string
+  /** Derived action set, drives the capability badges. */
+  actions?: WorkflowAction[]
   [key: string]: unknown
 }
 
-// Canonical scripted-chain node ids (master §3.1 rule 6).
+// Canonical scripted-chain node ids (master §3.1 rule 6). Only used when a role
+// appears once; duplicates fall back to n_<stepId> so ids stay unique.
 const NODE_ID_BY_ROLE: Partial<Record<RoleId, string>> = {
   dtManager: 'n_dt',
   director: 'n_dir',
   gm: 'n_gm',
 }
-
-const userByRole = (role: RoleId) => USERS.find((u) => u.role === role)
 
 function kindFor(step: WorkflowStep): FlowNodeData['kind'] {
   if (step.type === 'Reviewing') return 'review'
@@ -63,10 +68,16 @@ export function stepsToFlow(
     },
   ]
 
+  const usedIds = new Set<string>(['n_start', 'n_end'])
   steps.forEach((step, i) => {
-    const u = userByRole(step.role)
+    const u = resolveAssignee(step, USERS)
+    const actions = deriveActions(step)
+    // Prefer the canonical role id when free & unique, else derive from step id.
+    const preferred = NODE_ID_BY_ROLE[step.role]
+    const nodeId = preferred && !usedIds.has(preferred) ? preferred : `n_${step.id}`
+    usedIds.add(nodeId)
     nodes.push({
-      id: NODE_ID_BY_ROLE[step.role] ?? `n_${step.id}`,
+      id: nodeId,
       type: kindFor(step) === 'review' ? 'review' : kindFor(step) === 'sign' ? 'sign' : 'approval',
       position: { x: gap * (i + 1), y },
       width: 210,
@@ -82,9 +93,11 @@ export function stepsToFlow(
         unitAr: step.unitAr,
         kind: kindFor(step),
         order: i + 1,
-        rejectable: step.rejectable,
-        sign: step.sign,
+        rejectable: actions.includes('reject'),
+        sign: actions.includes('sign'),
         regenerate: step.regenerate,
+        stepId: step.id,
+        actions,
       },
     })
   })

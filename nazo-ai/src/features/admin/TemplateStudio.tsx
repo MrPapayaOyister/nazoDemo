@@ -12,6 +12,7 @@ import {
   Calendar,
   PenTool,
   RotateCcw,
+  AlertTriangle,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -23,6 +24,7 @@ import { useLocalized, useT } from '@/i18n'
 import { riseItem, aiReveal, staggerContainer, EASE } from '@/lib/motion'
 import { genId } from '@/data/ids'
 import { CATEGORY_AR } from '@/lib/labels'
+import { validateWorkflowGraph } from '@/features/workflow/model'
 import type { Template, TemplateVariable, VariableType } from '@/types'
 
 const PLACEHOLDERS: { en: string; ar: string }[] = [
@@ -204,7 +206,12 @@ function DraftReveal({
 }) {
   const tr = useLocalized()
   const draft = useStore((s) => s.studioDraft)!
+  const users = useStore((s) => s.users)
   const [saved, setSaved] = useState(false)
+
+  // Block Publish while the attached workflow has blocking errors (deterministic,
+  // shared with the canvas builder). Warnings never block.
+  const wfErrors = validateWorkflowGraph(draft.workflow, users).errors
 
   return (
     <motion.div variants={aiReveal} initial="initial" animate="animate" className="mt-6">
@@ -228,13 +235,30 @@ function DraftReveal({
               onSave()
               setSaved(true)
             }}
-            disabled={saved}
+            disabled={saved || wfErrors.length > 0}
+            title={
+              wfErrors.length > 0
+                ? tr('Resolve workflow errors before publishing.', 'عالج أخطاء المسار قبل النشر.')
+                : undefined
+            }
           >
             {saved ? <Check className="size-4" /> : null}
             {saved ? tr('Saved', 'تم الحفظ') : tr('Save template', 'حفظ النموذج')}
           </Button>
         </div>
       </div>
+
+      {wfErrors.length > 0 && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl bg-danger-subtle px-3 py-2 text-[12px] text-danger">
+          <AlertTriangle className="size-4 mt-0.5 shrink-0" />
+          <span>
+            {tr(
+              `${wfErrors.length} workflow issue(s) block publishing — open the canvas to fix.`,
+              `${wfErrors.length} مشكلة في المسار تمنع النشر — افتح اللوحة للإصلاح.`,
+            )}
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* document sheet */}
