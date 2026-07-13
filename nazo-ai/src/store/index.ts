@@ -24,7 +24,7 @@ import type {
 } from '@/types'
 import { USERS, USER_BY_ID } from '@/data/users'
 import { SIGNATURE_BY_ID } from '@/data/signatures'
-import { makeDefaultStep, validateWorkflowGraph } from '@/features/workflow/model'
+import { makeDefaultStep, validateWorkflowGraph, isUnassigned } from '@/features/workflow/model'
 import { SEED_CORRESPONDENCES, TEMPLATES } from '@/data/seed'
 import { genId } from '@/data/ids'
 import { AI_SPEED, DEFAULT_ORG_CONFIG } from '@/lib/constants'
@@ -317,12 +317,29 @@ function validateCanvasStep(state: AppState): ScenarioStep {
     makeHasSignatureAsset(state),
   )
   const ok = errors.length === 0
+  // An unassigned step is a warning (never blocks editing), but it DOES block
+  // publish (same gate as the canvas builder + TemplateStudio), so the card must
+  // not claim "ready to publish" while any step is still unassigned.
+  const unassignedCount = steps.filter(isUnassigned).length
+  const readyToPublish = ok && unassignedCount === 0
   const result: ResultCard = ok
     ? {
-        titleEn: warnings.length ? `Valid — ${warnings.length} warning(s)` : 'Workflow valid ✓',
-        titleAr: warnings.length ? `صالح — ${warnings.length} تنبيه` : 'المسار صالح ✓',
-        summaryEn: `Connected chain of ${steps.length} step(s); every step resolves to a real assignee, every signer owns a signature, no duplicate consecutive assignees.`,
-        summaryAr: `سلسلة متصلة من ${steps.length} خطوة؛ كل خطوة تُحال إلى مُسنَد حقيقي، وكل موقّع يملك توقيعاً، بلا مُسنَدين متكررين على التوالي.`,
+        titleEn: unassignedCount
+          ? `${unassignedCount} step(s) unassigned`
+          : warnings.length
+            ? `Valid — ${warnings.length} warning(s)`
+            : 'Workflow valid ✓',
+        titleAr: unassignedCount
+          ? `${unassignedCount} خطوة غير مُسنَدة`
+          : warnings.length
+            ? `صالح — ${warnings.length} تنبيه`
+            : 'المسار صالح ✓',
+        summaryEn: unassignedCount
+          ? `Connected chain of ${steps.length} step(s); assign every unassigned step before publishing.`
+          : `Connected chain of ${steps.length} step(s); every step resolves to a real assignee, every signer owns a signature, no duplicate consecutive assignees.`,
+        summaryAr: unassignedCount
+          ? `سلسلة متصلة من ${steps.length} خطوة؛ أسنِد كل خطوة غير مُسنَدة قبل النشر.`
+          : `سلسلة متصلة من ${steps.length} خطوة؛ كل خطوة تُحال إلى مُسنَد حقيقي، وكل موقّع يملك توقيعاً، بلا مُسنَدين متكررين على التوالي.`,
         bulletsEn: warnings.length ? warnings.map((w) => `⚠ ${w.en}`) : undefined,
         bulletsAr: warnings.length ? warnings.map((w) => `⚠ ${w.ar}`) : undefined,
       }
@@ -342,7 +359,7 @@ function validateCanvasStep(state: AppState): ScenarioStep {
     thinkingEn: ['Checking the chain…', 'Resolving every assignee…', 'Confirming signers & order…'],
     thinkingAr: ['فحص السلسلة…', 'حلّ كل مُسنَد…', 'تأكيد الموقّعين والترتيب…'],
     result,
-    effects: ok
+    effects: readyToPublish
       ? [{ type: 'toast', textEn: 'Workflow valid — ready to publish.', textAr: 'المسار صالح — جاهز للنشر.' }]
       : [],
   }

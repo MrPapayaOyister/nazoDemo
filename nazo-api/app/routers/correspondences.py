@@ -12,6 +12,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Iterator, Optional
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -406,10 +407,14 @@ def download_attachment(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found."
         )
+    # RFC 6266: a latin-1-safe ASCII fallback plus a UTF-8 encoded filename* so
+    # non-latin-1 names (e.g. Arabic "تقرير.pdf") don't crash Starlette's header
+    # encoder (it latin-1-encodes header values → UnicodeEncodeError → 500).
+    name = att.filename or "attachment"
+    ascii_fallback = name.encode("ascii", "ignore").decode("ascii").replace('"', "") or "attachment"
+    disposition = f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(name)}"
     return Response(
         content=bytes(att.data),
         media_type=att.content_type or "application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{att.filename}"'
-        },
+        headers={"Content-Disposition": disposition},
     )

@@ -21,7 +21,7 @@ import { useLocalized, useT } from '@/i18n'
 import { riseItem, aiReveal } from '@/lib/motion'
 import { genId } from '@/data/ids'
 import { CATEGORY_AR } from '@/lib/labels'
-import { validateWorkflowGraph } from '@/features/workflow/model'
+import { validateWorkflowGraph, isUnassigned } from '@/features/workflow/model'
 import { LetterheadFooterEditor, SyncBanner } from '@/features/admin/TemplateEditing'
 import { InlineDocEditor } from '@/features/admin/editor/InlineDocEditor'
 import { cn } from '@/lib/cn'
@@ -236,8 +236,13 @@ function DraftReveal({
   const [showLetterhead, setShowLetterhead] = useState(false)
 
   // Block Publish while the attached workflow has blocking errors (deterministic,
-  // shared with the canvas builder). Warnings never block.
+  // shared with the canvas builder). Warnings never block — EXCEPT an unassigned
+  // step, which is the same hard publish gate the canvas builder enforces (C.5):
+  // an unassigned step would materialize to a placeholder actor the admin never
+  // chose, so both publish paths must block on it identically.
   const wfErrors = validateWorkflowGraph(draft.workflow, users).errors
+  const unassignedCount = draft.workflow.filter(isUnassigned).length
+  const publishBlocked = wfErrors.length > 0 || unassignedCount > 0
 
   return (
     <motion.div variants={aiReveal} initial="initial" animate="animate" className="mt-6">
@@ -265,11 +270,16 @@ function DraftReveal({
               onSave()
               setSaved(true)
             }}
-            disabled={saved || wfErrors.length > 0}
+            disabled={saved || publishBlocked}
             title={
               wfErrors.length > 0
                 ? tr('Resolve workflow errors before publishing.', 'عالج أخطاء المسار قبل النشر.')
-                : undefined
+                : unassignedCount > 0
+                  ? tr(
+                      `${unassignedCount} step(s) still unassigned — open the canvas to assign them.`,
+                      `${unassignedCount} خطوة غير مُسنَدة — افتح اللوحة لإسنادها.`,
+                    )
+                  : undefined
             }
           >
             {saved ? <Check className="size-4" /> : null}
@@ -285,6 +295,18 @@ function DraftReveal({
             {tr(
               `${wfErrors.length} workflow issue(s) block publishing — open the canvas to fix.`,
               `${wfErrors.length} مشكلة في المسار تمنع النشر — افتح اللوحة للإصلاح.`,
+            )}
+          </span>
+        </div>
+      )}
+
+      {wfErrors.length === 0 && unassignedCount > 0 && (
+        <div className="mb-4 flex items-start gap-2 rounded-xl bg-warning-subtle px-3 py-2 text-[12px] text-warning">
+          <AlertTriangle className="size-4 mt-0.5 shrink-0" />
+          <span>
+            {tr(
+              `${unassignedCount} workflow step(s) are unassigned — open the canvas to assign them before publishing.`,
+              `${unassignedCount} خطوة في المسار غير مُسنَدة — افتح اللوحة لإسنادها قبل النشر.`,
             )}
           </span>
         </div>

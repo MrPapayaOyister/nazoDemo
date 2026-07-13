@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
+import { Image } from '@tiptap/extension-image'
+import { TableKit } from '@tiptap/extension-table'
 import { Bold as BoldIcon, Italic as ItalicIcon, List, Plus, Trash2, X } from 'lucide-react'
 import { TokenNode, TokenContext } from '@/features/admin/editor/TokenNode'
 import { Letterhead } from '@/components/common/Letterhead'
@@ -78,7 +80,16 @@ export function InlineDocEditor({ docHtml, variables, lang, onDocChange, onVaria
   )
 
   const editor = useEditor({
-    extensions: [StarterKit, KeepClass, TokenNode],
+    // StarterKit alone would DROP any <img>/<table>/nested structural node a
+    // generated body happens to carry (silent data loss on first edit). Register
+    // the image + table schema so richer bodies round-trip losslessly.
+    extensions: [
+      StarterKit,
+      KeepClass,
+      TokenNode,
+      Image.configure({ allowBase64: true }),
+      TableKit.configure({ table: { resizable: false } }),
+    ],
     content: bodyTokensToSpans(splitRef.current.body),
     editorProps: { attributes: { class: 'doc-body focus:outline-none' } },
     onUpdate: ({ editor }) => emit(editor.getHTML()),

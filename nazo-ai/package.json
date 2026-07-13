@@ -20,6 +20,8 @@
     "@radix-ui/react-tooltip": "^1.2.12",
     "@radix-ui/react-visually-hidden": "^1.2.7",
     "@tiptap/core": "^3.27.3",
+    "@tiptap/extension-image": "^3.27.3",
+    "@tiptap/extension-table": "^3.27.3",
     "@tiptap/pm": "^3.27.3",
     "@tiptap/react": "^3.27.3",
     "@tiptap/starter-kit": "^3.27.3",
