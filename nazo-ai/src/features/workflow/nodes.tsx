@@ -42,7 +42,11 @@ function RoleNode({ data, selected }: NodeProps) {
     <div
       className={cn(
         'rf-enter w-[210px] rounded-2xl bg-surface border shadow-e2 transition-all',
-        selected ? 'border-ai ring-2 ring-ai/30' : 'border-line',
+        selected
+          ? 'border-ai ring-2 ring-ai/30'
+          : d.unassigned
+            ? 'border-dashed border-warning/70'
+            : 'border-line',
       )}
       style={{ ['--i' as string]: String(d.order ?? 0) }}
     >

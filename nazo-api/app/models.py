@@ -221,6 +221,27 @@ class OrgConfig(SQLModel, table=True):
     updated_at: str = ""  # ISO string
 
 
+class Attachment(SQLModel, table=True):
+    """A file attached to a correspondence at a specific workflow action. Bytes are
+    stored in-DB (LargeBinary), consistent with CorrespondenceVersion.pdf/docx_bytes;
+    reset drops+recreates this table like the rest of the nazo allowlist."""
+
+    __tablename__ = "attachment"
+
+    id: str = Field(primary_key=True)
+    correspondence_id: str = Field(foreign_key="correspondence.id", index=True)
+    # Which action this file was attached at: 'create' | 'approve' | 'reject'.
+    context: str
+    # The chain step_order at attach time (approver actions); NULL for 'create'.
+    step_order: Optional[int] = Field(default=None)
+    uploaded_by: str = Field(foreign_key="app_user.id")
+    filename: str
+    content_type: str
+    size_bytes: int = 0
+    data: bytes = Field(sa_column=Column(LargeBinary))
+    created_at: str  # ISO string
+
+
 # ===========================================================================
 # Forward-contract tables (authored now, UNUSED in Phase 2)
 # ===========================================================================

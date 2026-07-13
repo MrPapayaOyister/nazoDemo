@@ -1,12 +1,16 @@
 import { Toaster } from 'sonner'
 import { AppEffects } from '@/app/AppEffects'
 import { AppShell } from '@/app/AppShell'
+import { LoginGate } from '@/features/auth/LoginGate'
+import { useStore } from '@/store'
 
 function App() {
+  // The login gate is the entry point until an identity is chosen (persisted).
+  const sessionUserId = useStore((s) => s.sessionUserId)
   return (
     <>
       <AppEffects />
-      <AppShell />
+      {sessionUserId == null ? <LoginGate /> : <AppShell />}
       <Toaster
         position="bottom-right"
         toastOptions={{

@@ -11,6 +11,7 @@ from sqlmodel import Session, select
 from app.deps import get_session
 from app.models import (
     AppUser,
+    Attachment,
     Correspondence,
     CorrespondenceStep,
     OrgConfig,
@@ -44,6 +45,14 @@ def bootstrap(session: Session = Depends(get_session)) -> dict:
     for group in steps_by_corr.values():
         group.sort(key=lambda s: s.step_order)
 
+    # Group attachments by correspondence (metadata hydrates; bytes fetched on download).
+    all_attach = list(session.exec(select(Attachment)).all())
+    attach_by_corr: dict[str, list[Attachment]] = {}
+    for a in all_attach:
+        attach_by_corr.setdefault(a.correspondence_id, []).append(a)
+    for group in attach_by_corr.values():
+        group.sort(key=lambda a: a.created_at)
+
     # Global letterhead config (singleton). Fall back to the seed default so the
     # frontend always hydrates a full header/footer even on a fresh/partial DB.
     org_row = session.get(OrgConfig, "default")
@@ -62,7 +71,10 @@ def bootstrap(session: Session = Depends(get_session)) -> dict:
         "users": [serialize_user(u) for u in users],
         "templates": [serialize_template(t) for t in templates],
         "correspondences": [
-            serialize_correspondence(c, steps_by_corr.get(c.id, [])) for c in correspondences
+            serialize_correspondence(
+                c, steps_by_corr.get(c.id, []), attach_by_corr.get(c.id, [])
+            )
+            for c in correspondences
         ],
         "org": org,
     }

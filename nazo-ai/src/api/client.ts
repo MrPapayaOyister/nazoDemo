@@ -6,6 +6,7 @@
 // ============================================================================
 
 import type {
+  AttachmentContext,
   Correspondence,
   OrgConfig,
   ResultCard,
@@ -283,6 +284,41 @@ export function downloadDocx(id: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Attachments — multipart upload (one or more files) + blob download.
+// ---------------------------------------------------------------------------
+/** POST multipart {context, files[]}. Returns the freshly serialized correspondence
+ *  (with its attachments). Do NOT set Content-Type — the browser adds the boundary. */
+export async function uploadAttachment(
+  corrId: string,
+  context: AttachmentContext,
+  files: File[],
+): Promise<Correspondence> {
+  const form = new FormData()
+  form.append('context', context)
+  files.forEach((f) => form.append('files', f))
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}/correspondences/${encodeURIComponent(corrId)}/attachments`, {
+      method: 'POST',
+      headers: headers(),
+      body: form,
+    })
+  } catch (e) {
+    throw new ApiError(e instanceof Error ? e.message : 'Network error')
+  }
+  if (!res.ok) throw new ApiError(await readError(res), res.status)
+  const body = (await res.json()) as { correspondence: Correspondence; count: number }
+  return body.correspondence
+}
+
+export function downloadAttachment(corrId: string, attId: string, filename?: string): Promise<void> {
+  return download(
+    `/correspondences/${encodeURIComponent(corrId)}/attachments/${encodeURIComponent(attId)}`,
+    filename ?? attId,
+  )
+}
+
+// ---------------------------------------------------------------------------
 // AI actions — POST /api/ai/{actionId} returning a text/event-stream. We
 // hand-roll SSE parsing off the response body reader and dispatch the 5-event
 // contract (stage_started · stage_note · result · error · done) to callbacks.
@@ -298,6 +334,8 @@ export interface AiContextBody {
   stage?: number
   prompt?: string
   values?: Record<string, string>
+  /** Template-generation length (admin.generateTemplate). */
+  size?: 'small' | 'medium' | 'large'
 }
 
 export interface AiResultPayload {

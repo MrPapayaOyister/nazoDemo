@@ -584,9 +584,10 @@ async def admin_generate_template(session: Session, user: AppUser, ctx: dict[str
     # Target language: explicit ctx.lang wins; otherwise generate_template
     # auto-detects it from the prompt (Arabic characters -> native Arabic memo).
     lang = ctx.get("lang") if ctx.get("lang") in ("en", "ar") else None
+    size = ctx.get("size") if ctx.get("size") in ("small", "medium", "large") else "large"
     try:
         result = await generation.generate_template(
-            prompt_text, provider, session=session, lang=lang
+            prompt_text, provider, session=session, lang=lang, size=size
         )
     except Exception as exc:  # noqa: BLE001 - surface as a graceful SSE error, never a 500
         logger.exception("generate_template failed")

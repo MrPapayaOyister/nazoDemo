@@ -29,6 +29,7 @@ import { USERS } from '@/data/users'
 import { CATEGORY_AR } from '@/lib/labels'
 import { aiReveal, riseItem, staggerContainer, EASE } from '@/lib/motion'
 import { VariableManager, SyncBanner } from '@/features/admin/TemplateEditing'
+import { AttachmentUploader, AttachmentList } from '@/features/shared/Attachments'
 import type { AiActionId, Template } from '@/types'
 import { cn } from '@/lib/cn'
 
@@ -264,6 +265,7 @@ function FillStep({
   const addCreateVariable = useStore((s) => s.addCreateVariable)
   const removeCreateVariable = useStore((s) => s.removeCreateVariable)
   const updateCreateVariable = useStore((s) => s.updateCreateVariable)
+  const createDraftCorrId = useStore((s) => s.createDraftCorrId)
   const [manageFields, setManageFields] = useState(false)
 
   // Effective variables/body for THIS correspondence: an instance override (from
@@ -321,6 +323,7 @@ function FillStep({
           <SlidersHorizontal className="size-4" />
           {tr('Manage fields', 'إدارة الحقول')}
         </Button>
+        {createDraftCorrId && <AttachmentUploader corrId={createDraftCorrId} context="create" />}
         {draft.validation.some((v) => v.status === 'ok') && (
           <span className="ms-auto inline-flex items-center gap-1.5 rounded-full bg-success-subtle text-success px-2.5 py-1 text-[12px] font-semibold">
             <ShieldCheck className="size-3.5" />
@@ -395,6 +398,16 @@ function FillStep({
           />
         </div>
       </div>
+
+      {/* attachments (submitted with this correspondence) */}
+      {createDraftCorrId && draft.attachments.length > 0 && (
+        <div className="mt-5 rounded-2xl hairline bg-surface shadow-e1 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted mb-3">
+            {tr('Attachments', 'المرفقات')}
+          </div>
+          <AttachmentList corrId={createDraftCorrId} attachments={draft.attachments} />
+        </div>
+      )}
 
       {/* workflow strip */}
       <div className="mt-5 rounded-2xl hairline bg-surface shadow-e1 p-4">

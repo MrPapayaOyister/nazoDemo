@@ -62,6 +62,9 @@ class AiContextBody(BaseModel):
     # yet a Correspondence, so its values live only client-side). Used by
     # requester.checkErrors to validate an unsent draft on /requester/new.
     values: Optional[dict[str, str]] = None
+    # Template-generation controls (admin.generateTemplate).
+    size: Optional[str] = None  # 'small' | 'medium' | 'large' (default large downstream)
+    lang: Optional[str] = None  # 'en' | 'ar' explicit override (else auto-detected)
 
 
 def _finalize_job(job_id: str, *, status: str, output: Optional[dict] = None, error: Optional[str] = None) -> None:
@@ -114,6 +117,8 @@ def run_ai_action(
         "stage": body.stage,
         "prompt": body.prompt,
         "values": body.values,
+        "size": body.size,
+        "lang": body.lang,
     }
 
     # Record the job as running BEFORE streaming (request session is still open).

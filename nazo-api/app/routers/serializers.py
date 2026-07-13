@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from app.models import (
     AppUser,
+    Attachment,
     Correspondence,
     CorrespondenceStep,
     OrgConfig,
@@ -103,8 +104,25 @@ def serialize_org_config(oc: OrgConfig) -> dict:
     }
 
 
+def serialize_attachment(a: Attachment) -> dict:
+    """Attachment METADATA (no bytes) — the bytes are fetched via the download route."""
+    return {
+        "id": a.id,
+        "correspondenceId": a.correspondence_id,
+        "context": a.context,
+        "stepOrder": a.step_order,
+        "uploadedBy": a.uploaded_by,
+        "filename": a.filename,
+        "contentType": a.content_type,
+        "sizeBytes": a.size_bytes,
+        "createdAt": a.created_at,
+    }
+
+
 def serialize_correspondence(
-    c: Correspondence, steps: list[CorrespondenceStep]
+    c: Correspondence,
+    steps: list[CorrespondenceStep],
+    attachments: list[Attachment] | None = None,
 ) -> dict:
     out = {
         "id": c.id,
@@ -122,6 +140,7 @@ def serialize_correspondence(
         "history": c.history,
         "createdAt": c.created_at,
         "updatedAt": c.updated_at,
+        "attachments": [serialize_attachment(a) for a in (attachments or [])],
     }
     # Instance-only overrides (item 3b) — present only once the requester has edited
     # this correspondence's variable list / body, so unedited rows stay byte-identical.

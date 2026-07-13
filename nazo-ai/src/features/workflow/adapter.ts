@@ -1,7 +1,7 @@
 import { Position, type Edge, type Node } from '@xyflow/react'
 import type { Lang, RoleId, WorkflowAction, WorkflowStep } from '@/types'
 import { USERS } from '@/data/users'
-import { deriveActions, resolveAssignee } from '@/features/workflow/model'
+import { deriveActions, isUnassigned, resolveAssignee } from '@/features/workflow/model'
 
 export interface FlowNodeData {
   labelEn: string
@@ -14,6 +14,8 @@ export interface FlowNodeData {
   rejectable?: boolean
   sign?: boolean
   regenerate?: boolean
+  /** True when the step is placed but not yet assigned to a user/role. */
+  unassigned?: boolean
   /** The canvasStep id this node mirrors (undefined for start/end). Lets node
    *  toolbars call the store CRUD directly. */
   stepId?: string
@@ -71,6 +73,7 @@ export function stepsToFlow(
   const usedIds = new Set<string>(['n_start', 'n_end'])
   steps.forEach((step, i) => {
     const u = resolveAssignee(step, USERS)
+    const unassigned = isUnassigned(step)
     const actions = deriveActions(step)
     // Prefer the canonical role id when free & unique, else derive from step id.
     const preferred = NODE_ID_BY_ROLE[step.role]
@@ -86,16 +89,17 @@ export function stepsToFlow(
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
       data: {
-        labelEn: u ? u.nameEn : step.role,
-        labelAr: u ? u.nameAr : step.role,
+        labelEn: u ? u.nameEn : unassigned ? 'Unassigned' : step.role,
+        labelAr: u ? u.nameAr : unassigned ? 'غير مُسنَدة' : step.role,
         role: step.role,
-        unitEn: step.unitEn,
-        unitAr: step.unitAr,
+        unitEn: unassigned ? '' : step.unitEn,
+        unitAr: unassigned ? '' : step.unitAr,
         kind: kindFor(step),
         order: i + 1,
         rejectable: actions.includes('reject'),
         sign: actions.includes('sign'),
         regenerate: step.regenerate,
+        unassigned,
         stepId: step.id,
         actions,
       },

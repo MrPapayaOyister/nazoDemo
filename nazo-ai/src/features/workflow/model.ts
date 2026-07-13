@@ -28,9 +28,6 @@ export const ASSIGNABLE_ROLES: RoleId[] = [
   'admin',
 ]
 
-/** Roles a fresh step prefers, in chain order (chair/requester/admin are reserve). */
-const PREFERRED_APPROVER_ROLES: RoleId[] = ['dtManager', 'director', 'gm']
-
 export const ROLE_LABELS: Record<RoleId, { en: string; ar: string }> = {
   requester: { en: 'GM Office', ar: 'مكتب المدير العام' },
   dtManager: { en: 'DT Manager', ar: 'مدير التحول الرقمي' },
@@ -71,19 +68,32 @@ function dedupe(actions: WorkflowAction[]): WorkflowAction[] {
 // ---------------------------------------------------------------------------
 // Assignment.
 // ---------------------------------------------------------------------------
-/** Normalized assignment for a step — defaults to { kind:'role', ref: role }. */
+/** Normalized assignment for a step. An EXPLICIT assignment (user / role /
+ *  unassigned) is honored; a legacy step with no assignment defaults to its role
+ *  (back-compat for existing seeds/templates). */
 export function stepAssignment(step: WorkflowStep): WorkflowAssignment {
-  if (step.assignment && (step.assignment.kind === 'user' || step.assignment.kind === 'role')) {
+  if (
+    step.assignment &&
+    (step.assignment.kind === 'user' ||
+      step.assignment.kind === 'role' ||
+      step.assignment.kind === 'unassigned')
+  ) {
     return step.assignment
   }
   return { kind: 'role', ref: step.role }
 }
 
+/** True when a step was placed on the canvas but not yet assigned to anyone. */
+export function isUnassigned(step: WorkflowStep): boolean {
+  return stepAssignment(step).kind === 'unassigned'
+}
+
 /** Resolve a step to its concrete actor: a user pins that user; a role picks the
- *  demo user who owns it; no assignment falls back to step.role. May be undefined
- *  when the ref points at nothing (an out-of-scope id or an unowned role). */
+ *  demo user who owns it. Returns undefined when unassigned or the ref points at
+ *  nothing (an out-of-scope id or an unowned role). */
 export function resolveAssignee(step: WorkflowStep, users: User[]): User | undefined {
   const a = stepAssignment(step)
+  if (a.kind === 'unassigned') return undefined
   if (a.kind === 'user') return users.find((u) => u.id === a.ref)
   return users.find((u) => u.role === a.ref)
 }
@@ -137,30 +147,23 @@ export function hasDecisionAction(step: WorkflowStep): boolean {
 // ---------------------------------------------------------------------------
 // Default step for a drop / add.
 // ---------------------------------------------------------------------------
-/** A sensible new step: role = first preferred approver not already resolved in
- *  the chain (falls back to gm), actions = [approve], type Approving. A `seed`
- *  (from a palette kind) can pre-set type/actions. */
+/** A new step starts UNASSIGNED — the user assigns each node manually after placing
+ *  it (no auto-assignment). `role` holds only a nominal placeholder that is NOT used
+ *  for resolution while unassigned; the node renders as "Unassigned" until an explicit
+ *  user/role is chosen. A `seed` (from a palette kind) can pre-set type/actions (and,
+ *  rarely, an explicit role/assignment). */
 export function makeDefaultStep(
-  existing: WorkflowStep[],
+  _existing: WorkflowStep[],
   users: User[],
   seed?: Partial<WorkflowStep>,
 ): WorkflowStep {
-  const usedRoles = new Set(existing.map((s) => resolveAssignee(s, users)?.role).filter(Boolean))
-  // Avoid birthing a step that duplicates the previous assignee (which would trip
-  // the dup-consecutive ERROR the moment it's added).
-  const last = existing.length ? resolveAssignee(existing[existing.length - 1], users) : undefined
-  const role =
-    (seed?.role as RoleId | undefined) ??
-    PREFERRED_APPROVER_ROLES.find((r) => !usedRoles.has(r)) ??
-    ASSIGNABLE_ROLES.find((r) => {
-      const owner = users.find((u) => u.role === r)
-      return owner && owner.id !== last?.id
-    }) ??
-    'gm'
-  const owner = users.find((u) => u.role === role)
   const type: WorkflowStepType = seed?.type ?? 'Approving'
   const baseActions = seed?.actions ?? baseActionsForType(type)
   const { rejectable, sign } = legacyFlagsFromActions(baseActions)
+  const assignment: WorkflowAssignment = seed?.assignment ?? { kind: 'unassigned', ref: '' }
+  // A harmless placeholder role (required by the type; unused while unassigned).
+  const role = (seed?.role as RoleId | undefined) ?? 'dtManager'
+  const owner = assignment.kind === 'role' ? users.find((u) => u.role === assignment.ref) : undefined
   return {
     id: genId('ws'),
     role,
@@ -172,7 +175,7 @@ export function makeDefaultStep(
     regenerate: seed?.regenerate ?? false,
     position: seed?.position ?? { x: 0, y: 0 },
     actions: dedupe(baseActions),
-    assignment: seed?.assignment ?? { kind: 'role', ref: role },
+    assignment,
   }
 }
 
@@ -234,7 +237,14 @@ export function validateWorkflowGraph(
 
     // (1) resolves to a real in-scope user
     if (!who) {
-      if (assignment.kind === 'user') {
+      if (assignment.kind === 'unassigned') {
+        // Placed but not yet assigned — a WARNING while editing (does not block the
+        // canvas); Publish is separately gated on zero unassigned steps.
+        warnings.push({
+          en: `Step ${n} is not assigned yet — choose a user or role.`,
+          ar: `الخطوة ${n} غير مُسنَدة بعد — اختر مستخدماً أو دوراً.`,
+        })
+      } else if (assignment.kind === 'user') {
         errors.push({
           en: `Step ${n}: assigned user is not one of the available users.`,
           ar: `الخطوة ${n}: المستخدم المُسنَد ليس ضمن المستخدمين المتاحين.`,

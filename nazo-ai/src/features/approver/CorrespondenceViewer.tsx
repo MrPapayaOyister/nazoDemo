@@ -19,6 +19,7 @@ import {
 import { DocumentRenderer } from '@/components/common/DocumentRenderer'
 import { HistoryTimeline } from '@/components/common/HistoryTimeline'
 import { ChainStepper, signedRolesOf } from '@/components/common/ChainStepper'
+import { AttachmentsCard, AttachmentUploader } from '@/features/shared/Attachments'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { PageTransition } from '@/components/common/PageTransition'
@@ -146,6 +147,8 @@ export function CorrespondenceViewer() {
               </div>
               <ChainStepper steps={corr.workflow} currentIndex={corr.currentStepIndex} status={corr.status} signedRoles={signed} variant="full" />
             </div>
+
+            <AttachmentsCard corrId={corr.id} attachments={corr.attachments ?? []} />
 
             <div className="rounded-2xl hairline bg-surface shadow-e1 p-4">
               <div className="text-[13px] font-semibold text-ink mb-3">{tr('Audit trail', 'سجل التدقيق')}</div>
@@ -316,6 +319,16 @@ function ActionBar({
             </span>
           </button>
         )}
+
+        {/* attach a supporting / marked-up file with this decision */}
+        <div className="flex items-center justify-between gap-2 rounded-xl hairline bg-app px-3 py-2">
+          <span className="text-[11.5px] text-ink-muted">
+            {mode === 'reject'
+              ? tr('Attach a marked-up file', 'أرفق ملفاً موضّحاً')
+              : tr('Attach a supporting file', 'أرفق ملفاً داعماً')}
+          </span>
+          <AttachmentUploader corrId={corr.id} context={mode} label={tr('Attach', 'إرفاق')} />
+        </div>
 
         <Button
           variant={mode === 'reject' ? 'danger' : 'primary'}

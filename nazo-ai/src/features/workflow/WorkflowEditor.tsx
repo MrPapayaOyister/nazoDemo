@@ -28,6 +28,7 @@ import {
   ShieldQuestion,
   Users as UsersIcon,
   Briefcase,
+  CircleDashed,
 } from 'lucide-react'
 import { useStore } from '@/store'
 import { useAI } from '@/ai/useAI'
@@ -41,6 +42,7 @@ import {
   ROLE_LABELS,
   baseActionsForType,
   deriveActions,
+  isUnassigned,
   legacyFlagsFromActions,
   resolveAssignee,
   typeFromActions,
@@ -125,6 +127,10 @@ function EditorInner() {
     [canvasSteps, users, hasSignatureAsset],
   )
   const hasErrors = validation.errors.length > 0
+  // Unassigned nodes are a soft warning while editing, but Publish requires every
+  // node to be assigned to a user or role.
+  const unassignedCount = useMemo(() => canvasSteps.filter(isUnassigned).length, [canvasSteps])
+  const canPublish = !hasErrors && unassignedCount === 0 && !!studioDraft
 
   // canvasSteps is the SINGLE SOURCE OF TRUTH — re-derive the flow on any change
   // (add/remove/reorder/config) or a language toggle. fitView only when the node
@@ -180,6 +186,15 @@ function EditorInner() {
 
   const onPublish = () => {
     if (hasErrors) return
+    if (unassignedCount > 0) {
+      toast(
+        tr(
+          `${unassignedCount} step(s) still need an assignee.`,
+          `${unassignedCount} خطوة بحاجة إلى إسناد.`,
+        ),
+      )
+      return
+    }
     if (studioDraft) {
       const tpl: Template = {
         id: genId('tpl'),
@@ -222,7 +237,16 @@ function EditorInner() {
             <ShieldQuestion className="size-4" />
             {tr('Validate', 'تحقّق')}
           </Button>
-          <Button variant="primary" disabled={hasErrors || !studioDraft} onClick={onPublish}>
+          <Button
+            variant="primary"
+            disabled={!canPublish}
+            onClick={onPublish}
+            title={
+              unassignedCount > 0
+                ? tr(`${unassignedCount} step(s) still unassigned`, `${unassignedCount} خطوة غير مُسنَدة`)
+                : undefined
+            }
+          >
             <Send className="size-4" />
             {tr('Publish', 'نشر')}
           </Button>
@@ -482,6 +506,9 @@ function StepConfig({
       unitAr: u.unitAr,
     })
   }
+  const clearAssignment = () => {
+    onPatch({ assignment: { kind: 'unassigned', ref: '' }, unitEn: '', unitAr: '' })
+  }
 
   const writeActions = (next: WorkflowAction[]) => {
     const { rejectable, sign } = legacyFlagsFromActions(next)
@@ -523,17 +550,23 @@ function StepConfig({
         <SectionLabel>{tr('Assignment', 'الإسناد')}</SectionLabel>
         <Segmented
           options={[
+            { value: 'unassigned', icon: CircleDashed, label: tr('None', 'بلا') },
             { value: 'role', icon: Briefcase, label: tr('Role', 'دور') },
             { value: 'user', icon: UsersIcon, label: tr('User', 'مستخدم') },
           ]}
           value={assignment.kind}
           onChange={(v) => {
             if (v === assignment.kind) return
-            if (v === 'role') setRole(step.role)
+            if (v === 'unassigned') clearAssignment()
+            else if (v === 'role') setRole(ASSIGNABLE_ROLES.includes(step.role) ? step.role : ASSIGNABLE_ROLES[0])
             else setUser(resolved ?? users[0])
           }}
         />
-        {assignment.kind === 'role' ? (
+        {assignment.kind === 'unassigned' ? (
+          <div className="mt-2 rounded-lg bg-warning-subtle px-3 py-2 text-[11.5px] text-warning">
+            {tr('Choose Role or User above to assign this step.', 'اختر دوراً أو مستخدماً بالأعلى لإسناد هذه الخطوة.')}
+          </div>
+        ) : assignment.kind === 'role' ? (
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             {ASSIGNABLE_ROLES.map((r) => (
               <button

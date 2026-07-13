@@ -1,6 +1,6 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { motion } from 'framer-motion'
-import { Check, ChevronDown, UserRound } from 'lucide-react'
+import { Check, ChevronDown, UserRound, LogOut } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, useCurrentUser } from '@/store'
 import { useLocalized } from '@/i18n'
@@ -13,6 +13,7 @@ export function UserSwitcher() {
   const users = useStore((s) => s.users)
   const current = useCurrentUser()
   const switchUser = useStore((s) => s.switchUser)
+  const signOut = useStore((s) => s.signOut)
   const navigate = useNavigate()
   const tr = useLocalized()
 
@@ -92,6 +93,17 @@ export function UserSwitcher() {
                 </DropdownMenu.Item>
               )
             })}
+
+            <DropdownMenu.Separator className="my-1.5 h-px bg-line" />
+            <DropdownMenu.Item
+              onSelect={() => signOut()}
+              className="flex items-center gap-3 rounded-xl px-2 py-2 cursor-pointer outline-none transition-colors data-[highlighted]:bg-danger-subtle text-ink-secondary data-[highlighted]:text-danger"
+            >
+              <span className="grid place-items-center size-[34px] rounded-full bg-subtle shrink-0">
+                <LogOut className="size-[17px]" />
+              </span>
+              <span className="text-[13px] font-semibold">{tr('Sign out', 'تسجيل الخروج')}</span>
+            </DropdownMenu.Item>
           </motion.div>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

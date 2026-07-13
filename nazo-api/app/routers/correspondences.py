@@ -8,21 +8,42 @@ raised by app.services.workflow are mapped to clean 403 / 404 / 409 responses.
 
 from __future__ import annotations
 
+import uuid
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Iterator, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.deps import get_current_user, get_session
-from app.models import AppUser, Correspondence, CorrespondenceStep
-from app.routers.serializers import order_correspondences, serialize_correspondence
+from app.models import AppUser, Attachment, Correspondence, CorrespondenceStep
+from app.routers.serializers import (
+    derive_current_step_index,
+    order_correspondences,
+    serialize_attachment,
+    serialize_correspondence,
+)
 from app.services import graph, workflow
 from app.services.documents import snapshot_version_bg
 from app.services.workflow import WorkflowError
 
 router = APIRouter(prefix="/api/correspondences", tags=["correspondences"])
+
+# Accepted attachment types + per-file cap (10 MB), stated in the plan.
+_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+_ATTACH_CONTEXTS = {"create", "approve", "reject"}
 
 
 # ---------------------------------------------------------------------------
@@ -84,8 +105,24 @@ def _steps_for(session: Session, corr_id: str) -> list[CorrespondenceStep]:
     return rows
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _attachments_for(session: Session, corr_id: str) -> list[Attachment]:
+    rows = list(
+        session.exec(
+            select(Attachment).where(Attachment.correspondence_id == corr_id)
+        ).all()
+    )
+    rows.sort(key=lambda a: a.created_at)
+    return rows
+
+
 def _serialize(session: Session, corr: Correspondence) -> dict:
-    return serialize_correspondence(corr, _steps_for(session, corr.id))
+    return serialize_correspondence(
+        corr, _steps_for(session, corr.id), _attachments_for(session, corr.id)
+    )
 
 
 def _get_or_404(session: Session, corr_id: str) -> Correspondence:
@@ -129,9 +166,19 @@ def list_correspondences(
     elif box == "inbox":
         corrs = [c for c in corrs if active_assignee(c.id) == current_user.id]
 
+    all_attach = list(session.exec(select(Attachment)).all())
+    attach_by_corr: dict[str, list[Attachment]] = {}
+    for a in all_attach:
+        attach_by_corr.setdefault(a.correspondence_id, []).append(a)
+    for group in attach_by_corr.values():
+        group.sort(key=lambda a: a.created_at)
+
     corrs = order_correspondences(corrs)
     return [
-        serialize_correspondence(c, steps_by_corr.get(c.id, [])) for c in corrs
+        serialize_correspondence(
+            c, steps_by_corr.get(c.id, []), attach_by_corr.get(c.id, [])
+        )
+        for c in corrs
     ]
 
 
@@ -296,3 +343,73 @@ def redirect(
         session.commit()
         session.refresh(corr)
     return _serialize(session, corr)
+
+
+# ---------------------------------------------------------------------------
+# Attachments — one or more files attached at create / approve / reject.
+# ---------------------------------------------------------------------------
+@router.post("/{corr_id}/attachments", status_code=status.HTTP_201_CREATED)
+async def upload_attachments(
+    corr_id: str,
+    context: str = Form(...),
+    files: list[UploadFile] = File(...),
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+) -> dict:
+    """Store one or more uploaded files against a correspondence, tagged with the
+    action (create/approve/reject) and the current chain step. Bytes go in-DB."""
+    corr = _get_or_404(session, corr_id)
+    if context not in _ATTACH_CONTEXTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid attachment context '{context}'.",
+        )
+    active_order = derive_current_step_index(_steps_for(session, corr_id))
+    saved = 0
+    for up in files:
+        raw = await up.read()
+        if not raw:
+            continue
+        if len(raw) > _MAX_ATTACHMENT_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"'{up.filename}' exceeds the 10 MB attachment limit.",
+            )
+        session.add(
+            Attachment(
+                id=f"att_{uuid.uuid4().hex[:12]}",
+                correspondence_id=corr_id,
+                context=context,
+                step_order=active_order if active_order >= 0 else None,
+                uploaded_by=current_user.id,
+                filename=up.filename or "attachment",
+                content_type=up.content_type or "application/octet-stream",
+                size_bytes=len(raw),
+                data=raw,
+                created_at=_now_iso(),
+            )
+        )
+        saved += 1
+    session.commit()
+    return {"correspondence": _serialize(session, corr), "count": saved}
+
+
+@router.get("/{corr_id}/attachments/{att_id}")
+def download_attachment(
+    corr_id: str,
+    att_id: str,
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+) -> Response:
+    att = session.get(Attachment, att_id)
+    if att is None or att.correspondence_id != corr_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found."
+        )
+    return Response(
+        content=bytes(att.data),
+        media_type=att.content_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{att.filename}"'
+        },
+    )

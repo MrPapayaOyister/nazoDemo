@@ -6,6 +6,8 @@ import type {
   AiActionId,
   AiContext,
   AiMessage,
+  Attachment,
+  AttachmentContext,
   Correspondence,
   Lang,
   OrgConfig,
@@ -55,6 +57,9 @@ interface CreateDraft {
    *  diverge from it (persisted as overrides on the backend Draft). */
   variablesOverride: TemplateVariable[] | null
   docHtmlOverride: string | null
+  /** Files attached during creation (on the create-first Draft, which isn't in the
+   *  visible correspondence list yet). Surfaced after send on the correspondence. */
+  attachments: Attachment[]
 }
 
 interface ViewerState {
@@ -87,6 +92,7 @@ const emptyCreateDraft = (): CreateDraft => ({
   localePreview: 'en',
   variablesOverride: null,
   docHtmlOverride: null,
+  attachments: [],
 })
 
 const emptyViewer = (): ViewerState => ({ corrId: null, cards: [], comment: '', commentAr: '' })
@@ -98,6 +104,9 @@ interface AppState {
   // identity + ui
   users: User[]
   currentUserId: string
+  /** The identity picked at the login gate. null = show the gate (logged out). NOT
+   *  auth — just a persisted entry choice; the top-right switcher changes it later. */
+  sessionUserId: string | null
   ui: UiState
 
   // custom signatures drawn/uploaded on the Profile page (signatureId -> dataUri).
@@ -131,6 +140,10 @@ interface AppState {
 
   // ui actions
   switchUser: (id: string) => void
+  /** Sign in at the login gate as a fixed identity (switchUser + set the session). */
+  enterAs: (id: string) => void
+  /** Return to the login gate (clears the session; no real auth to tear down). */
+  signOut: () => void
   /** Store the active user's custom signature so the app stamps it. */
   setActiveUserSignature: (dataUri: string) => void
   setTheme: (t: Theme) => void
@@ -155,6 +168,7 @@ interface AppState {
   // change lands in the published template. Body + variable list; docHtml token
   // refs kept in sync (orphan/unused flagged in the UI via analyzeVarSync).
   updateStudioDoc: (docHtml: string) => void
+  setStudioVariables: (variables: TemplateVariable[]) => void
   addStudioVariable: (tag: string) => void
   removeStudioVariable: (tag: string) => void
   updateStudioVariable: (tag: string, patch: Partial<TemplateVariable>) => void
@@ -191,6 +205,13 @@ interface AppState {
    *  doesn't show the success overlay for a revision that didn't actually resend). */
   reviseCorrespondence: (corrId: string, values?: Record<string, string>) => Promise<string>
   redirectCorrespondence: (corrId: string, targetUserId: string, comment?: string) => Promise<void>
+  /** Attach one or more files to a correspondence at an action (create/approve/reject).
+   *  Returns the updated correspondence, or null on failure. */
+  uploadAttachments: (
+    corrId: string,
+    context: AttachmentContext,
+    files: File[],
+  ) => Promise<Correspondence | null>
 
   // global letterhead config (item 2) — GLOBAL header + footer, editable at authoring.
   orgConfig: OrgConfig
@@ -373,6 +394,7 @@ function buildAiBody(ctx: AiContext, state: AppState): api.AiContextBody {
     workflowId: ctx.workflowId,
     stage: ctx.stage,
     prompt: ctx.prompt,
+    size: ctx.size,
   }
   if (
     ctx.actionId === 'requester.autoFill' ||
@@ -392,6 +414,7 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       users: USERS,
       currentUserId: 'u_admin',
+      sessionUserId: null,
       customSignatures: {},
       ui: { theme: 'light', lang: 'en', aiPanelOpen: true, navCollapsed: false },
 
@@ -464,6 +487,17 @@ export const useStore = create<AppState>()(
             /* keep current correspondences */
           }
         })()
+      },
+      enterAs: (id) => {
+        // Sign in at the gate: reuse switchUser (identity + inbox re-fetch), then
+        // record the session so App renders the shell instead of the gate.
+        get().switchUser(id)
+        set({ sessionUserId: id })
+      },
+      signOut: () => {
+        runToken++
+        aiAbort?.abort()
+        set({ sessionUserId: null })
       },
       setActiveUserSignature: (dataUri) =>
         set((s) => {
@@ -539,6 +573,10 @@ export const useStore = create<AppState>()(
       // ---- in-page template editing at AUTHORING (item 3a) ----
       updateStudioDoc: (docHtml) =>
         set((s) => (s.studioDraft ? { studioDraft: { ...s.studioDraft, docHtml } } : {})),
+      // The inline editor (item C.4) owns docHtml + variables jointly, so it sets the
+      // whole variable list at once (no per-add/remove docHtml surgery).
+      setStudioVariables: (variables) =>
+        set((s) => (s.studioDraft ? { studioDraft: { ...s.studioDraft, variables } } : {})),
       addStudioVariable: (tag) =>
         set((s) => {
           if (!s.studioDraft) return {}
@@ -1065,6 +1103,23 @@ export const useStore = create<AppState>()(
         }
       },
 
+      uploadAttachments: async (corrId, context, files) => {
+        const lang = get().ui.lang
+        try {
+          const updated = await api.uploadAttachment(corrId, context, files)
+          set((s) =>
+            updated.status === 'Draft'
+              ? { createDraft: { ...s.createDraft, attachments: updated.attachments ?? [] } }
+              : { correspondences: upsertCorr(s.correspondences, updated) },
+          )
+          return updated
+        } catch (e) {
+          toast(t2(lang, 'Could not attach the file(s).', 'تعذّر إرفاق الملفات.'))
+          console.warn('[nazo] uploadAttachments failed', e)
+          return null
+        }
+      },
+
       publishTemplate: async (t) => {
         const lang = get().ui.lang
         try {
@@ -1116,6 +1171,9 @@ export const useStore = create<AppState>()(
         const lang = get().ui.lang
         set({
           currentUserId: 'u_admin',
+          // Stay signed in as admin after a reset (the reset is an admin action) —
+          // the gate can be reached on demand via Sign out.
+          sessionUserId: 'u_admin',
           studioDraft: null,
           createDraft: emptyCreateDraft(),
           createDraftCorrId: null,
@@ -1138,19 +1196,25 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'nazo-ui',
-      // persist theme + lang + custom signatures; everything else re-seeds each load.
+      // persist theme + lang + custom signatures + the login-gate session; everything
+      // else re-seeds each load. Persisting sessionUserId keeps you signed in on refresh.
       partialize: (s) => ({
         ui: { theme: s.ui.theme, lang: s.ui.lang },
         customSignatures: s.customSignatures,
+        sessionUserId: s.sessionUserId,
       }),
       merge: (persisted, current) => {
         const p = persisted as
-          | { ui?: Partial<UiState>; customSignatures?: Record<string, string> }
+          | { ui?: Partial<UiState>; customSignatures?: Record<string, string>; sessionUserId?: string | null }
           | undefined
         return {
           ...current,
           ui: { ...current.ui, ...(p?.ui ?? {}) },
           customSignatures: { ...current.customSignatures, ...(p?.customSignatures ?? {}) },
+          sessionUserId: p?.sessionUserId ?? null,
+          // If a session was persisted, restore the active identity to match it so the
+          // shell renders as that user (not the default admin) after a refresh.
+          currentUserId: p?.sessionUserId ?? current.currentUserId,
         }
       },
     },
@@ -1199,6 +1263,33 @@ export function useInboxFor(userId: string): Correspondence[] {
 
 export function useCorrespondence(id: string | null): Correspondence | undefined {
   return useStore((s) => (id ? s.correspondences.find((c) => c.id === id) : undefined))
+}
+
+/** Global text search over the correspondences the current identity can see (the
+ *  store list is already role-scoped by switchUser). Matches title (EN/AR), ref,
+ *  status, requester name, filled field values, and approver/reject comments. */
+export function useSearchCorrespondences(query: string): Correspondence[] {
+  const all = useStore((s) => s.correspondences)
+  return useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return all.filter((c) => {
+      const requester = USER_BY_ID[c.requesterId]
+      const hay = [
+        c.titleEn,
+        c.titleAr,
+        c.ref,
+        c.status,
+        requester?.nameEn,
+        requester?.nameAr,
+        ...Object.values(c.values ?? {}),
+        ...c.history.flatMap((h) => [h.comment, h.commentAr ?? '']),
+      ]
+        .join(' • ')
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [all, query])
 }
 
 export function useTemplate(id: string | null): Template | undefined {

@@ -117,3 +117,94 @@ export function removeToken(docHtml: string, tag: string): string {
   out = out.replace(new RegExp(tok, 'g'), '')
   return out
 }
+
+// ============================================================================
+// Inline editor (item C.4) helpers. The rich editor edits ONLY the document BODY;
+// the structural parts — the leading {{LETTERHEAD}}, the optional RTL wrapper, and
+// the trailing signature block — are split off and PRESERVED VERBATIM so the editor
+// (which normalizes HTML) can never mangle them. This keeps the docHtml the backend
+// PDF/DOCX pipeline consumes byte-safe.
+// ============================================================================
+export interface DocSplit {
+  /** Verbatim head (RTL wrapper open + {{LETTERHEAD}}), re-emitted unchanged. */
+  prefixRaw: string
+  /** The editable middle (subject, meta line, prose) — with {{TOKEN}} placeholders. */
+  body: string
+  /** Verbatim tail (signature block + RTL wrapper close), re-emitted unchanged. */
+  suffixRaw: string
+}
+
+const RTL_WRAP_RE = /^\s*(<div dir="rtl"[^>]*>)([\s\S]*)(<\/div>)\s*$/
+const LEAD_LETTERHEAD_RE = /^\s*\{\{\s*LETTERHEAD\s*\}\}\s*/
+const TRAIL_SIGNBLOCK_RE = /\s*<div class="sign-block">[\s\S]*?<\/div>\s*$/
+
+export function splitDocForEditor(docHtml: string): DocSplit {
+  let s = docHtml || ''
+  let wrapOpen = ''
+  let wrapClose = ''
+  const rtl = s.match(RTL_WRAP_RE)
+  if (rtl) {
+    wrapOpen = rtl[1]
+    s = rtl[2]
+    wrapClose = rtl[3]
+  }
+  let prefix = ''
+  const lh = s.match(LEAD_LETTERHEAD_RE)
+  if (lh) {
+    prefix = '{{LETTERHEAD}}'
+    s = s.slice(lh[0].length)
+  }
+  let suffix = ''
+  const sb = s.match(TRAIL_SIGNBLOCK_RE)
+  if (sb && sb.index !== undefined) {
+    suffix = sb[0].trim()
+    s = s.slice(0, sb.index)
+  }
+  // A stray {{FOOTER}} in the body renders as a component, not text — drop it.
+  s = s.replace(/\{\{\s*FOOTER\s*\}\}/g, '')
+  const prefixRaw = [wrapOpen, prefix].filter(Boolean).join('\n')
+  const suffixRaw = [suffix, wrapClose].filter(Boolean).join('\n')
+  return { prefixRaw, body: s.trim(), suffixRaw }
+}
+
+export function joinDocFromEditor(split: DocSplit, bodyHtml: string): string {
+  const parts = [split.prefixRaw, (bodyHtml || '').trim(), split.suffixRaw].filter(Boolean)
+  return '\n' + parts.join('\n') + '\n'
+}
+
+/** Convert body `{{TOKEN}}` placeholders into `<span data-token>` nodes the editor's
+ *  token node parses (reserved tokens are dropped — they're not editable chips). */
+export function bodyTokensToSpans(body: string): string {
+  return (body || '').replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (_m, name: string) =>
+    RESERVED_TOKENS.has(name) ? '' : `<span data-token="${name}"></span>`,
+  )
+}
+
+/** Reverse: the editor's serialized `<span data-token="NAME">` back to `{{NAME}}`. */
+export function spansToBodyTokens(html: string): string {
+  return (html || '').replace(
+    /<span[^>]*data-token="([A-Za-z0-9_]+)"[^>]*>\s*<\/span>/g,
+    (_m, name: string) => `{{${name}}}`,
+  )
+}
+
+/** Rebuild the variable list from the editor's body tokens: keep every Signature
+ *  variable (they live in the preserved sign-block, not the editor) and any existing
+ *  variable still referenced; add a default for a newly-typed token. */
+export function reconcileVariables(
+  existing: TemplateVariable[],
+  bodyTokenNames: string[],
+): TemplateVariable[] {
+  const bodyTags = new Set(bodyTokenNames.map((n) => `{{${n}}}`))
+  const kept = existing.filter((v) => v.type === 'Signature' || bodyTags.has(v.tag))
+  const keptTags = new Set(kept.map((v) => v.tag))
+  for (const n of bodyTokenNames) {
+    if (RESERVED_TOKENS.has(n)) continue
+    const tag = `{{${n}}}`
+    if (!keptTags.has(tag)) {
+      kept.push(makeVariable(tag))
+      keptTags.add(tag)
+    }
+  }
+  return kept
+}

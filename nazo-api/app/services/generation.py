@@ -224,6 +224,35 @@ _LATIN_RE = re.compile("[A-Za-z]")
 # — the system prompt already demands a full-page memo, so the first draft stands.
 _EN_MAX_TOKENS = 1500
 _AR_MAX_TOKENS = 2200
+
+# Generation SIZE bands. 'large' is the historical default (byte-identical to the
+# original 350-500 word memo + 1500/2200 token caps). Each entry's clause replaces
+# the hardcoded length phrase in the system prompt (see _generate_en/_ar), and its
+# max_tokens caps the call — so smaller sizes are also faster.
+_SIZE_SPEC: dict[str, dict[str, Any]] = {
+    "small": {
+        "en": "a concise official memo of roughly 120-180 words",
+        "ar": "a concise official Arabic memo of roughly 120-180 words",
+        "en_max": 700,
+        "ar_max": 1100,
+    },
+    "medium": {
+        "en": "an official memo of roughly 220-320 words",
+        "ar": "an official Arabic memo of roughly 220-320 words",
+        "en_max": 1050,
+        "ar_max": 1600,
+    },
+    "large": {
+        "en": "a COMPLETE, full-page official memo of roughly 350-500 words",
+        "ar": "a COMPLETE full-page official Arabic memo of roughly 350-500 words",
+        "en_max": _EN_MAX_TOKENS,
+        "ar_max": _AR_MAX_TOKENS,
+    },
+}
+# The exact length phrases baked into the system prompts, replaced per size.
+_EN_LEN_PHRASE = "a COMPLETE, full-page official memo of roughly 350-500 words"
+_AR_LEN_PHRASE = "a COMPLETE full-page official Arabic memo of roughly 350-500 words"
+
 # Literal money the model was told never to emit (e.g. "AED 75,000", "$1,200").
 _AMOUNT_RE = re.compile(r"(?:AED|USD|\$|SAR|EUR|€)\s*[0-9][0-9,\.]*", re.IGNORECASE)
 
@@ -507,33 +536,48 @@ async def generate_template(
     *,
     session: Optional[Any] = None,
     lang: Optional[str] = None,
+    size: str = "large",
 ) -> dict[str, Any]:
     """HERO generator. Returns a studio draft:
     {titleEn, titleAr, category, lang, docHtml, variables, workflow}.
 
     Target language = explicit `lang` when 'en'/'ar', else auto-detected from the
     prompt (Arabic characters -> 'ar'). Arabic runs as its OWN structured call
-    (never emitted alongside English) so a full Arabic memo is produced."""
+    (never emitted alongside English) so a full Arabic memo is produced.
+    `size` in {small, medium, large} tunes the body length + token budget; 'large'
+    is the historical default and unchanged."""
     provider = provider or get_provider()
+    if size not in _SIZE_SPEC:
+        size = "large"
     target_lang = lang if lang in ("en", "ar") else _detect_lang(prompt)
     if target_lang == "ar":
-        return await _generate_ar(prompt, provider, session)
-    return await _generate_en(prompt, provider, session)
+        return await _generate_ar(prompt, provider, session, size)
+    return await _generate_en(prompt, provider, session, size)
 
 
 async def _generate_en(
-    prompt: str, provider: Any, session: Optional[Any]
+    prompt: str, provider: Any, session: Optional[Any], size: str = "large"
 ) -> dict[str, Any]:
-    messages = [
-        {"role": "system", "content": _GEN_SYSTEM},
-        {"role": "user", "content": (prompt or "").strip() or "Draft a standard approval memo."},
-    ]
+    spec = _SIZE_SPEC.get(size, _SIZE_SPEC["large"])
+    system = _GEN_SYSTEM.replace(_EN_LEN_PHRASE, spec["en"])
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
+    if size != "large":
+        # Counter the base prompt's "comprehensive / full-page" push for shorter sizes.
+        messages.append(
+            {
+                "role": "system",
+                "content": f"IMPORTANT: keep bodyEn to {spec['en']} — be succinct and do NOT pad to fill a page.",
+            }
+        )
+    messages.append(
+        {"role": "user", "content": (prompt or "").strip() or "Draft a standard approval memo."}
+    )
     data = await provider.complete_structured(
         messages,
         GENERATION_SCHEMA,
         name="template_generation",
         temperature=0.3,
-        max_tokens=_EN_MAX_TOKENS,
+        max_tokens=spec["en_max"],
         fast=True,  # one cheap json_object call; every field is sanitized below
     )
     body_raw = str(data.get("bodyEn") or "")
@@ -562,18 +606,27 @@ async def _generate_en(
 
 
 async def _generate_ar(
-    prompt: str, provider: Any, session: Optional[Any]
+    prompt: str, provider: Any, session: Optional[Any], size: str = "large"
 ) -> dict[str, Any]:
-    messages = [
-        {"role": "system", "content": _GEN_SYSTEM_AR},
-        {"role": "user", "content": (prompt or "").strip() or "أعدّ مذكرة اعتماد رسمية."},
-    ]
+    spec = _SIZE_SPEC.get(size, _SIZE_SPEC["large"])
+    system = _GEN_SYSTEM_AR.replace(_AR_LEN_PHRASE, spec["ar"])
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
+    if size != "large":
+        messages.append(
+            {
+                "role": "system",
+                "content": "مهم: اجعل bodyAr ضمن النطاق المحدد للكلمات — كن موجزاً ولا تُطِل لملء صفحة كاملة.",
+            }
+        )
+    messages.append(
+        {"role": "user", "content": (prompt or "").strip() or "أعدّ مذكرة اعتماد رسمية."}
+    )
     data = await provider.complete_structured(
         messages,
         GENERATION_SCHEMA_AR,
         name="template_generation_ar",
         temperature=0.3,
-        max_tokens=_AR_MAX_TOKENS,
+        max_tokens=spec["ar_max"],
         fast=True,  # one cheap json_object call; every field is sanitized below
     )
     body_raw = str(data.get("bodyAr") or "")

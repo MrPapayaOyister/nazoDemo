@@ -21,6 +21,7 @@ import { CreateWizard } from '@/features/requester/CreateWizard'
 import { ApproverInbox } from '@/features/approver/ApproverInbox'
 import { CorrespondenceViewer } from '@/features/approver/CorrespondenceViewer'
 import { TrackingPage } from '@/features/shared/TrackingPage'
+import { SearchResults } from '@/features/shared/SearchResults'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 
 function RootRedirect() {
@@ -64,6 +65,7 @@ function AnimatedRoutes() {
         {/* Shared */}
         <Route path="/correspondence/:id" element={<CorrespondenceViewer />} />
         <Route path="/tracking" element={<TrackingPage />} />
+        <Route path="/search" element={<SearchResults />} />
         <Route path="/profile" element={<ProfilePage />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

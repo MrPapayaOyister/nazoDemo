@@ -11,12 +11,9 @@ import {
   RotateCcw,
   AlertTriangle,
   Building2,
-  Pencil,
-  Eye,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
-import { DocumentRenderer } from '@/components/common/DocumentRenderer'
 import { Button } from '@/components/ui/Button'
 import { useStore } from '@/store'
 import { useAI } from '@/ai/useAI'
@@ -25,13 +22,16 @@ import { riseItem, aiReveal } from '@/lib/motion'
 import { genId } from '@/data/ids'
 import { CATEGORY_AR } from '@/lib/labels'
 import { validateWorkflowGraph } from '@/features/workflow/model'
-import {
-  LetterheadFooterEditor,
-  VariableManager,
-  BodyEditor,
-  SyncBanner,
-} from '@/features/admin/TemplateEditing'
-import type { Template } from '@/types'
+import { LetterheadFooterEditor, SyncBanner } from '@/features/admin/TemplateEditing'
+import { InlineDocEditor } from '@/features/admin/editor/InlineDocEditor'
+import { cn } from '@/lib/cn'
+import type { Template, TemplateSize } from '@/types'
+
+const SIZE_OPTS: { value: TemplateSize; en: string; ar: string }[] = [
+  { value: 'small', en: 'Small', ar: 'صغير' },
+  { value: 'medium', en: 'Medium', ar: 'متوسط' },
+  { value: 'large', en: 'Large', ar: 'كبير' },
+]
 
 const PLACEHOLDERS: { en: string; ar: string }[] = [
   { en: 'Approval memo to purchase tutoring software for the National Tutoring Program…', ar: 'مذكرة اعتماد لشراء برنامج دروس مساندة للبرنامج الوطني للدروس…' },
@@ -51,6 +51,7 @@ export function TemplateStudio() {
 
   const [prompt, setPrompt] = useState('')
   const [phIdx, setPhIdx] = useState(0)
+  const [size, setSize] = useState<TemplateSize>('large')
 
   const generating = isRunning && runningAction === 'admin.generateTemplate'
 
@@ -62,7 +63,7 @@ export function TemplateStudio() {
 
   const onGenerate = () => {
     if (isRunning) return
-    run({ actionId: 'admin.generateTemplate', role: 'admin', docId: 'draft', prompt })
+    run({ actionId: 'admin.generateTemplate', role: 'admin', docId: 'draft', prompt, size })
   }
 
   const onSave = () => {
@@ -117,10 +118,28 @@ export function TemplateStudio() {
                 className="w-full resize-none bg-transparent px-2 py-1.5 text-[14px] text-ink placeholder:text-ink-muted outline-none"
               />
               <div className="flex items-center justify-between gap-2 px-1 pt-1">
-                <button className="inline-flex items-center gap-1.5 rounded-lg hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-secondary hover:bg-hover transition-colors">
-                  <Upload className="size-3.5" />
-                  {tr('Upload .docx', 'رفع ملف .docx')}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button className="inline-flex items-center gap-1.5 rounded-lg hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-secondary hover:bg-hover transition-colors">
+                    <Upload className="size-3.5" />
+                    <span className="hidden sm:inline">{tr('Upload .docx', 'رفع ملف .docx')}</span>
+                  </button>
+                  {/* generation length */}
+                  <div className="flex items-center gap-0.5 rounded-lg hairline bg-app p-0.5" title={tr('Document length', 'طول المستند')}>
+                    {SIZE_OPTS.map((o) => (
+                      <button
+                        key={o.value}
+                        onClick={() => setSize(o.value)}
+                        disabled={generating}
+                        className={cn(
+                          'rounded-md px-2 py-1 text-[11.5px] font-semibold transition-colors',
+                          size === o.value ? 'bg-brand text-white' : 'text-ink-secondary hover:bg-hover',
+                        )}
+                      >
+                        {tr(o.en, o.ar)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <Button variant="aiGradient" onClick={onGenerate} disabled={generating}>
                   {generating ? (
                     <>
@@ -212,12 +231,9 @@ function DraftReveal({
   const draft = useStore((s) => s.studioDraft)!
   const users = useStore((s) => s.users)
   const updateStudioDoc = useStore((s) => s.updateStudioDoc)
-  const addStudioVariable = useStore((s) => s.addStudioVariable)
-  const removeStudioVariable = useStore((s) => s.removeStudioVariable)
-  const updateStudioVariable = useStore((s) => s.updateStudioVariable)
+  const setStudioVariables = useStore((s) => s.setStudioVariables)
   const [saved, setSaved] = useState(false)
   const [showLetterhead, setShowLetterhead] = useState(false)
-  const [editBody, setEditBody] = useState(false)
 
   // Block Publish while the attached workflow has blocking errors (deterministic,
   // shared with the canvas builder). Warnings never block.
@@ -234,10 +250,6 @@ function DraftReveal({
           <Button variant="ghost" onClick={() => setShowLetterhead((v) => !v)}>
             <Building2 className="size-4" />
             {tr('Letterhead', 'الترويسة')}
-          </Button>
-          <Button variant="ghost" onClick={() => setEditBody((v) => !v)}>
-            {editBody ? <Eye className="size-4" /> : <Pencil className="size-4" />}
-            {editBody ? tr('Preview', 'معاينة') : tr('Edit body', 'تعديل النص')}
           </Button>
           <Button variant="ghost" onClick={onDiscard}>
             <RotateCcw className="size-4" />
@@ -284,31 +296,19 @@ function DraftReveal({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* document sheet — preview or raw-HTML editor */}
-        <div className="lg:col-span-2">
-          {editBody ? (
-            <BodyEditor docHtml={draft.docHtml} onChange={updateStudioDoc} />
-          ) : (
-            <DocumentRenderer docHtml={draft.docHtml} variables={draft.variables} lang={draft.localePreview} />
-          )}
-        </div>
+      <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-5">
+        {/* inline WYSIWYG document editor — edit text + field chips in the preview */}
+        <InlineDocEditor
+          docHtml={draft.docHtml}
+          variables={draft.variables}
+          lang={draft.localePreview}
+          onDocChange={updateStudioDoc}
+          onVariablesChange={setStudioVariables}
+        />
 
-        {/* sync status + editable variables + workflow */}
+        {/* sync status (safety net) + workflow */}
         <div className="space-y-5">
-          <SyncBanner
-            docHtml={draft.docHtml}
-            variables={draft.variables}
-            onAddForToken={(tag) => addStudioVariable(tag)}
-            onRemoveVariable={(tag) => removeStudioVariable(tag)}
-          />
-          <VariableManager
-            variables={draft.variables}
-            onAdd={addStudioVariable}
-            onRemove={removeStudioVariable}
-            onUpdate={updateStudioVariable}
-            title={tr('Fields', 'الحقول')}
-          />
+          <SyncBanner docHtml={draft.docHtml} variables={draft.variables} />
           <SuggestedWorkflow steps={draft.workflow} />
         </div>
       </div>

@@ -35,8 +35,10 @@ export type WorkflowAction = 'approve' | 'reject' | 'sign' | 'review' | 'request
  *  resolves by its `role` (kind: 'role', ref: step.role). No department / level /
  *  org-unit scoping (deferred by the product owner). */
 export interface WorkflowAssignment {
-  kind: 'user' | 'role'
-  /** userId when kind==='user', RoleId when kind==='role'. */
+  /** 'unassigned' = a placed-but-not-yet-assigned node (manual assignment required
+   *  before publish); resolves to no actor. */
+  kind: 'user' | 'role' | 'unassigned'
+  /** userId when kind==='user', RoleId when kind==='role', '' when 'unassigned'. */
   ref: string
 }
 
@@ -172,6 +174,21 @@ export interface HistoryEntry {
   at: string // ISO
 }
 
+export type AttachmentContext = 'create' | 'approve' | 'reject'
+/** A file attached to a correspondence at a specific action (metadata; bytes are
+ *  fetched via the download endpoint). */
+export interface Attachment {
+  id: string
+  correspondenceId: string
+  context: AttachmentContext
+  stepOrder?: number | null
+  uploadedBy: string // User.id
+  filename: string
+  contentType: string
+  sizeBytes: number
+  createdAt: string
+}
+
 export interface Correspondence {
   id: string // 'corr_1001'
   ref: string // 'EHCD/REQ/2026/031'
@@ -192,6 +209,8 @@ export interface Correspondence {
    *  adds/removes a variable or edits the body at correspondence-creation time. */
   variablesOverride?: TemplateVariable[]
   docHtmlOverride?: string
+  /** Files attached at create/approve/reject (metadata; bytes fetched on download). */
+  attachments?: Attachment[]
   history: HistoryEntry[]
   createdAt: string
   updatedAt: string
@@ -275,6 +294,8 @@ export type SideEffect =
   | { type: 'navigate'; to: string }
 
 /** Context passed to a scenario resolver at run time. */
+export type TemplateSize = 'small' | 'medium' | 'large'
+
 export interface AiContext {
   actionId: AiActionId
   role?: RoleId
@@ -285,6 +306,8 @@ export interface AiContext {
   targetId?: string
   stage?: number
   prompt?: string
+  /** Template-generation length (admin.generateTemplate). Default 'large'. */
+  size?: TemplateSize
 }
 
 /** Fully-resolved, concrete step ready for the engine to play. */
