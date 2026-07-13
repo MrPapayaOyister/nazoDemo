@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, RotateCcw } from 'lucide-react'
 import type { Correspondence } from '@/types'
-import { TEMPLATE_BY_ID } from '@/data/seed'
+import { useCorrVariables } from '@/features/shared/useCorrDoc'
 import { USERS } from '@/data/users'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { ChainStepper, signedRolesOf } from '@/components/common/ChainStepper'
@@ -13,8 +13,7 @@ import { cn } from '@/lib/cn'
 export function CorrespondenceCard({ corr }: { corr: Correspondence }) {
   const tr = useLocalized()
   const navigate = useNavigate()
-  const tpl = TEMPLATE_BY_ID[corr.templateId]
-  const signed = signedRolesOf(corr.values, tpl?.variables ?? [])
+  const signed = signedRolesOf(corr.values, useCorrVariables(corr))
   const currentStep = corr.workflow[corr.currentStepIndex]
   const approver = corr.currentAssigneeId
     ? USERS.find((u) => u.id === corr.currentAssigneeId)

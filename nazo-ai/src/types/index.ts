@@ -135,6 +135,34 @@ export interface Template {
   usageCount: number
 }
 
+// ---------- Global letterhead config (item 2 — editable header + footer) ----------
+export interface OrgHeader {
+  code?: string
+  nameEn: string
+  nameAr: string
+  subEn: string
+  subAr: string
+  poBox: string
+  cityEn: string
+  cityAr: string
+  web: string
+}
+export interface OrgFooter {
+  lineEn: string
+  lineAr: string
+  contactEn: string
+  contactAr: string
+  showPageNumbers?: boolean
+}
+/** Singleton, GLOBAL letterhead config: one shared header + footer across every
+ *  document (the org letterhead is uniform). Editable at authoring; persisted. */
+export interface OrgConfig {
+  id: string
+  header: OrgHeader
+  footer: OrgFooter
+  updatedAt?: string
+}
+
 export interface HistoryEntry {
   id: string
   actorId: string // User.id
@@ -159,6 +187,11 @@ export interface Correspondence {
   currentStepIndex: number // -1 when Draft or terminal
   /** active step's real assignee (detour-aware); server-provided, optional on seed. */
   currentAssigneeId?: string | null
+  /** Instance-only overrides (item 3b): the edited variable list / body for THIS
+   *  correspondence. Absent = resolve from the template. Set once the requester
+   *  adds/removes a variable or edits the body at correspondence-creation time. */
+  variablesOverride?: TemplateVariable[]
+  docHtmlOverride?: string
   history: HistoryEntry[]
   createdAt: string
   updatedAt: string

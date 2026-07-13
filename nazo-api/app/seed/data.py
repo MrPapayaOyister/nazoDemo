@@ -17,6 +17,36 @@ from urllib.parse import quote
 from app.models import normalize_step_type
 
 # ===========================================================================
+# Global letterhead config (item 2). Singleton editable header org block + a
+# document footer, EN/AR. Header defaults mirror nazo-ai/src/lib/constants ORG +
+# the Federal Authority sub-line the Letterhead hard-codes; the footer is new
+# (a confidentiality/contact strip). Editing this in the studio updates ALL
+# documents — the org letterhead is uniform, so this is global, not per-template.
+# ===========================================================================
+ORG_CONFIG: dict = {
+    "id": "default",
+    "header": {
+        "code": "EHCD",
+        "nameEn": "Education, Human Development & Community Development Council",
+        "nameAr": "مجلس التعليم والتنمية البشرية والتنمية المجتمعية",
+        "subEn": "Federal Authority for Government Human Resources",
+        "subAr": "الهيئة الاتحادية للموارد البشرية الحكومية",
+        "poBox": "P.O. Box 33845",
+        "cityEn": "Abu Dhabi, United Arab Emirates",
+        "cityAr": "أبوظبي، الإمارات العربية المتحدة",
+        "web": "www.ehcd.gov.ae",
+    },
+    "footer": {
+        "lineEn": "This is an official document of the EHCD e-correspondence system. Verify at www.ehcd.gov.ae.",
+        "lineAr": "هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية EHCD. للتحقق: www.ehcd.gov.ae.",
+        "contactEn": "P.O. Box 33845 · Abu Dhabi, UAE · +971 2 000 0000",
+        "contactAr": "ص.ب ٣٣٨٤٥ · أبوظبي، الإمارات · ٩٧١٢٠٠٠٠٠٠٠+",
+        "showPageNumbers": True,
+    },
+    "updatedAt": "2026-07-10T09:12:00Z",
+}
+
+# ===========================================================================
 # Users (6). Approver order = chain order. Chair is reserve (never in a chain).
 # ===========================================================================
 USERS: list[dict] = [

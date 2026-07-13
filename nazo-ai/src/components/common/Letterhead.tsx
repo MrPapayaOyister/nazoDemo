@@ -1,9 +1,20 @@
 import { ORG } from '@/lib/constants'
+import { useOrgConfig } from '@/store'
 import type { Lang } from '@/types'
 
-/** EHCD / FAHR document letterhead — pure vector, no external assets. */
+/** EHCD / FAHR document letterhead — pure vector, no external assets. The org text
+ *  comes from the editable GLOBAL letterhead config (item 2); it falls back to the
+ *  ORG constants so it always renders even before bootstrap hydrates. */
 export function Letterhead({ lang = 'en' }: { lang?: Lang }) {
   const isAr = lang === 'ar'
+  const h = useOrgConfig().header
+  const org = (isAr ? h.nameAr : h.nameEn) || (isAr ? ORG.nameAr : ORG.nameEn)
+  const sub =
+    (isAr ? h.subAr : h.subEn) ||
+    (isAr ? 'الهيئة الاتحادية للموارد البشرية الحكومية' : 'Federal Authority for Government Human Resources')
+  const city = (isAr ? h.cityAr : h.cityEn) || (isAr ? ORG.cityAr : ORG.cityEn)
+  const poBox = h.poBox || ORG.poBox
+  const web = h.web || ORG.web
   return (
     <div className="doc-letterhead" dir={isAr ? 'rtl' : 'ltr'}>
       <div className="doc-lh-row">
@@ -15,15 +26,13 @@ export function Letterhead({ lang = 'en' }: { lang?: Lang }) {
           </svg>
         </div>
         <div className="doc-lh-titles">
-          <div className="doc-lh-org">{isAr ? ORG.nameAr : ORG.nameEn}</div>
-          <div className="doc-lh-sub">
-            {isAr ? 'الهيئة الاتحادية للموارد البشرية الحكومية' : 'Federal Authority for Government Human Resources'}
-          </div>
+          <div className="doc-lh-org">{org}</div>
+          <div className="doc-lh-sub">{sub}</div>
         </div>
         <div className="doc-lh-meta">
-          <div>{ORG.poBox}</div>
-          <div>{isAr ? ORG.cityAr : ORG.cityEn}</div>
-          <div>{ORG.web}</div>
+          <div>{poBox}</div>
+          <div>{city}</div>
+          <div>{web}</div>
         </div>
       </div>
       <div className="doc-lh-rule" />

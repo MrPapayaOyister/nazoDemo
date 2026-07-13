@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import type { Correspondence } from '@/types'
-import { TEMPLATE_BY_ID } from '@/data/seed'
+import { useCorrVariables } from '@/features/shared/useCorrDoc'
 import { USER_BY_ID } from '@/data/users'
 import { Avatar } from '@/components/common/Avatar'
 import { SLARing } from '@/components/common/SLARing'
@@ -24,9 +24,8 @@ function teaser(corr: Correspondence, tr: (en: string, ar: string) => string): s
 export function TaskCard({ corr }: { corr: Correspondence }) {
   const tr = useLocalized()
   const navigate = useNavigate()
-  const tpl = TEMPLATE_BY_ID[corr.templateId]
   const sender = USER_BY_ID[corr.requesterId]
-  const signed = signedRolesOf(corr.values, tpl?.variables ?? [])
+  const signed = signedRolesOf(corr.values, useCorrVariables(corr))
 
   return (
     <motion.div

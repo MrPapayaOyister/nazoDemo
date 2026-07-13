@@ -8,11 +8,13 @@ import type {
   AiMessage,
   Correspondence,
   Lang,
+  OrgConfig,
   ResultCard,
   ScenarioStep,
   SideEffect,
   Template,
   TemplateDraft,
+  TemplateVariable,
   Theme,
   User,
   ValidationItem,
@@ -23,7 +25,13 @@ import { SIGNATURE_BY_ID } from '@/data/signatures'
 import { makeDefaultStep, validateWorkflowGraph } from '@/features/workflow/model'
 import { SEED_CORRESPONDENCES, TEMPLATES } from '@/data/seed'
 import { genId } from '@/data/ids'
-import { AI_SPEED } from '@/lib/constants'
+import { AI_SPEED, DEFAULT_ORG_CONFIG } from '@/lib/constants'
+import {
+  insertTokenField,
+  makeVariable,
+  normalizeTag,
+  removeToken,
+} from '@/features/admin/variableSync'
 import { resolveScenario, DRAFT, CREATE, REVIEW, DOCTOP } from '@/ai/registry'
 import * as api from '@/api/client'
 
@@ -42,6 +50,11 @@ interface CreateDraft {
   values: Record<string, string>
   validation: ValidationItem[]
   localePreview: Lang
+  /** Instance-only edits (item 3b). null until the requester edits the variable
+   *  list / body for THIS correspondence; then these snapshot the template and
+   *  diverge from it (persisted as overrides on the backend Draft). */
+  variablesOverride: TemplateVariable[] | null
+  docHtmlOverride: string | null
 }
 
 interface ViewerState {
@@ -72,6 +85,8 @@ const emptyCreateDraft = (): CreateDraft => ({
   values: {},
   validation: [],
   localePreview: 'en',
+  variablesOverride: null,
+  docHtmlOverride: null,
 })
 
 const emptyViewer = (): ViewerState => ({ corrId: null, cards: [], comment: '', commentAr: '' })
@@ -135,9 +150,24 @@ interface AppState {
   removeCanvasStep: (id: string) => void
   moveCanvasStep: (id: string, dir: 'up' | 'down') => void
   setCanvasStep: (id: string, patch: Partial<WorkflowStep>) => void
+
+  // in-page template editing at AUTHORING (item 3a) — edits studioDraft, so the
+  // change lands in the published template. Body + variable list; docHtml token
+  // refs kept in sync (orphan/unused flagged in the UI via analyzeVarSync).
+  updateStudioDoc: (docHtml: string) => void
+  addStudioVariable: (tag: string) => void
+  removeStudioVariable: (tag: string) => void
+  updateStudioVariable: (tag: string, patch: Partial<TemplateVariable>) => void
+
   startCreate: (templateId: string) => void
   setCreateValue: (tag: string, value: string) => void
   resetCreate: () => void
+  // in-page VARIABLE editing at CORRESPONDENCE-CREATION (item 3b) — instance-only.
+  // Snapshots the template's variables+body into the createDraft override on first
+  // edit, then persists them onto the backend Draft (never mutates the template).
+  addCreateVariable: (tag: string) => void
+  removeCreateVariable: (tag: string) => void
+  updateCreateVariable: (tag: string, patch: Partial<TemplateVariable>) => void
   /** create-first: POST a real Draft correspondence for the wizard to operate on. */
   createDraftCorrespondence: (templateId: string) => Promise<string | null>
   openViewer: (corrId: string) => void
@@ -159,6 +189,13 @@ interface AppState {
   rejectCorrespondence: (corrId: string, comment: string) => Promise<void>
   reviseCorrespondence: (corrId: string, values?: Record<string, string>) => Promise<void>
   redirectCorrespondence: (corrId: string, targetUserId: string, comment?: string) => Promise<void>
+
+  // global letterhead config (item 2) — GLOBAL header + footer, editable at authoring.
+  orgConfig: OrgConfig
+  updateOrgConfig: (patch: {
+    header?: Partial<OrgConfig['header']>
+    footer?: Partial<OrgConfig['footer']>
+  }) => Promise<void>
 
   // demo
   publishTemplate: (t: Template) => Promise<void>
@@ -203,6 +240,26 @@ function upsertCorr(list: Correspondence[], row: Correspondence): Correspondence
 
 /** Drop backend Draft rows (the create-first scaffolding) from displayed lists. */
 const visible = (rows: Correspondence[]) => rows.filter((c) => c.status !== 'Draft')
+
+/** Persist a per-instance variable/body override onto the backend create-first Draft
+ *  (item 3b). Ensures the Draft exists, then PATCHes the edited list + synced body.
+ *  Best-effort — an offline failure keeps the client-side override for the preview. */
+async function persistCreateOverride(
+  get: () => AppState,
+  variables: TemplateVariable[],
+  docHtml: string,
+): Promise<void> {
+  const st = get()
+  const tid = st.createDraft.templateId
+  let corrId = st.createDraftCorrId
+  try {
+    if (!corrId && tid) corrId = await st.createDraftCorrespondence(tid)
+    if (!corrId) return
+    await api.patchDraft(corrId, { values: get().createDraft.values, variables, docHtml })
+  } catch (e) {
+    console.warn('[nazo] persistCreateOverride failed', e)
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Client-side orphan-action resolution (no backend handler).
@@ -327,6 +384,7 @@ export const useStore = create<AppState>()(
 
       templates: TEMPLATES,
       correspondences: SEED_CORRESPONDENCES,
+      orgConfig: DEFAULT_ORG_CONFIG,
 
       studioDraft: null,
       createDraft: emptyCreateDraft(),
@@ -349,6 +407,7 @@ export const useStore = create<AppState>()(
             users: data.users.length ? data.users : get().users,
             templates: data.templates.length ? data.templates : get().templates,
             correspondences: visible(data.correspondences),
+            orgConfig: data.org ?? get().orgConfig,
           })
         } catch (e) {
           // Degrade gracefully — keep the constant seed so the app never crashes.
@@ -463,6 +522,40 @@ export const useStore = create<AppState>()(
             ...(s.studioDraft ? { studioDraft: { ...s.studioDraft, workflow: steps } } : {}),
           }
         }),
+
+      // ---- in-page template editing at AUTHORING (item 3a) ----
+      updateStudioDoc: (docHtml) =>
+        set((s) => (s.studioDraft ? { studioDraft: { ...s.studioDraft, docHtml } } : {})),
+      addStudioVariable: (tag) =>
+        set((s) => {
+          if (!s.studioDraft) return {}
+          const t = normalizeTag(tag)
+          if (!t || s.studioDraft.variables.some((v) => v.tag === t)) return {}
+          const v = makeVariable(t)
+          // Insert the token into the body too, so a new variable is never "unused".
+          const docHtml = insertTokenField(s.studioDraft.docHtml, v)
+          return { studioDraft: { ...s.studioDraft, variables: [...s.studioDraft.variables, v], docHtml } }
+        }),
+      removeStudioVariable: (tag) =>
+        set((s) => {
+          if (!s.studioDraft) return {}
+          const variables = s.studioDraft.variables.filter((v) => v.tag !== tag)
+          // Strip its token from the body so removal can't leave an orphan token.
+          const docHtml = removeToken(s.studioDraft.docHtml, tag)
+          return { studioDraft: { ...s.studioDraft, variables, docHtml } }
+        }),
+      updateStudioVariable: (tag, patch) =>
+        set((s) =>
+          s.studioDraft
+            ? {
+                studioDraft: {
+                  ...s.studioDraft,
+                  variables: s.studioDraft.variables.map((v) => (v.tag === tag ? { ...v, ...patch } : v)),
+                },
+              }
+            : {},
+        ),
+
       startCreate: (templateId) =>
         set({
           createDraft: { ...emptyCreateDraft(), templateId },
@@ -472,6 +565,50 @@ export const useStore = create<AppState>()(
       setCreateValue: (tag, value) =>
         set((s) => ({ createDraft: { ...s.createDraft, values: { ...s.createDraft.values, [tag]: value } } })),
       resetCreate: () => set({ createDraft: emptyCreateDraft(), createDraftCorrId: null }),
+
+      // ---- in-page VARIABLE editing at CORRESPONDENCE-CREATION (item 3b) ----
+      // Each snapshots the template into the createDraft override on first edit, then
+      // persists the edited list + synced body onto the backend Draft (instance-only).
+      addCreateVariable: (tag) => {
+        const s = get()
+        const tpl = s.templates.find((t) => t.id === s.createDraft.templateId)
+        if (!tpl) return
+        const t = normalizeTag(tag)
+        if (!t) return
+        const baseVars = s.createDraft.variablesOverride ?? tpl.variables
+        if (baseVars.some((v) => v.tag === t)) return
+        const baseDoc = s.createDraft.docHtmlOverride ?? tpl.docHtml
+        const v = makeVariable(t)
+        const variables = [...baseVars, v]
+        const docHtml = insertTokenField(baseDoc, v)
+        set((st) => ({ createDraft: { ...st.createDraft, variablesOverride: variables, docHtmlOverride: docHtml } }))
+        void persistCreateOverride(get, variables, docHtml)
+      },
+      removeCreateVariable: (tag) => {
+        const s = get()
+        const tpl = s.templates.find((t) => t.id === s.createDraft.templateId)
+        if (!tpl) return
+        const baseVars = s.createDraft.variablesOverride ?? tpl.variables
+        const baseDoc = s.createDraft.docHtmlOverride ?? tpl.docHtml
+        const variables = baseVars.filter((v) => v.tag !== tag)
+        const docHtml = removeToken(baseDoc, tag)
+        const values = { ...s.createDraft.values }
+        delete values[tag]
+        set((st) => ({
+          createDraft: { ...st.createDraft, variablesOverride: variables, docHtmlOverride: docHtml, values },
+        }))
+        void persistCreateOverride(get, variables, docHtml)
+      },
+      updateCreateVariable: (tag, patch) => {
+        const s = get()
+        const tpl = s.templates.find((t) => t.id === s.createDraft.templateId)
+        if (!tpl) return
+        const baseVars = s.createDraft.variablesOverride ?? tpl.variables
+        const baseDoc = s.createDraft.docHtmlOverride ?? tpl.docHtml
+        const variables = baseVars.map((v) => (v.tag === tag ? { ...v, ...patch } : v))
+        set((st) => ({ createDraft: { ...st.createDraft, variablesOverride: variables, docHtmlOverride: baseDoc } }))
+        void persistCreateOverride(get, variables, baseDoc)
+      },
       createDraftCorrespondence: async (templateId) => {
         // Reuse an existing draft for the same template.
         if (get().createDraftCorrId && get().createDraft.templateId === templateId) {
@@ -810,7 +947,13 @@ export const useStore = create<AppState>()(
               : null
           let target: Correspondence
           if (draftId) {
-            target = await api.patchDraft(draftId, { values })
+            // Carry any per-instance variable/body override (item 3b) so it is
+            // persisted on send even if an incremental save was missed (offline).
+            target = await api.patchDraft(draftId, {
+              values,
+              ...(draft.variablesOverride ? { variables: draft.variablesOverride } : {}),
+              ...(draft.docHtmlOverride != null ? { docHtml: draft.docHtmlOverride } : {}),
+            })
             if (!target.values['{{REF_NO}}']) {
               target = (await api.allocRef(draftId)).correspondence
             }
@@ -905,6 +1048,27 @@ export const useStore = create<AppState>()(
         }
       },
 
+      updateOrgConfig: async (patch) => {
+        const lang = get().ui.lang
+        const prev = get().orgConfig
+        // Optimistic shallow-merge so the studio preview updates instantly.
+        set((s) => ({
+          orgConfig: {
+            ...s.orgConfig,
+            header: { ...s.orgConfig.header, ...(patch.header ?? {}) },
+            footer: { ...s.orgConfig.footer, ...(patch.footer ?? {}) },
+          },
+        }))
+        try {
+          const saved = await api.saveOrgConfig(patch)
+          set({ orgConfig: saved })
+        } catch (e) {
+          set({ orgConfig: prev })
+          toast(t2(lang, 'Could not save letterhead — server unavailable.', 'تعذّر حفظ الترويسة — الخادم غير متاح.'))
+          console.warn('[nazo] updateOrgConfig failed', e)
+        }
+      },
+
       resetDemo: async () => {
         runToken++
         aiAbort?.abort()
@@ -969,6 +1133,11 @@ export function useCurrentUser(): User {
   const id = useStore((s) => s.currentUserId)
   const users = useStore((s) => s.users)
   return users.find((u) => u.id === id) ?? USER_BY_ID[id] ?? USERS[0]
+}
+
+/** The global letterhead config (item 2) — header + footer, hydrated from bootstrap. */
+export function useOrgConfig(): OrgConfig {
+  return useStore((s) => s.orgConfig)
 }
 
 /** Tasks awaiting the given user (by id). Uses the server's detour-aware

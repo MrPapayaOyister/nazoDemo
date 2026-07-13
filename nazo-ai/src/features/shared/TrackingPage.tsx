@@ -15,6 +15,7 @@ export function TrackingPage() {
   const tr = useLocalized()
   const navigate = useNavigate()
   const all = useStore((s) => s.correspondences)
+  const templates = useStore((s) => s.templates)
 
   return (
     <PageTransition>
@@ -29,8 +30,12 @@ export function TrackingPage() {
       ) : (
         <motion.div variants={staggerContainer(0.04, 0.05)} initial="initial" animate="animate" className="mt-6 space-y-2">
           {all.map((c) => {
-            const tpl = TEMPLATE_BY_ID[c.templateId]
-            const signed = signedRolesOf(c.values, tpl?.variables ?? [])
+            const vars =
+              c.variablesOverride ??
+              templates.find((t) => t.id === c.templateId)?.variables ??
+              TEMPLATE_BY_ID[c.templateId]?.variables ??
+              []
+            const signed = signedRolesOf(c.values, vars)
             return (
               <motion.button
                 key={c.id}

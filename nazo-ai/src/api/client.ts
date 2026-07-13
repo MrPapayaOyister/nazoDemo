@@ -7,9 +7,11 @@
 
 import type {
   Correspondence,
+  OrgConfig,
   ResultCard,
   SideEffect,
   Template,
+  TemplateVariable,
   User,
 } from '@/types'
 
@@ -87,10 +89,26 @@ export interface BootstrapPayload {
   users: User[]
   templates: Template[]
   correspondences: Correspondence[]
+  /** Global letterhead config (item 2); optional so an older backend still boots. */
+  org?: OrgConfig
 }
 
 export function bootstrap(): Promise<BootstrapPayload> {
   return request<BootstrapPayload>('/bootstrap')
+}
+
+// ---------------------------------------------------------------------------
+// Global letterhead config (item 2).
+// ---------------------------------------------------------------------------
+export function getOrgConfig(): Promise<OrgConfig> {
+  return request<OrgConfig>('/config/org')
+}
+
+/** PATCH /config/org — shallow-merge header/footer edits; returns the saved config. */
+export function saveOrgConfig(
+  patch: { header?: Partial<OrgConfig['header']>; footer?: Partial<OrgConfig['footer']> },
+): Promise<OrgConfig> {
+  return request<OrgConfig>('/config/org', { method: 'PATCH', json: patch })
 }
 
 export function listCorrespondences(box: 'all' | 'inbox' | 'mine' = 'all'): Promise<Correspondence[]> {
@@ -123,14 +141,20 @@ export function createCorrespondence(body: {
   })
 }
 
-/** PATCH /{id} — persist wizard field values onto a create-first Draft before send. */
+/** PATCH /{id} — persist wizard field values onto a create-first Draft before send.
+ *  Optionally carries per-instance variable/body overrides (item 3b): when the
+ *  requester adds/removes a variable for THIS correspondence, the full edited list
+ *  (and the synced body) are sent and stored as overrides — the template is untouched. */
 export function patchDraft(
   id: string,
-  body: { values: Record<string, string> },
+  body: { values: Record<string, string>; variables?: TemplateVariable[]; docHtml?: string },
 ): Promise<Correspondence> {
+  const json: Record<string, unknown> = { values: body.values }
+  if (body.variables !== undefined) json.variables = body.variables
+  if (body.docHtml !== undefined) json.docHtml = body.docHtml
   return request<Correspondence>(`/correspondences/${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    json: { values: body.values },
+    json,
   })
 }
 

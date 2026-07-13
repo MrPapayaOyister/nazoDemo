@@ -15,6 +15,7 @@ import {
   Lock,
   PartyPopper,
 } from 'lucide-react'
+import { SlidersHorizontal } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
 import { DocumentRenderer } from '@/components/common/DocumentRenderer'
@@ -27,6 +28,7 @@ import { TEMPLATE_BY_ID } from '@/data/seed'
 import { USERS } from '@/data/users'
 import { CATEGORY_AR } from '@/lib/labels'
 import { aiReveal, riseItem, staggerContainer, EASE } from '@/lib/motion'
+import { VariableManager, SyncBanner } from '@/features/admin/TemplateEditing'
 import type { AiActionId, Template } from '@/types'
 import { cn } from '@/lib/cn'
 
@@ -77,7 +79,10 @@ export function CreateWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateParam])
 
-  const template = draft.templateId ? TEMPLATE_BY_ID[draft.templateId] : null
+  // Resolve from the STORE (not just the static seed) so freshly-generated /
+  // published templates work in the create flow too.
+  const template =
+    (draft.templateId && (templates.find((t) => t.id === draft.templateId) ?? TEMPLATE_BY_ID[draft.templateId])) || null
 
   const pick = (id: string) => {
     startCreate(id)
@@ -256,17 +261,29 @@ function FillStep({
   const { run, isRunning } = useAI()
   const draft = useStore((s) => s.createDraft)
   const setCreateValue = useStore((s) => s.setCreateValue)
+  const addCreateVariable = useStore((s) => s.addCreateVariable)
+  const removeCreateVariable = useStore((s) => s.removeCreateVariable)
+  const updateCreateVariable = useStore((s) => s.updateCreateVariable)
+  const [manageFields, setManageFields] = useState(false)
 
-  const requesterVars = template.variables.filter((v) => v.group === 'Requester')
-  const signatureVars = template.variables.filter((v) => v.type === 'Signature')
+  // Effective variables/body for THIS correspondence: an instance override (from
+  // add/remove-field on this letter) wins over the shared template (item 3b).
+  const effectiveVars = draft.variablesOverride ?? template.variables
+  const effectiveDoc = draft.docHtmlOverride ?? template.docHtml
+  const requesterVars = effectiveVars.filter((v) => v.group === 'Requester')
+  const signatureVars = effectiveVars.filter((v) => v.type === 'Signature')
 
   const allFilled = requesterVars.filter((v) => v.required).every((v) => (draft.values[v.tag] ?? '').trim())
 
-  // preview: swap to twin variant when translated
+  // preview: an instance body override renders as-is; otherwise swap to the twin
+  // variant when translated.
   const previewTpl = useMemo(() => {
-    if (draft.localePreview !== template.lang && template.twinId) return TEMPLATE_BY_ID[template.twinId] ?? template
+    if (!draft.docHtmlOverride && draft.localePreview !== template.lang && template.twinId)
+      return TEMPLATE_BY_ID[template.twinId] ?? template
     return template
-  }, [draft.localePreview, template])
+  }, [draft.localePreview, draft.docHtmlOverride, template])
+  const previewDoc = draft.docHtmlOverride ?? previewTpl.docHtml
+  const previewVars = draft.variablesOverride ?? previewTpl.variables
 
   const fire = (actionId: AiActionId) => {
     if (isRunning) return
@@ -297,6 +314,13 @@ function FillStep({
           <Languages className="size-4" />
           {tr('Translate', 'ترجمة')}
         </Button>
+        <Button
+          variant={manageFields ? 'secondary' : 'ghost'}
+          onClick={() => setManageFields((v) => !v)}
+        >
+          <SlidersHorizontal className="size-4" />
+          {tr('Manage fields', 'إدارة الحقول')}
+        </Button>
         {draft.validation.some((v) => v.status === 'ok') && (
           <span className="ms-auto inline-flex items-center gap-1.5 rounded-full bg-success-subtle text-success px-2.5 py-1 text-[12px] font-semibold">
             <ShieldCheck className="size-3.5" />
@@ -304,6 +328,32 @@ function FillStep({
           </span>
         )}
       </div>
+
+      {manageFields && (
+        <div className="mb-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="rounded-xl bg-ai/[0.06] px-3 py-2 text-[12px] text-ink-secondary">
+              {tr(
+                'Add or remove fields for THIS correspondence only — the template is unchanged.',
+                'أضِف أو احذف حقولاً لهذه المراسلة فقط — النموذج لا يتغيّر.',
+              )}
+            </div>
+            <SyncBanner
+              docHtml={effectiveDoc}
+              variables={effectiveVars}
+              onAddForToken={(t) => addCreateVariable(t)}
+              onRemoveVariable={(t) => removeCreateVariable(t)}
+            />
+          </div>
+          <VariableManager
+            variables={effectiveVars}
+            onAdd={addCreateVariable}
+            onRemove={removeCreateVariable}
+            onUpdate={updateCreateVariable}
+            title={tr('Fields (this letter)', 'حقول هذه الرسالة')}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* form */}
@@ -338,9 +388,9 @@ function FillStep({
         {/* live preview */}
         <div>
           <DocumentRenderer
-            docHtml={previewTpl.docHtml}
+            docHtml={previewDoc}
             values={draft.values}
-            variables={previewTpl.variables}
+            variables={previewVars}
             lang={draft.localePreview}
           />
         </div>

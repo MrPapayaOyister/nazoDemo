@@ -21,6 +21,7 @@ from app.routers import (
     admin,
     ai,
     bootstrap,
+    config,
     correspondences,
     documents,
     health,
@@ -80,6 +81,7 @@ app.include_router(health.router)
 app.include_router(users.router)
 app.include_router(bootstrap.router)
 app.include_router(templates.router)
+app.include_router(config.router)
 app.include_router(admin.router)
 app.include_router(correspondences.router)
 app.include_router(documents.router)

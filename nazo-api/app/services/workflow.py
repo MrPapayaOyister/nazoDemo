@@ -282,12 +282,21 @@ def update_draft_values(
     current_user: AppUser,
     corr: Correspondence,
     values: Optional[dict[str, str]] = None,
+    *,
+    variables: Optional[list[dict]] = None,
+    doc_html: Optional[str] = None,
 ) -> Correspondence:
     """Persist edited field values onto a DRAFT correspondence (create-first).
 
     The create wizard makes a real Draft when it opens, then Send transitions that
     SAME draft. This merges the wizard's final field values in before the send and
     re-derives the title from VENDOR/SUBJECT so it matches the create() path.
+
+    Instance-only editing (item 3b): when the requester adds/removes a variable or
+    edits the body for THIS correspondence, the frontend sends the full edited
+    `variables` list and/or `doc_html`; they are stored as per-correspondence
+    OVERRIDES (variables_override / doc_html_override), leaving the shared Template
+    untouched. Passing None leaves an override unchanged (a prior edit persists).
     """
     _lock_correspondence(session, corr)
     if corr.status != "Draft":
@@ -305,6 +314,10 @@ def update_draft_values(
             f"{CATEGORY_AR.get(category, category)} — {detail or template.name_ar}"
         )
     corr.values = merged
+    if variables is not None:
+        corr.variables_override = list(variables)
+    if doc_html is not None:
+        corr.doc_html_override = doc_html
     # Keep the indexed ref column in sync if REF_NO was supplied directly.
     if merged.get("{{REF_NO}}"):
         corr.ref = merged["{{REF_NO}}"]

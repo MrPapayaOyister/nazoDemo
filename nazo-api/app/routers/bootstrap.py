@@ -9,15 +9,23 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from app.deps import get_session
-from app.models import AppUser, Correspondence, CorrespondenceStep, Template
+from app.models import (
+    AppUser,
+    Correspondence,
+    CorrespondenceStep,
+    OrgConfig,
+    Template,
+)
 from app.routers.serializers import (
     order_correspondences,
     order_templates,
     order_users,
     serialize_correspondence,
+    serialize_org_config,
     serialize_template,
     serialize_user,
 )
+from app.seed import data as seed_data
 
 router = APIRouter(prefix="/api", tags=["bootstrap"])
 
@@ -36,10 +44,25 @@ def bootstrap(session: Session = Depends(get_session)) -> dict:
     for group in steps_by_corr.values():
         group.sort(key=lambda s: s.step_order)
 
+    # Global letterhead config (singleton). Fall back to the seed default so the
+    # frontend always hydrates a full header/footer even on a fresh/partial DB.
+    org_row = session.get(OrgConfig, "default")
+    org = (
+        serialize_org_config(org_row)
+        if org_row is not None
+        else {
+            "id": "default",
+            "header": seed_data.ORG_CONFIG["header"],
+            "footer": seed_data.ORG_CONFIG["footer"],
+            "updatedAt": seed_data.ORG_CONFIG.get("updatedAt", ""),
+        }
+    )
+
     return {
         "users": [serialize_user(u) for u in users],
         "templates": [serialize_template(t) for t in templates],
         "correspondences": [
             serialize_correspondence(c, steps_by_corr.get(c.id, [])) for c in correspondences
         ],
+        "org": org,
     }

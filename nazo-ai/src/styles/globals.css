@@ -277,6 +277,28 @@
 [dir='rtl'] .nazo-doc .doc-lh-rule {
   background: linear-gradient(270deg, #12336b 0%, #b0871c 60%, transparent 100%);
 }
+.nazo-doc .doc-footer {
+  margin-top: 40px;
+}
+.nazo-doc .doc-footer-rule {
+  height: 2px;
+  border-radius: 2px;
+  margin-bottom: 8px;
+  background: linear-gradient(90deg, #b0871c 0%, #12336b 60%, transparent 100%);
+}
+[dir='rtl'] .nazo-doc .doc-footer-rule {
+  background: linear-gradient(270deg, #b0871c 0%, #12336b 60%, transparent 100%);
+}
+.nazo-doc .doc-footer-line {
+  font-size: 10px;
+  color: #6b7a97;
+  line-height: 1.5;
+}
+.nazo-doc .doc-footer-contact {
+  font-size: 9.5px;
+  color: #8794ac;
+  margin-top: 2px;
+}
 .nazo-doc .doc-body h1 {
   font-size: 17px;
   font-weight: 700;

@@ -37,10 +37,12 @@ export function CorrespondenceViewer() {
   const navigate = useNavigate()
   const user = useCurrentUser()
   const corr = useStore((s) => s.correspondences.find((c) => c.id === id))
+  const templates = useStore((s) => s.templates)
   const openViewer = useStore((s) => s.openViewer)
   const { run } = useAI()
 
-  const tpl = corr ? TEMPLATE_BY_ID[corr.templateId] : undefined
+  // Resolve from the STORE (published/new templates included), seed as a fallback.
+  const tpl = corr ? templates.find((t) => t.id === corr.templateId) ?? TEMPLATE_BY_ID[corr.templateId] : undefined
   const [docLang, setDocLang] = useState<Lang>(tpl?.lang ?? 'en')
   const [stampTag, setStampTag] = useState<string | undefined>()
 
@@ -70,8 +72,15 @@ export function CorrespondenceViewer() {
     )
   }
 
-  const previewTpl = docLang !== tpl.lang && tpl.twinId ? TEMPLATE_BY_ID[tpl.twinId] ?? tpl : tpl
-  const signed = signedRolesOf(corr.values, tpl.variables)
+  // Instance override (item 3b) wins over the template; twin-translate preview only
+  // applies to unedited correspondences (an override is instance-specific, no twin).
+  const overrideDoc = corr.docHtmlOverride
+  const overrideVars = corr.variablesOverride
+  const previewTpl =
+    !overrideDoc && docLang !== tpl.lang && tpl.twinId ? TEMPLATE_BY_ID[tpl.twinId] ?? tpl : tpl
+  const previewDoc = overrideDoc ?? previewTpl.docHtml
+  const previewVars = overrideVars ?? previewTpl.variables
+  const signed = signedRolesOf(corr.values, overrideVars ?? tpl.variables)
 
   return (
     <div className="h-full overflow-y-auto">
@@ -103,9 +112,9 @@ export function CorrespondenceViewer() {
           {/* document */}
           <div>
             <DocumentRenderer
-              docHtml={previewTpl.docHtml}
+              docHtml={previewDoc}
               values={corr.values}
-              variables={previewTpl.variables}
+              variables={previewVars}
               lang={docLang}
               showTokens={false}
               stampTag={stampTag}
@@ -212,8 +221,13 @@ function ActionBar({
   const [applySig, setApplySig] = useState(true)
   const tr2 = useLocalized()
 
-  const tpl = TEMPLATE_BY_ID[corr.templateId]
-  const sigVar = tpl?.variables.find((v) => v.type === 'Signature' && v.group === user.role)
+  const templates = useStore((s) => s.templates)
+  const vars =
+    corr.variablesOverride ??
+    templates.find((t) => t.id === corr.templateId)?.variables ??
+    TEMPLATE_BY_ID[corr.templateId]?.variables ??
+    []
+  const sigVar = vars.find((v) => v.type === 'Signature' && v.group === user.role)
   const sigUri = useSignatureUri(effectiveSignatureId(user))
   const comment = tr2(viewerComment, viewerCommentAr || viewerComment)
 

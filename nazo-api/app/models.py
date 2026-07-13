@@ -139,6 +139,16 @@ class Correspondence(SQLModel, table=True):
     created_at: str  # ISO string, verbatim
     updated_at: str  # ISO string, verbatim
     # NOTE: intentionally NO current_step_index column — it is derived.
+    # Instance-only overrides (in-page editing, item 3b): when a requester edits the
+    # variable LIST or body for THIS correspondence, the template's variables/doc_html
+    # are snapshotted here and edited — the shared Template is never mutated. Both NULL
+    # (the default) means "resolve from the template" so every existing flow is unchanged.
+    variables_override: Optional[list[dict[str, Any]]] = Field(
+        default=None, sa_column=_json_column()
+    )
+    doc_html_override: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
 
 
 class CorrespondenceStep(SQLModel, table=True):
@@ -192,6 +202,23 @@ class RefCounter(SQLModel, table=True):
     # Single-row counter keyed by prefix/year scope; 'default' for the demo.
     id: str = Field(primary_key=True)
     next_value: int
+
+
+class OrgConfig(SQLModel, table=True):
+    """Singleton (id='default') global letterhead config — the editable header org
+    block + a document footer, EN/AR (item 2). GLOBAL, not per-template: least
+    data-model disruption (no Template/Correspondence columns, no per-instance
+    snapshotting) and matches reality — the EHCD/FAHR letterhead is uniform. The
+    frontend Letterhead + DocumentFooter and the backend PDF/DOCX pipeline both read
+    this; `{{LETTERHEAD}}` still resolves to the header, `{{FOOTER}}` to the footer.
+    header/footer are JSON dicts in the frontend camelCase shape."""
+
+    __tablename__ = "org_config"
+
+    id: str = Field(default="default", primary_key=True)
+    header: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
+    footer: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
+    updated_at: str = ""  # ISO string
 
 
 # ===========================================================================

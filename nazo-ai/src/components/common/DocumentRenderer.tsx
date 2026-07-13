@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Lang, TemplateVariable } from '@/types'
 import { Letterhead } from '@/components/common/Letterhead'
+import { DocumentFooter } from '@/components/common/DocumentFooter'
 import { SIGNATURE_BY_ID } from '@/data/signatures'
 import { USER_BY_ID } from '@/data/users'
 import { useStore } from '@/store'
@@ -84,6 +85,7 @@ export function DocumentRenderer({
     <div className={cn('nazo-doc', className)} dir={isAr ? 'rtl' : 'ltr'} lang={lang}>
       <Letterhead lang={lang} />
       <div className="doc-body" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+      <DocumentFooter lang={lang} />
     </div>
   )
 }

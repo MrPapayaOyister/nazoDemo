@@ -48,6 +48,10 @@ class ReviseBody(BaseModel):
 
 class UpdateDraftBody(BaseModel):
     values: dict[str, str] = Field(default_factory=dict)
+    # Instance-only overrides (item 3b). Omitted -> unchanged; sent -> the edited
+    # variable list / body for THIS correspondence only (the template is untouched).
+    variables: Optional[list[dict]] = None
+    docHtml: Optional[str] = None
 
 
 class RedirectBody(BaseModel):
@@ -179,7 +183,14 @@ def update_draft(
     """Persist wizard field values onto a create-first Draft before it is sent."""
     corr = _get_or_404(session, corr_id)
     with _domain_errors(session):
-        workflow.update_draft_values(session, current_user, corr, body.values)
+        workflow.update_draft_values(
+            session,
+            current_user,
+            corr,
+            body.values,
+            variables=body.variables,
+            doc_html=body.docHtml,
+        )
         session.commit()
         session.refresh(corr)
     return _serialize(session, corr)

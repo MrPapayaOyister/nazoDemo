@@ -7,7 +7,13 @@ byte-stable across runs.
 
 from __future__ import annotations
 
-from app.models import AppUser, Correspondence, CorrespondenceStep, Template
+from app.models import (
+    AppUser,
+    Correspondence,
+    CorrespondenceStep,
+    OrgConfig,
+    Template,
+)
 from app.seed import data as seed_data
 
 # Seed-defined ordering indexes (byte-stable output order).
@@ -87,10 +93,20 @@ def derive_current_assignee(steps: list[CorrespondenceStep]) -> str | None:
     return None
 
 
+def serialize_org_config(oc: OrgConfig) -> dict:
+    """Global letterhead config -> frontend camelCase (header + footer blocks)."""
+    return {
+        "id": oc.id,
+        "header": oc.header or {},
+        "footer": oc.footer or {},
+        "updatedAt": oc.updated_at,
+    }
+
+
 def serialize_correspondence(
     c: Correspondence, steps: list[CorrespondenceStep]
 ) -> dict:
-    return {
+    out = {
         "id": c.id,
         "ref": c.ref,
         "titleEn": c.title_en,
@@ -107,3 +123,10 @@ def serialize_correspondence(
         "createdAt": c.created_at,
         "updatedAt": c.updated_at,
     }
+    # Instance-only overrides (item 3b) — present only once the requester has edited
+    # this correspondence's variable list / body, so unedited rows stay byte-identical.
+    if c.variables_override is not None:
+        out["variablesOverride"] = c.variables_override
+    if c.doc_html_override is not None:
+        out["docHtmlOverride"] = c.doc_html_override
+    return out

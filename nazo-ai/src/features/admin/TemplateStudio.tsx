@@ -8,11 +8,11 @@ import {
   Wand2,
   ArrowRight,
   Check,
-  Type,
-  Calendar,
-  PenTool,
   RotateCcw,
   AlertTriangle,
+  Building2,
+  Pencil,
+  Eye,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -21,19 +21,23 @@ import { Button } from '@/components/ui/Button'
 import { useStore } from '@/store'
 import { useAI } from '@/ai/useAI'
 import { useLocalized, useT } from '@/i18n'
-import { riseItem, aiReveal, staggerContainer, EASE } from '@/lib/motion'
+import { riseItem, aiReveal } from '@/lib/motion'
 import { genId } from '@/data/ids'
 import { CATEGORY_AR } from '@/lib/labels'
 import { validateWorkflowGraph } from '@/features/workflow/model'
-import type { Template, TemplateVariable, VariableType } from '@/types'
+import {
+  LetterheadFooterEditor,
+  VariableManager,
+  BodyEditor,
+  SyncBanner,
+} from '@/features/admin/TemplateEditing'
+import type { Template } from '@/types'
 
 const PLACEHOLDERS: { en: string; ar: string }[] = [
   { en: 'Approval memo to purchase tutoring software for the National Tutoring Program…', ar: 'مذكرة اعتماد لشراء برنامج دروس مساندة للبرنامج الوطني للدروس…' },
   { en: 'Official circular to all departments about the new correspondence system…', ar: 'تعميم رسمي لجميع الإدارات حول نظام المراسلات الجديد…' },
   { en: 'HR announcement for an upcoming public holiday…', ar: 'إعلان من الموارد البشرية عن عطلة رسمية قادمة…' },
 ]
-
-const VARTYPE_AR: Record<VariableType, string> = { Text: 'نص', Date: 'تاريخ', Signature: 'توقيع' }
 
 export function TemplateStudio() {
   const t = useT()
@@ -207,7 +211,13 @@ function DraftReveal({
   const tr = useLocalized()
   const draft = useStore((s) => s.studioDraft)!
   const users = useStore((s) => s.users)
+  const updateStudioDoc = useStore((s) => s.updateStudioDoc)
+  const addStudioVariable = useStore((s) => s.addStudioVariable)
+  const removeStudioVariable = useStore((s) => s.removeStudioVariable)
+  const updateStudioVariable = useStore((s) => s.updateStudioVariable)
   const [saved, setSaved] = useState(false)
+  const [showLetterhead, setShowLetterhead] = useState(false)
+  const [editBody, setEditBody] = useState(false)
 
   // Block Publish while the attached workflow has blocking errors (deterministic,
   // shared with the canvas builder). Warnings never block.
@@ -220,7 +230,15 @@ function DraftReveal({
           <Sparkles className="size-3.5" />
           {tr('Draft ready — everything is editable', 'المسودة جاهزة — كل شيء قابل للتعديل')}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="ghost" onClick={() => setShowLetterhead((v) => !v)}>
+            <Building2 className="size-4" />
+            {tr('Letterhead', 'الترويسة')}
+          </Button>
+          <Button variant="ghost" onClick={() => setEditBody((v) => !v)}>
+            {editBody ? <Eye className="size-4" /> : <Pencil className="size-4" />}
+            {editBody ? tr('Preview', 'معاينة') : tr('Edit body', 'تعديل النص')}
+          </Button>
           <Button variant="ghost" onClick={onDiscard}>
             <RotateCcw className="size-4" />
             {tr('Discard', 'تجاهل')}
@@ -260,61 +278,41 @@ function DraftReveal({
         </div>
       )}
 
+      {showLetterhead && (
+        <div className="mb-4">
+          <LetterheadFooterEditor onClose={() => setShowLetterhead(false)} />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* document sheet */}
+        {/* document sheet — preview or raw-HTML editor */}
         <div className="lg:col-span-2">
-          <DocumentRenderer docHtml={draft.docHtml} variables={draft.variables} lang={draft.localePreview} />
+          {editBody ? (
+            <BodyEditor docHtml={draft.docHtml} onChange={updateStudioDoc} />
+          ) : (
+            <DocumentRenderer docHtml={draft.docHtml} variables={draft.variables} lang={draft.localePreview} />
+          )}
         </div>
 
-        {/* detected variables + workflow */}
+        {/* sync status + editable variables + workflow */}
         <div className="space-y-5">
-          <DetectedVariables variables={draft.variables} />
+          <SyncBanner
+            docHtml={draft.docHtml}
+            variables={draft.variables}
+            onAddForToken={(tag) => addStudioVariable(tag)}
+            onRemoveVariable={(tag) => removeStudioVariable(tag)}
+          />
+          <VariableManager
+            variables={draft.variables}
+            onAdd={addStudioVariable}
+            onRemove={removeStudioVariable}
+            onUpdate={updateStudioVariable}
+            title={tr('Fields', 'الحقول')}
+          />
           <SuggestedWorkflow steps={draft.workflow} />
         </div>
       </div>
     </motion.div>
-  )
-}
-
-const TYPE_META: Record<VariableType, { icon: typeof Type; color: string }> = {
-  Text: { icon: Type, color: 'var(--brand)' },
-  Date: { icon: Calendar, color: 'var(--accent)' },
-  Signature: { icon: PenTool, color: 'var(--ai)' },
-}
-
-function DetectedVariables({ variables }: { variables: TemplateVariable[] }) {
-  const tr = useLocalized()
-  return (
-    <div className="rounded-2xl hairline bg-surface shadow-e1 overflow-hidden">
-      <div className="px-4 py-3 border-b border-line flex items-center justify-between">
-        <span className="text-[13px] font-semibold text-ink">{tr('Detected variables', 'المتغيرات المكتشفة')}</span>
-        <span className="text-[11px] font-semibold text-ai bg-ai/12 rounded-full px-2 py-0.5">{variables.length}</span>
-      </div>
-      <motion.ul variants={staggerContainer(0.06, 0.1)} initial="initial" animate="animate" className="p-2 space-y-1">
-        {variables.map((v) => {
-          const meta = TYPE_META[v.type]
-          const Icon = meta.icon
-          return (
-            <motion.li
-              key={v.tag}
-              variants={{ initial: { opacity: 0, x: 12 }, animate: { opacity: 1, x: 0, transition: { duration: 0.4, ease: EASE.standard } } }}
-              className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 hover:bg-hover transition-colors"
-            >
-              <span className="grid place-items-center size-7 rounded-lg shrink-0" style={{ background: `color-mix(in srgb, ${meta.color} 14%, transparent)`, color: meta.color }}>
-                <Icon className="size-3.5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[12.5px] font-medium text-ink truncate">{tr(v.labelEn, v.labelAr)}</span>
-                <span className="block text-[10.5px] text-ink-muted font-mono truncate">{v.tag}</span>
-              </span>
-              <span className="text-[10px] font-semibold rounded px-1.5 py-0.5" style={{ background: `color-mix(in srgb, ${meta.color} 12%, transparent)`, color: meta.color }}>
-                {tr(v.type, VARTYPE_AR[v.type])}
-              </span>
-            </motion.li>
-          )
-        })}
-      </motion.ul>
-    </div>
   )
 }
 

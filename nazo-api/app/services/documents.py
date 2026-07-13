@@ -42,11 +42,13 @@ from app.models import (
     AppUser,
     Correspondence,
     CorrespondenceVersion,
+    OrgConfig,
     Signature,
     Template,
 )
 from babel.numbers import format_decimal
 
+from app.seed import data as seed_data
 from app.services.amounts import format_date, group_number
 
 logger = logging.getLogger("nazo.documents")
@@ -119,14 +121,31 @@ def _format_amount(value: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# Global letterhead config (item 2). The editable header/footer live in the
+# OrgConfig singleton; fall back to the seed default (then _ORG) so a fresh DB
+# still renders a full letterhead.
+# ---------------------------------------------------------------------------
+def _load_org_config(session: Session) -> tuple[dict, dict]:
+    """(header, footer) dicts from the OrgConfig row, seed default on a miss."""
+    row = session.get(OrgConfig, "default")
+    if row is not None:
+        header = {**seed_data.ORG_CONFIG["header"], **(row.header or {})}
+        footer = {**seed_data.ORG_CONFIG["footer"], **(row.footer or {})}
+        return header, footer
+    return dict(seed_data.ORG_CONFIG["header"]), dict(seed_data.ORG_CONFIG["footer"])
+
+
+# ---------------------------------------------------------------------------
 # Letterhead (pure HTML/CSS — no external image assets; fully embeddable).
 # ---------------------------------------------------------------------------
-def _letterhead_html(lang: str) -> str:
+def _letterhead_html(header: dict, lang: str) -> str:
     is_ar = lang == "ar"
     dir_attr = "rtl" if is_ar else "ltr"
-    org = _ORG["nameAr"] if is_ar else _ORG["nameEn"]
-    sub = _ORG["subAr"] if is_ar else _ORG["subEn"]
-    city = _ORG["cityAr"] if is_ar else _ORG["cityEn"]
+    org = header.get("nameAr" if is_ar else "nameEn") or _ORG["nameEn"]
+    sub = header.get("subAr" if is_ar else "subEn") or _ORG["subEn"]
+    city = header.get("cityAr" if is_ar else "cityEn") or _ORG["cityEn"]
+    po_box = header.get("poBox") or _ORG["poBox"]
+    web = header.get("web") or _ORG["web"]
     crest = (
         '<svg viewBox="0 0 48 48" width="46" height="46" '
         'xmlns="http://www.w3.org/2000/svg">'
@@ -145,14 +164,31 @@ def _letterhead_html(lang: str) -> str:
         f'<div class="doc-lh-sub">{escape_html(sub)}</div>'
         "</div>"
         '<div class="doc-lh-meta">'
-        f'<div>{escape_html(_ORG["poBox"])}</div>'
+        f'<div>{escape_html(po_box)}</div>'
         f'<div>{escape_html(city)}</div>'
-        f'<div>{escape_html(_ORG["web"])}</div>'
+        f'<div>{escape_html(web)}</div>'
         "</div>"
         "</div>"
         '<div class="doc-lh-rule"></div>'
         "</div>"
     )
+
+
+def _footer_html(footer: dict, lang: str) -> str:
+    """Document footer (item 2) — a confidentiality/contact strip below the letter,
+    from the editable global config. Empty string when both lines are blank."""
+    is_ar = lang == "ar"
+    line = (footer.get("lineAr" if is_ar else "lineEn") or "").strip()
+    contact = (footer.get("contactAr" if is_ar else "contactEn") or "").strip()
+    if not line and not contact:
+        return ""
+    parts = ['<div class="doc-footer-rule"></div>']
+    if line:
+        parts.append(f'<div class="doc-footer-line">{escape_html(line)}</div>')
+    if contact:
+        parts.append(f'<div class="doc-footer-contact">{escape_html(contact)}</div>')
+    dir_attr = "rtl" if is_ar else "ltr"
+    return f'<div class="doc-footer" dir="{dir_attr}">' + "".join(parts) + "</div>"
 
 
 # ---------------------------------------------------------------------------
@@ -210,15 +246,17 @@ def _empty_sig_html(lang: str) -> str:
 # ---------------------------------------------------------------------------
 def _substitute_body(
     session: Session,
-    template: Template,
+    doc_html: str,
+    variables: list[dict],
     values: dict[str, str],
     lang: str,
+    header: dict,
     *,
     for_docx: bool,
 ) -> str:
     sig_tags = {
         v["tag"]
-        for v in (template.variables or [])
+        for v in (variables or [])
         if isinstance(v, dict) and v.get("type") == "Signature"
     }
 
@@ -228,10 +266,15 @@ def _substitute_body(
 
         if name == "LETTERHEAD":
             if for_docx:
-                org = _ORG["nameAr"] if lang == "ar" else _ORG["nameEn"]
-                sub = _ORG["subAr"] if lang == "ar" else _ORG["subEn"]
+                org = header.get("nameAr" if lang == "ar" else "nameEn") or _ORG["nameEn"]
+                sub = header.get("subAr" if lang == "ar" else "subEn") or _ORG["subEn"]
                 return f"<h2>{escape_html(org)}</h2><p>{escape_html(sub)}</p><hr/>"
-            return _letterhead_html(lang)
+            return _letterhead_html(header, lang)
+
+        if name == "FOOTER":
+            # The footer is appended AFTER the body by render_letter_html; an inline
+            # {{FOOTER}} token in the body is stripped so it never double-renders.
+            return ""
 
         is_sig = tag in sig_tags or name.startswith("SIG")
         raw = values.get(tag, "")
@@ -262,7 +305,7 @@ def _substitute_body(
 
         return escape_html(raw)
 
-    return _TOKEN_RE.sub(repl, template.doc_html or "")
+    return _TOKEN_RE.sub(repl, doc_html or "")
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +355,30 @@ p {{ margin: 9px 0; }}
 .doc-sig-role {{ font-weight: 500; color: #7183a3; font-size: 10px; }}
 .doc-sig--empty .doc-sig-slot {{ display: grid; place-items: center; width: 140px;
   height: 52px; border: 1px dashed #c2cee0; border-radius: 8px; color: #9aa8c2; font-size: 11px; }}
+.doc-footer {{ margin-top: 40px; }}
+.doc-footer-rule {{ height: 2px; border-radius: 2px; margin-bottom: 8px;
+  background: linear-gradient(90deg, {_GOLD} 0%, {_NAVY} 60%, transparent 100%); }}
+html[dir='rtl'] .doc-footer-rule {{
+  background: linear-gradient(270deg, {_GOLD} 0%, {_NAVY} 60%, transparent 100%); }}
+.doc-footer-line {{ font-size: 10px; color: #6b7a97; line-height: 1.5; }}
+.doc-footer-contact {{ font-size: 9.5px; color: #8794ac; margin-top: 2px; }}
 """.strip()
+
+
+def _resolve_doc(corr: Correspondence, template: Optional[Template]) -> tuple[Optional[str], list[dict]]:
+    """(doc_html, variables) for a correspondence — instance overrides win over the
+    shared template (item 3b), leaving unedited correspondences on the template."""
+    doc_html = (
+        corr.doc_html_override
+        if corr.doc_html_override is not None
+        else (template.doc_html if template is not None else None)
+    )
+    variables = (
+        corr.variables_override
+        if corr.variables_override is not None
+        else (template.variables if template is not None else [])
+    )
+    return doc_html, list(variables or [])
 
 
 def render_letter_html(
@@ -321,20 +387,23 @@ def render_letter_html(
     """Fully substituted, self-contained HTML letter for `corr` (A4 print doc)."""
     template = session.get(Template, corr.template_id)
     resolved = _resolve_lang(template, lang)
-    if template is None:
+    header, footer = _load_org_config(session)
+    doc_html, variables = _resolve_doc(corr, template)
+    if not doc_html:
         # Degrade rather than 500: emit a minimal but valid document.
-        body = _letterhead_html(resolved) + "<p>Template not found.</p>"
+        body = _letterhead_html(header, resolved) + "<p>Template not found.</p>"
     else:
         body = _substitute_body(
-            session, template, dict(corr.values or {}), resolved, for_docx=False
+            session, doc_html, variables, dict(corr.values or {}), resolved, header, for_docx=False
         )
+    footer_html = _footer_html(footer, resolved)
     dir_attr = "rtl" if resolved == "ar" else "ltr"
     return (
         "<!doctype html>"
         f'<html lang="{resolved}" dir="{dir_attr}">'
         '<head><meta charset="utf-8"/>'
         f"<style>{_document_css(resolved)}</style></head>"
-        f'<body><div class="nazo-doc"><div class="doc-body">{body}</div></div></body>'
+        f'<body><div class="nazo-doc"><div class="doc-body">{body}</div>{footer_html}</div></body>'
         "</html>"
     )
 
@@ -376,12 +445,17 @@ def render_docx(
     """Best-effort DOCX of the letter. Prefers htmldocx; falls back to plain text."""
     template = session.get(Template, corr.template_id)
     resolved = _resolve_lang(template, lang)
-    if template is None:
+    header, footer = _load_org_config(session)
+    doc_html, variables = _resolve_doc(corr, template)
+    if not doc_html:
         body_html = "<p>Template not found.</p>"
     else:
         body_html = _substitute_body(
-            session, template, dict(corr.values or {}), resolved, for_docx=True
+            session, doc_html, variables, dict(corr.values or {}), resolved, header, for_docx=True
         )
+        footer_line = (footer.get("lineAr" if resolved == "ar" else "lineEn") or "").strip()
+        if footer_line:
+            body_html += f"<hr/><p>{escape_html(footer_line)}</p>"
 
     # Primary path: htmldocx renders the simplified body into a python-docx doc.
     try:

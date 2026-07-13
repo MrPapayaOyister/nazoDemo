@@ -36,6 +36,7 @@ from app.models import (
     AppUser,
     Correspondence,
     CorrespondenceStep,
+    OrgConfig,
     Signature,
     Template,
 )
@@ -138,6 +139,16 @@ def _to_correspondence(d: dict) -> Correspondence:
 
 
 def _upsert_seed(session: Session) -> None:
+    # Global letterhead config (singleton) — independent of the FK chain below.
+    oc = seed_data.ORG_CONFIG
+    session.merge(
+        OrgConfig(
+            id=oc["id"],
+            header=oc["header"],
+            footer=oc["footer"],
+            updated_at=oc.get("updatedAt", ""),
+        )
+    )
     # Insert order respects FKs: signatures -> users -> templates -> correspondences -> steps.
     for s in seed_data.SIGNATURES:
         session.merge(_to_signature(s))
