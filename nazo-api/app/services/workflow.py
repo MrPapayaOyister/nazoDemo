@@ -259,6 +259,41 @@ def create_correspondence(
     return corr
 
 
+def update_draft_values(
+    session: Session,
+    current_user: AppUser,
+    corr: Correspondence,
+    values: Optional[dict[str, str]] = None,
+) -> Correspondence:
+    """Persist edited field values onto a DRAFT correspondence (create-first).
+
+    The create wizard makes a real Draft when it opens, then Send transitions that
+    SAME draft. This merges the wizard's final field values in before the send and
+    re-derives the title from VENDOR/SUBJECT so it matches the create() path.
+    """
+    _lock_correspondence(session, corr)
+    if corr.status != "Draft":
+        raise ConflictError(f"Cannot edit values from status '{corr.status}'.")
+    if current_user.id != corr.requester_id:
+        raise ForbiddenError("Only the requester can edit this draft.")
+
+    merged = {**corr.values, **(values or {})}
+    template = session.get(Template, corr.template_id)
+    detail = merged.get("{{VENDOR}}") or merged.get("{{SUBJECT}}")
+    if template is not None:
+        category = template.category
+        corr.title_en = f"{category} — {detail or template.name_en}"
+        corr.title_ar = (
+            f"{CATEGORY_AR.get(category, category)} — {detail or template.name_ar}"
+        )
+    corr.values = merged
+    # Keep the indexed ref column in sync if REF_NO was supplied directly.
+    if merged.get("{{REF_NO}}"):
+        corr.ref = merged["{{REF_NO}}"]
+    _touch(corr)
+    return corr
+
+
 def allocate_ref_for(session: Session, corr: Correspondence) -> str:
     """Allocate a deterministic reference number, stamp it into REF_NO + corr.ref."""
     from app.services.refs import allocate_ref

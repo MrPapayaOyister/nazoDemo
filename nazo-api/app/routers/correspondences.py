@@ -46,6 +46,10 @@ class ReviseBody(BaseModel):
     values: Optional[dict[str, str]] = None
 
 
+class UpdateDraftBody(BaseModel):
+    values: dict[str, str] = Field(default_factory=dict)
+
+
 class RedirectBody(BaseModel):
     targetUserId: str
     comment: Optional[str] = None
@@ -160,6 +164,22 @@ def create(
         corr = workflow.create_correspondence(
             session, current_user, body.templateId, body.values
         )
+        session.commit()
+        session.refresh(corr)
+    return _serialize(session, corr)
+
+
+@router.patch("/{corr_id}")
+def update_draft(
+    corr_id: str,
+    body: UpdateDraftBody,
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+) -> dict:
+    """Persist wizard field values onto a create-first Draft before it is sent."""
+    corr = _get_or_404(session, corr_id)
+    with _domain_errors(session):
+        workflow.update_draft_values(session, current_user, corr, body.values)
         session.commit()
         session.refresh(corr)
     return _serialize(session, corr)

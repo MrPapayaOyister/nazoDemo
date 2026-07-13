@@ -77,6 +77,16 @@ def derive_current_step_index(steps: list[CorrespondenceStep]) -> int:
     return -1
 
 
+def derive_current_assignee(steps: list[CorrespondenceStep]) -> str | None:
+    """assignee_id of the single 'active' step — the REAL actor, which is a detour
+    target when the item was redirected (currentStepIndex still points at the
+    parent role, so the client needs this to route the inbox correctly)."""
+    for s in steps:
+        if s.status == "active":
+            return s.assignee_id
+    return None
+
+
 def serialize_correspondence(
     c: Correspondence, steps: list[CorrespondenceStep]
 ) -> dict:
@@ -92,6 +102,7 @@ def serialize_correspondence(
         # Verbatim WorkflowStep[] snapshot (Capitalized type + positions).
         "workflow": c.workflow_snapshot,
         "currentStepIndex": derive_current_step_index(steps),
+        "currentAssigneeId": derive_current_assignee(steps),
         "history": c.history,
         "createdAt": c.created_at,
         "updatedAt": c.updated_at,

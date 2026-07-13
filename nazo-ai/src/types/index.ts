@@ -135,6 +135,8 @@ export interface Correspondence {
   /** immutable snapshot of the template workflow at send-time. */
   workflow: WorkflowStep[]
   currentStepIndex: number // -1 when Draft or terminal
+  /** active step's real assignee (detour-aware); server-provided, optional on seed. */
+  currentAssigneeId?: string | null
   history: HistoryEntry[]
   createdAt: string
   updatedAt: string

@@ -18,6 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.db import create_db_and_tables
 from app.routers import (
+    admin,
     ai,
     bootstrap,
     correspondences,
@@ -79,6 +80,7 @@ app.include_router(health.router)
 app.include_router(users.router)
 app.include_router(bootstrap.router)
 app.include_router(templates.router)
+app.include_router(admin.router)
 app.include_router(correspondences.router)
 app.include_router(documents.router)
 app.include_router(ai.router)

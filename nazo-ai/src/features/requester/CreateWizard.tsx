@@ -43,8 +43,13 @@ export function CreateWizard() {
   const templates = useStore((s) => s.templates)
   const draft = useStore((s) => s.createDraft)
   const startCreate = useStore((s) => s.startCreate)
+  const createDraftCorrespondence = useStore((s) => s.createDraftCorrespondence)
   const [step, setStep] = useState(0)
   const [sent, setSent] = useState<string | null>(null)
+  // The requester's free-text intent from StartStep — lifted here so the
+  // in-page AI Auto-Fill on FillStep has a prompt to extract fields from
+  // (the real backend only runs LLM extraction when a prompt is present).
+  const [prompt, setPrompt] = useState('')
 
   // deep-link: ?revise=<id> loads an existing correspondence to edit
   const reviseId = params.get('revise')
@@ -66,6 +71,8 @@ export function CreateWizard() {
   useEffect(() => {
     if (!templateParam || !TEMPLATE_BY_ID[templateParam]) return
     useStore.setState((s) => ({ createDraft: { ...s.createDraft, templateId: templateParam } }))
+    // create-first: back the wizard with a real Draft correspondence
+    void createDraftCorrespondence(templateParam)
     setStep(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateParam])
@@ -74,6 +81,8 @@ export function CreateWizard() {
 
   const pick = (id: string) => {
     startCreate(id)
+    // create-first: ref / autofill / check operate on a real Draft
+    void createDraftCorrespondence(id)
     setStep(1)
   }
 
@@ -106,8 +115,10 @@ export function CreateWizard() {
       </motion.div>
 
       <motion.div key={step} variants={aiReveal} initial="initial" animate="animate" className="mt-6">
-        {step === 0 && <StartStep templates={templates} onPick={pick} />}
-        {step === 1 && template && <FillStep template={template} onBack={() => setStep(0)} onNext={() => setStep(2)} />}
+        {step === 0 && <StartStep templates={templates} onPick={pick} prompt={prompt} setPrompt={setPrompt} />}
+        {step === 1 && template && (
+          <FillStep template={template} prompt={prompt} onBack={() => setStep(0)} onNext={() => setStep(2)} />
+        )}
         {step === 2 && template && (
           <SendStep
             template={template}
@@ -126,9 +137,18 @@ export function CreateWizard() {
 // ---------------------------------------------------------------------------
 // Step 1 — START
 // ---------------------------------------------------------------------------
-function StartStep({ templates, onPick }: { templates: Template[]; onPick: (id: string) => void }) {
+function StartStep({
+  templates,
+  onPick,
+  prompt,
+  setPrompt,
+}: {
+  templates: Template[]
+  onPick: (id: string) => void
+  prompt: string
+  setPrompt: (v: string) => void
+}) {
   const tr = useLocalized()
-  const [prompt, setPrompt] = useState('')
   const [thinking, setThinking] = useState(false)
   const [bestMatch, setBestMatch] = useState<string | null>(null)
 
@@ -220,7 +240,17 @@ function StartStep({ templates, onPick }: { templates: Template[]; onPick: (id: 
 // ---------------------------------------------------------------------------
 // Step 2 — FILL + PREVIEW
 // ---------------------------------------------------------------------------
-function FillStep({ template, onBack, onNext }: { template: Template; onBack: () => void; onNext: () => void }) {
+function FillStep({
+  template,
+  prompt,
+  onBack,
+  onNext,
+}: {
+  template: Template
+  prompt: string
+  onBack: () => void
+  onNext: () => void
+}) {
   const tr = useLocalized()
   const user = useCurrentUser()
   const { run, isRunning } = useAI()
@@ -240,7 +270,11 @@ function FillStep({ template, onBack, onNext }: { template: Template; onBack: ()
 
   const fire = (actionId: AiActionId) => {
     if (isRunning) return
-    run({ actionId, role: user.role, currentUserId: user.id })
+    // Auto-Fill needs text to extract from: use the requester's typed intent,
+    // falling back to the template name so the backend LLM path always has input.
+    const actionPrompt =
+      actionId === 'requester.autoFill' ? prompt.trim() || tr(template.nameEn, template.nameAr) : undefined
+    run({ actionId, role: user.role, currentUserId: user.id, prompt: actionPrompt })
   }
 
   return (
@@ -352,17 +386,21 @@ function SendStep({
   const reviseCorrespondence = useStore((s) => s.reviseCorrespondence)
   const [sending, setSending] = useState(false)
 
-  const submit = () => {
+  const submit = async () => {
     setSending(true)
-    window.setTimeout(() => {
+    try {
       if (reviseId) {
         // revise the SAME rejected correspondence (clears prior signatures, re-routes)
-        reviseCorrespondence(reviseId, draft.values)
+        await reviseCorrespondence(reviseId, draft.values)
         onSent(reviseId)
       } else {
-        onSent(sendCorrespondence())
+        const id = await sendCorrespondence()
+        if (id) onSent(id)
+        else setSending(false)
       }
-    }, 700)
+    } catch {
+      setSending(false)
+    }
   }
 
   return (

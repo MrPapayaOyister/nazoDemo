@@ -7,6 +7,8 @@ import {
   Check,
   X,
   Download,
+  FileDown,
+  Share2,
   ArrowLeft,
   PenTool,
   MessageSquare,
@@ -21,6 +23,7 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { PageTransition } from '@/components/common/PageTransition'
 import { useStore, useCurrentUser, useSignatureUri, effectiveSignatureId } from '@/store'
+import { downloadPdf, downloadDocx } from '@/api/client'
 import { useAI } from '@/ai/useAI'
 import { useLocalized } from '@/i18n'
 import { TEMPLATE_BY_ID } from '@/data/seed'
@@ -42,7 +45,11 @@ export function CorrespondenceViewer() {
   const [stampTag, setStampTag] = useState<string | undefined>()
 
   const isMyTurn =
-    !!corr && corr.status === 'InReview' && corr.workflow[corr.currentStepIndex]?.role === user.role
+    !!corr &&
+    corr.status === 'InReview' &&
+    (corr.currentAssigneeId != null
+      ? corr.currentAssigneeId === user.id
+      : corr.workflow[corr.currentStepIndex]?.role === user.role)
 
   // open viewer + auto-summary once per correspondence
   useEffect(() => {
@@ -138,7 +145,7 @@ export function CorrespondenceViewer() {
           </div>
         </div>
 
-        {corr.status === 'Completed' && <CompletionBanner onDownload={() => toast(tr('Preparing signed PDF…', 'جارٍ تجهيز ملف PDF الموقّع…'))} onBack={() => navigate(-1)} />}
+        {corr.status === 'Completed' && <CompletionBanner corrId={corr.id} onBack={() => navigate(-1)} />}
       </div>
     </div>
   )
@@ -201,6 +208,7 @@ function ActionBar({
   const approveAndSign = useStore((s) => s.approveAndSign)
   const rejectCorrespondence = useStore((s) => s.rejectCorrespondence)
   const [mode, setMode] = useState<'approve' | 'reject'>('approve')
+  const [busy, setBusy] = useState(false)
   const [applySig, setApplySig] = useState(true)
   const tr2 = useLocalized()
 
@@ -211,18 +219,23 @@ function ActionBar({
 
   const isLast = corr.currentStepIndex >= corr.workflow.length - 1
 
-  const submit = () => {
+  const submit = async () => {
+    if (busy) return
     if (mode === 'reject') {
       if (!viewerComment.trim()) {
         toast(tr('A comment is required to return.', 'يلزم تعليق للإعادة.'))
         return
       }
-      rejectCorrespondence(corr.id, viewerComment)
+      setBusy(true)
+      await rejectCorrespondence(corr.id, viewerComment)
+      setBusy(false)
       toast(tr('Returned to requester.', 'أُعيدت لمقدّم الطلب.'))
       onSigned(undefined, false)
       return
     }
-    approveAndSign(corr.id, viewerComment, applySig)
+    setBusy(true)
+    await approveAndSign(corr.id, viewerComment, applySig)
+    setBusy(false)
     onSigned(applySig ? sigVar?.tag : undefined, isLast)
     if (!isLast) toast(tr('Approved — routed to the next approver.', 'تم الاعتماد — أُرسلت للمعتمِد التالي.'))
   }
@@ -295,16 +308,67 @@ function ActionBar({
           size="lg"
           className="w-full"
           onClick={submit}
+          disabled={busy}
         >
           {mode === 'reject' ? <X className="size-4" /> : <PenTool className="size-4" />}
           {mode === 'reject' ? tr('Return for changes', 'إعادة للتعديل') : tr('Approve & Sign', 'اعتماد وتوقيع')}
+        </Button>
+
+        <RedirectRow corrId={corr.id} disabled={busy} />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+function RedirectRow({ corrId, disabled }: { corrId: string; disabled?: boolean }) {
+  const tr = useLocalized()
+  const users = useStore((s) => s.users)
+  const currentId = useStore((s) => s.currentUserId)
+  const viewerComment = useStore((s) => s.viewer.comment)
+  const redirectCorrespondence = useStore((s) => s.redirectCorrespondence)
+  const [target, setTarget] = useState('')
+  const [busy, setBusy] = useState(false)
+  const options = users.filter((u) => u.id !== currentId)
+
+  const go = async () => {
+    if (!target || busy) return
+    setBusy(true)
+    await redirectCorrespondence(corrId, target, viewerComment || undefined)
+    setBusy(false)
+    setTarget('')
+  }
+
+  return (
+    <div className="rounded-xl hairline bg-app p-2.5">
+      <div className="text-[11px] font-semibold text-ink-muted mb-1.5 flex items-center gap-1">
+        <Share2 className="size-3" />
+        {tr('Redirect for input', 'إحالة لإبداء الرأي')}
+      </div>
+      <div className="flex items-center gap-2">
+        <select
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          disabled={disabled || busy}
+          className="min-w-0 flex-1 rounded-lg hairline bg-surface px-2 py-1.5 text-[12px] text-ink outline-none focus:ring-2 focus:ring-ai/30 disabled:opacity-50"
+        >
+          <option value="">{tr('Select a colleague…', 'اختر زميلاً…')}</option>
+          {options.map((u) => (
+            <option key={u.id} value={u.id}>
+              {tr(u.nameEn, u.nameAr)} — {tr(u.titleEn, u.titleAr)}
+            </option>
+          ))}
+        </select>
+        <Button variant="secondary" size="sm" onClick={go} disabled={disabled || busy || !target}>
+          <Share2 className="size-3.5" />
+          {tr('Redirect', 'إحالة')}
         </Button>
       </div>
     </div>
   )
 }
 
-function CompletionBanner({ onDownload, onBack }: { onDownload: () => void; onBack: () => void }) {
+function CompletionBanner({ corrId, onBack }: { corrId: string; onBack: () => void }) {
   const tr = useLocalized()
   return (
     <motion.div
@@ -320,9 +384,19 @@ function CompletionBanner({ onDownload, onBack }: { onDownload: () => void; onBa
         <div className="text-[15px] font-bold text-ink">{tr('Fully signed & archived', 'موقّعة ومؤرشفة بالكامل')}</div>
         <div className="text-[12.5px] text-ink-muted">{tr('All approvers have signed. The document is final.', 'وقّع جميع المعتمِدين. المستند نهائي.')}</div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={onBack}>{tr('Back', 'رجوع')}</Button>
-        <Button variant="primary" onClick={onDownload}>
+        <Button
+          variant="secondary"
+          onClick={() => downloadDocx(corrId).catch(() => toast(tr('Could not download the DOCX.', 'تعذّر تنزيل ملف وورد.')))}
+        >
+          <FileDown className="size-4" />
+          {tr('DOCX', 'وورد')}
+        </Button>
+        <Button
+          variant="primary"
+          onClick={() => downloadPdf(corrId).catch(() => toast(tr('Could not download the PDF.', 'تعذّر تنزيل ملف PDF.')))}
+        >
           <Download className="size-4" />
           {tr('Download signed PDF', 'تنزيل PDF الموقّع')}
         </Button>

@@ -16,7 +16,11 @@ export function CorrespondenceCard({ corr }: { corr: Correspondence }) {
   const tpl = TEMPLATE_BY_ID[corr.templateId]
   const signed = signedRolesOf(corr.values, tpl?.variables ?? [])
   const currentStep = corr.workflow[corr.currentStepIndex]
-  const approver = currentStep ? USERS.find((u) => u.role === currentStep.role) : null
+  const approver = corr.currentAssigneeId
+    ? USERS.find((u) => u.id === corr.currentAssigneeId)
+    : currentStep
+      ? USERS.find((u) => u.role === currentStep.role)
+      : null
   const rejected = corr.status === 'Rejected'
 
   const footer =

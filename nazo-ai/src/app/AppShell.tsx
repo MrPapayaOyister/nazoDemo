@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   Routes,
@@ -6,7 +7,7 @@ import {
   useLocation,
 } from 'react-router-dom'
 import { pageVariants } from '@/lib/motion'
-import { useCurrentUser } from '@/store'
+import { useCurrentUser, useStore } from '@/store'
 import { DEFAULT_ROUTE_BY_ROLE } from '@/app/routes'
 import { TopBar } from '@/app/TopBar'
 import { LeftNav } from '@/app/LeftNav'
@@ -72,6 +73,12 @@ function AnimatedRoutes() {
 }
 
 export function AppShell() {
+  const hydrate = useStore((s) => s.hydrate)
+  // Load the real store payload from the API once on mount (degrades to seed).
+  useEffect(() => {
+    void hydrate()
+  }, [hydrate])
+
   return (
     <div className="h-screen flex flex-col bg-app text-ink overflow-hidden">
       <TopBar />

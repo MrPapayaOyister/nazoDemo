@@ -16,7 +16,7 @@ const ageHours = (iso: string) => (DEMO_CLOCK.getTime() - new Date(iso).getTime(
 export function ApproverInbox() {
   const tr = useLocalized()
   const user = useCurrentUser()
-  const tasks = useInboxFor(user.role)
+  const tasks = useInboxFor(user.id)
   const all = useStore((s) => s.correspondences)
 
   const kpis = useMemo(() => {
