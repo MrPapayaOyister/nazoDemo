@@ -41,13 +41,21 @@ export interface VarSync {
   unusedVars: TemplateVariable[]
 }
 
+/** Regex SOURCE matching a tag tolerant of interior whitespace: `{{ TAG }}`. Keeps
+ *  the "used?" check and token stripping in step with the whitespace-tolerant
+ *  scanner (TOKEN_G), so a hand-typed `{{ VENDOR }}` isn't mis-flagged as unused. */
+function tagPatternSrc(tag: string): string {
+  const inner = tag.replace(/[{}]/g, '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return `\\{\\{\\s*${inner}\\s*\\}\\}`
+}
+
 export function analyzeVarSync(docHtml: string, variables: TemplateVariable[]): VarSync {
   const varTags = new Set(variables.map((v) => v.tag))
   const orphanTokens = docTokens(docHtml).filter(
     (name) => !RESERVED_TOKENS.has(name) && !varTags.has(`{{${name}}}`),
   )
   const unusedVars = variables.filter(
-    (v) => v.type !== 'Signature' && !docHtml.includes(v.tag),
+    (v) => v.type !== 'Signature' && !new RegExp(tagPatternSrc(v.tag)).test(docHtml),
   )
   return { orphanTokens, unusedVars }
 }
@@ -91,14 +99,21 @@ export function insertTokenField(docHtml: string, variable: TemplateVariable): s
   return `${docHtml.replace(/\s*$/, '')}\n${cell}\n`
 }
 
-/** Remove `tag` from the body: drop a dedicated `<p class="meta">` field line whose
- *  ONLY token is `tag`, else strip inline occurrences (woven into prose). */
+/** Remove `tag` from the body. Walks each `<p class="meta">` line bounded so a match
+ *  can NEVER cross `</p>` into a neighbor: a meta line whose ONLY token is `tag` is
+ *  dropped; a meta line with OTHER tokens keeps the line and strips only `tag`; any
+ *  remaining inline occurrence (woven into prose) is stripped. Whitespace-tolerant. */
 export function removeToken(docHtml: string, tag: string): string {
-  const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  // A meta <p> whose sole token is `tag` (no other {{...}} inside) → remove entirely.
-  const fieldLine = new RegExp(`<p class="meta">[^{}]*${escaped}[^{}]*</p>\\s*`, 'g')
-  let out = docHtml.replace(fieldLine, '')
-  // Any remaining inline occurrences → strip the token, keep surrounding prose.
-  out = out.split(tag).join('')
+  const tok = tagPatternSrc(tag)
+  const anyToken = /\{\{\s*[A-Za-z0-9_]+\s*\}\}/
+  // Tempered lookahead: match a single <p class="meta">…</p> that never spans </p>.
+  const metaLine = /<p class="meta">(?:(?!<\/p>)[\s\S])*?<\/p>\s*/g
+  let out = docHtml.replace(metaLine, (m) => {
+    if (!new RegExp(tok).test(m)) return m // this meta line isn't ours
+    const rest = m.replace(new RegExp(tok, 'g'), '')
+    return anyToken.test(rest) ? rest : '' // other tokens remain → keep line; else drop
+  })
+  // Strip any remaining inline occurrences (in prose, not a dedicated field line).
+  out = out.replace(new RegExp(tok, 'g'), '')
   return out
 }

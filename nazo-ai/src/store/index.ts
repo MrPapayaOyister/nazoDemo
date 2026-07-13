@@ -187,15 +187,19 @@ interface AppState {
   sendCorrespondence: (args?: { templateId?: string; values?: Record<string, string> }) => Promise<string>
   approveAndSign: (corrId: string, comment?: string, applySig?: boolean) => Promise<void>
   rejectCorrespondence: (corrId: string, comment: string) => Promise<void>
-  reviseCorrespondence: (corrId: string, values?: Record<string, string>) => Promise<void>
+  /** Resolves to the correspondence id on success, or '' on failure (so the caller
+   *  doesn't show the success overlay for a revision that didn't actually resend). */
+  reviseCorrespondence: (corrId: string, values?: Record<string, string>) => Promise<string>
   redirectCorrespondence: (corrId: string, targetUserId: string, comment?: string) => Promise<void>
 
   // global letterhead config (item 2) — GLOBAL header + footer, editable at authoring.
   orgConfig: OrgConfig
+  /** Resolves true when the save persisted, false when it failed and reverted (so
+   *  the editor doesn't flip to "Saved ✓" on a failed save). */
   updateOrgConfig: (patch: {
     header?: Partial<OrgConfig['header']>
     footer?: Partial<OrgConfig['footer']>
-  }) => Promise<void>
+  }) => Promise<boolean>
 
   // demo
   publishTemplate: (t: Template) => Promise<void>
@@ -208,6 +212,9 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 let runToken = 0
 // The in-flight SSE request, so a supersede/reset can abort it promptly.
 let aiAbort: AbortController | null = null
+// In-flight create-first Draft POST, so concurrent callers share ONE request and
+// never create two Draft rows (which would strand a reference number on the orphan).
+let createDraftInFlight: { tid: string; p: Promise<string | null> } | null = null
 
 // Actions with a REAL backend SSE handler (app/services/ai_actions.py HANDLERS).
 const SSE_ACTIONS = new Set<AiActionId>([
@@ -247,7 +254,7 @@ const visible = (rows: Correspondence[]) => rows.filter((c) => c.status !== 'Dra
 async function persistCreateOverride(
   get: () => AppState,
   variables: TemplateVariable[],
-  docHtml: string,
+  docHtml: string | null,
 ): Promise<void> {
   const st = get()
   const tid = st.createDraft.templateId
@@ -255,7 +262,13 @@ async function persistCreateOverride(
   try {
     if (!corrId && tid) corrId = await st.createDraftCorrespondence(tid)
     if (!corrId) return
-    await api.patchDraft(corrId, { values: get().createDraft.values, variables, docHtml })
+    // Only send docHtml when the BODY actually changed (add/remove); a label/type
+    // edit passes null so doc_html_override stays unset and the twin preview survives.
+    await api.patchDraft(corrId, {
+      values: get().createDraft.values,
+      variables,
+      ...(docHtml != null ? { docHtml } : {}),
+    })
   } catch (e) {
     console.warn('[nazo] persistCreateOverride failed', e)
   }
@@ -604,24 +617,38 @@ export const useStore = create<AppState>()(
         const tpl = s.templates.find((t) => t.id === s.createDraft.templateId)
         if (!tpl) return
         const baseVars = s.createDraft.variablesOverride ?? tpl.variables
-        const baseDoc = s.createDraft.docHtmlOverride ?? tpl.docHtml
         const variables = baseVars.map((v) => (v.tag === tag ? { ...v, ...patch } : v))
-        set((st) => ({ createDraft: { ...st.createDraft, variablesOverride: variables, docHtmlOverride: baseDoc } }))
-        void persistCreateOverride(get, variables, baseDoc)
+        // A label/type edit does NOT change the body, so leave docHtmlOverride as-is
+        // (null unless a prior add/remove set it) — this keeps the twin-translate
+        // preview working for instances that never edited the body.
+        const keepDoc = s.createDraft.docHtmlOverride
+        set((st) => ({ createDraft: { ...st.createDraft, variablesOverride: variables } }))
+        void persistCreateOverride(get, variables, keepDoc)
       },
       createDraftCorrespondence: async (templateId) => {
         // Reuse an existing draft for the same template.
         if (get().createDraftCorrId && get().createDraft.templateId === templateId) {
           return get().createDraftCorrId
         }
-        try {
-          const corr = await api.createCorrespondence({ templateId, values: {} })
-          set({ createDraftCorrId: corr.id })
-          return corr.id
-        } catch (e) {
-          console.warn('[nazo] createDraftCorrespondence failed', e)
-          return null
+        // Share a single in-flight POST across concurrent callers (edit races
+        // genRef/another edit) so exactly one backend Draft is created.
+        if (createDraftInFlight && createDraftInFlight.tid === templateId) {
+          return createDraftInFlight.p
         }
+        const p = (async () => {
+          try {
+            const corr = await api.createCorrespondence({ templateId, values: {} })
+            set({ createDraftCorrId: corr.id })
+            return corr.id
+          } catch (e) {
+            console.warn('[nazo] createDraftCorrespondence failed', e)
+            return null
+          } finally {
+            createDraftInFlight = null
+          }
+        })()
+        createDraftInFlight = { tid: templateId, p }
+        return p
       },
       openViewer: (corrId) => {
         // Abort any in-flight AI stream from a previously-open correspondence and
@@ -959,6 +986,16 @@ export const useStore = create<AppState>()(
             }
           } else {
             target = await api.createCorrespondence({ templateId, values })
+            // No create-first draft id (the missed-save case): if the requester made
+            // per-instance edits, PATCH them onto the freshly-created row so they are
+            // NOT silently dropped before the send.
+            if (draft.variablesOverride || draft.docHtmlOverride != null) {
+              target = await api.patchDraft(target.id, {
+                values,
+                ...(draft.variablesOverride ? { variables: draft.variablesOverride } : {}),
+                ...(draft.docHtmlOverride != null ? { docHtml: draft.docHtmlOverride } : {}),
+              })
+            }
             if (!values['{{REF_NO}}']) {
               target = (await api.allocRef(target.id)).correspondence
             }
@@ -1008,9 +1045,11 @@ export const useStore = create<AppState>()(
             createDraft: emptyCreateDraft(),
             createDraftCorrId: null,
           }))
+          return corrId
         } catch (e) {
           toast(t2(lang, 'Could not resend the revision.', 'تعذّر إرسال المراجعة.'))
           console.warn('[nazo] reviseCorrespondence failed', e)
+          return ''
         }
       },
 
@@ -1062,10 +1101,12 @@ export const useStore = create<AppState>()(
         try {
           const saved = await api.saveOrgConfig(patch)
           set({ orgConfig: saved })
+          return true
         } catch (e) {
           set({ orgConfig: prev })
           toast(t2(lang, 'Could not save letterhead — server unavailable.', 'تعذّر حفظ الترويسة — الخادم غير متاح.'))
           console.warn('[nazo] updateOrgConfig failed', e)
+          return false
         }
       },
 

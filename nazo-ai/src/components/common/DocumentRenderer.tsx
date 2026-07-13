@@ -39,8 +39,10 @@ export function DocumentRenderer({
   const customSignatures = useStore((s) => s.customSignatures)
 
   const bodyHtml = useMemo(() => {
-    // strip the letterhead token (rendered as a component) and keep the body
-    const body = docHtml.replace('{{LETTERHEAD}}', '')
+    // strip the structural tokens rendered as components (letterhead above, footer
+    // below) so an inline {{LETTERHEAD}}/{{FOOTER}} never leaks into the body — matches
+    // the backend, which returns "" for both.
+    const body = docHtml.replace(/\{\{\s*LETTERHEAD\s*\}\}/g, '').replace(/\{\{\s*FOOTER\s*\}\}/g, '')
     const sigTags = new Set(
       (variables ?? []).filter((v) => v.type === 'Signature').map((v) => v.tag),
     )

@@ -441,8 +441,9 @@ function SendStep({
     try {
       if (reviseId) {
         // revise the SAME rejected correspondence (clears prior signatures, re-routes)
-        await reviseCorrespondence(reviseId, draft.values)
-        onSent(reviseId)
+        const revised = await reviseCorrespondence(reviseId, draft.values)
+        if (revised) onSent(revised)
+        else setSending(false)
       } else {
         const id = await sendCorrespondence()
         if (id) onSent(id)

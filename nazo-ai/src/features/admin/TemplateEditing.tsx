@@ -256,9 +256,9 @@ export function LetterheadFooterEditor({ onClose }: { onClose: () => void }) {
 
   const save = async () => {
     setSaving(true)
-    await updateOrgConfig({ header, footer })
+    const ok = await updateOrgConfig({ header, footer })
     setSaving(false)
-    setSaved(true)
+    setSaved(ok) // only show "Saved ✓" when it actually persisted
   }
 
   return (
