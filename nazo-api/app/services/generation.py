@@ -233,14 +233,45 @@ _SIZE_SPEC: dict[str, dict[str, Any]] = {
     "small": {
         "en": "a concise official memo of roughly 120-180 words",
         "ar": "a concise official Arabic memo of roughly 120-180 words",
-        "en_max": 700,
-        "ar_max": 1100,
+        # max_tokens is only a SAFETY CEILING (the directive controls real length):
+        # small's old 700 cap truncated the body mid-JSON when the model followed the
+        # base prompt's 6-section push -> invalid JSON. Generous headroom so a short
+        # memo always finishes as valid JSON; a genuinely short reply stops far earlier.
+        "en_max": 1100,
+        "ar_max": 1700,
+        # Override the base prompt's "6 labelled sections / full-page" structure so the
+        # short sizes are actually short (not just capped, which truncated before).
+        "en_directive": (
+            "CRITICAL LENGTH OVERRIDE: this memo must be SHORT — a concise official memo "
+            "of roughly 120-180 words. Write ONLY 1-2 short <p> paragraphs: a brief opening "
+            "line addressing the recipient, then one short paragraph stating the context and "
+            "the exact approval/action requested, then a one-line courteous closing. Do NOT "
+            "use the six-section Background/Justification/Details/Scope/Recommendation "
+            "structure. Do NOT pad to fill a page."
+        ),
+        "ar_directive": (
+            "تنبيه حاسم بشأن الطول: يجب أن تكون المذكرة قصيرة — نحو 120-180 كلمة. اكتب فقرة أو "
+            "فقرتين قصيرتين فقط: سطر افتتاحي، ثم فقرة موجزة تذكر السياق والإجراء/الاعتماد المطلوب "
+            "بدقة، ثم سطر ختامي مهذب. لا تستخدم بنية الأقسام الستة (الخلفية/المبررات/التفاصيل/"
+            "التوصية). لا تُطِل لملء صفحة."
+        ),
     },
     "medium": {
         "en": "an official memo of roughly 220-320 words",
         "ar": "an official Arabic memo of roughly 220-320 words",
-        "en_max": 1050,
-        "ar_max": 1600,
+        "en_max": 1200,
+        "ar_max": 1700,
+        "en_directive": (
+            "LENGTH OVERRIDE: keep bodyEn to an official memo of roughly 220-320 words — a "
+            "few short <p> paragraphs (an opening line, one brief background+justification "
+            "paragraph, a paragraph stating exactly what approval or action is sought, and a "
+            "courteous closing). Be concise; do NOT pad to fill a full page."
+        ),
+        "ar_directive": (
+            "ضبط الطول: اجعل bodyAr نحو 220-320 كلمة — بضع فقرات قصيرة (سطر افتتاحي، فقرة موجزة "
+            "للخلفية والمبررات، فقرة تذكر ما هو مطلوب اعتماده بدقة، ثم خاتمة مهذبة). كن موجزاً "
+            "ولا تُطِل لملء صفحة كاملة."
+        ),
     },
     "large": {
         "en": "a COMPLETE, full-page official memo of roughly 350-500 words",
@@ -562,13 +593,9 @@ async def _generate_en(
     system = _GEN_SYSTEM.replace(_EN_LEN_PHRASE, spec["en"])
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     if size != "large":
-        # Counter the base prompt's "comprehensive / full-page" push for shorter sizes.
-        messages.append(
-            {
-                "role": "system",
-                "content": f"IMPORTANT: keep bodyEn to {spec['en']} — be succinct and do NOT pad to fill a page.",
-            }
-        )
+        # Counter the base prompt's "comprehensive / 6-section / full-page" push so the
+        # shorter sizes are actually short (and their JSON never truncates — see _SIZE_SPEC).
+        messages.append({"role": "system", "content": spec["en_directive"]})
     messages.append(
         {"role": "user", "content": (prompt or "").strip() or "Draft a standard approval memo."}
     )
@@ -612,12 +639,7 @@ async def _generate_ar(
     system = _GEN_SYSTEM_AR.replace(_AR_LEN_PHRASE, spec["ar"])
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     if size != "large":
-        messages.append(
-            {
-                "role": "system",
-                "content": "مهم: اجعل bodyAr ضمن النطاق المحدد للكلمات — كن موجزاً ولا تُطِل لملء صفحة كاملة.",
-            }
-        )
+        messages.append({"role": "system", "content": spec["ar_directive"]})
     messages.append(
         {"role": "user", "content": (prompt or "").strip() or "أعدّ مذكرة اعتماد رسمية."}
     )
