@@ -65,7 +65,7 @@ export function UserSwitcher() {
             <DropdownMenu.Separator className="my-1.5 h-px bg-line" />
 
             <div className="px-2.5 pt-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-              {tr('Switch identity — no login', 'تبديل الهوية — بدون تسجيل دخول')}
+              {tr('Switch account', 'تبديل الحساب')}
             </div>
             {users.map((u) => {
               const active = u.id === current.id

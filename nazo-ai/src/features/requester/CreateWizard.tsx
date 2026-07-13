@@ -90,7 +90,7 @@ export function CreateWizard() {
     <PageTransition>
       <PageHeader
         title={tr('New Correspondence', 'مراسلة جديدة')}
-        subtitle={tr('AI-assisted — from a prompt to a signed document.', 'بمساعدة الذكاء الاصطناعي — من فكرة إلى مستند موقّع.')}
+        subtitle={tr('Create a correspondence and send it for approval.', 'أنشئ مراسلة وأرسلها للاعتماد.')}
         icon={<Sparkles className="size-5" />}
       />
 
@@ -198,7 +198,7 @@ function StartStep({
         )}
         {bestMatch && (
           <motion.div variants={aiReveal} initial="initial" animate="animate" className="mt-3 rounded-xl bg-ai/[0.06] p-3">
-            <div className="text-[11px] font-semibold text-ai mb-1">{tr('92% match', 'تطابق 92%')}</div>
+            <div className="text-[11px] font-semibold text-ai mb-1">{tr('Recommended template', 'نموذج مقترح')}</div>
             <p className="text-[12.5px] text-ink-secondary">{tr('“Tutoring Software Approval” already contains the purchase-approval language you described.', '"اعتماد برنامج الدروس المساندة" يحتوي بالفعل على صياغة الاعتماد التي وصفتها.')}</p>
             <Button variant="primary" size="sm" className="mt-2.5" onClick={() => onPick(bestMatch)}>
               {tr('Use this template', 'استخدم هذا النموذج')}

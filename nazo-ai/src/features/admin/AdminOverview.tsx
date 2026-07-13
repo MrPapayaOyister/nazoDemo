@@ -58,7 +58,7 @@ export function AdminOverview() {
         actions={
           <Button variant="secondary" onClick={resetDemo}>
             <RotateCcw className="size-4" />
-            {tr('Reset demo', 'إعادة العرض')}
+            {tr('Reset data', 'إعادة تعيين البيانات')}
           </Button>
         }
       />

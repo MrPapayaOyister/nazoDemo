@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
+import { useLocalized } from '@/i18n'
 import { riseItem } from '@/lib/motion'
 
 interface PlaceholderPageProps {
@@ -13,6 +14,7 @@ interface PlaceholderPageProps {
 }
 
 export function PlaceholderPage({ title, subtitle, icon, note }: PlaceholderPageProps) {
+  const tr = useLocalized()
   return (
     <PageTransition>
       <PageHeader
@@ -53,9 +55,9 @@ export function PlaceholderPage({ title, subtitle, icon, note }: PlaceholderPage
           <span className="grid place-items-center size-12 rounded-2xl bg-ai/12 text-ai animate-breathe">
             <Sparkles className="size-6" />
           </span>
-          <p className="mt-4 text-sm font-semibold text-ink">This surface is coming together</p>
+          <p className="mt-4 text-sm font-semibold text-ink">{tr('This section isn’t available yet.', 'هذا القسم غير متاح بعد.')}</p>
           <p className="mt-1 text-[13px] text-ink-muted max-w-[220px]">
-            {note ?? 'The AI-orchestrated experience for this page lands in the next build phase.'}
+            {note ?? ''}
           </p>
         </div>
       </motion.div>

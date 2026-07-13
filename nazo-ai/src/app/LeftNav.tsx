@@ -77,7 +77,7 @@ export function LeftNav() {
 
       <div className="p-3">
         <div className="rounded-xl bg-white/[0.04] px-3 py-2 text-[11px] text-white/40 leading-relaxed">
-          {tr('Cinematic vision demo — every action is AI-orchestrated.', 'عرض رؤية سينمائي — كل إجراء يقوده الذكاء الاصطناعي.')}
+          {tr('AI assists every step of your correspondence.', 'مساعدة ذكية في كل خطوة من مراسلاتك.')}
         </div>
       </div>
     </aside>

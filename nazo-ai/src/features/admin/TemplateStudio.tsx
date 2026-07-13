@@ -82,7 +82,7 @@ export function TemplateStudio() {
     <PageTransition>
       <PageHeader
         title={t('nav.templates')}
-        subtitle={tr('Describe a document — the AI drafts it, typed and ready.', 'صف مستنداً — يصيغه الذكاء الاصطناعي جاهزاً ومصنّفاً.')}
+        subtitle={tr('Describe a document and the AI drafts it for you.', 'صف مستنداً ليصيغه الذكاء الاصطناعي لك.')}
         icon={<FileText className="size-5" />}
       />
 
@@ -97,7 +97,7 @@ export function TemplateStudio() {
               </span>
               <div>
                 <div className="text-sm font-semibold text-ink">{tr('AI Template Generator', 'مولّد النماذج بالذكاء الاصطناعي')}</div>
-                <div className="text-[11px] text-ink-muted">{tr('Prompt → 5-second draft → typed variables → suggested workflow', 'أمر → مسودة خلال 5 ثوانٍ → متغيرات مصنّفة → مسار مقترح')}</div>
+                <div className="text-[11px] text-ink-muted">{tr('Prompt → draft → typed variables → suggested workflow', 'أمر → مسودة → متغيرات مصنّفة → مسار مقترح')}</div>
               </div>
             </div>
 

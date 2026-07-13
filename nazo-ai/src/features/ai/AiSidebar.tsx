@@ -154,8 +154,8 @@ function PanelBody({ onCollapse }: { onCollapse: () => void }) {
         {messages.length === 0 && !isRunning && (
           <div className="mt-6 text-center text-[13px] text-ink-muted px-4">
             {tr(
-              'Pick an action above — I’ll do it right here on the page.',
-              'اختر إجراءً بالأعلى — سأقوم به مباشرة على الصفحة.',
+              'Pick an action above, or ask a question to get started.',
+              'اختر إجراءً بالأعلى أو اطرح سؤالاً للبدء.',
             )}
           </div>
         )}
@@ -181,7 +181,7 @@ function PanelBody({ onCollapse }: { onCollapse: () => void }) {
             className="w-full resize-none bg-transparent px-2 py-1 text-[13px] text-ink placeholder:text-ink-muted outline-none"
           />
           <div className="flex items-center justify-between px-1">
-            <span className="text-[10px] text-ink-muted">{tr('Scripted demo AI', 'ذكاء تجريبي')}</span>
+            <span className="text-[10px] text-ink-muted">{tr('NAZO AI', 'مساعد NAZO AI')}</span>
             <button
               onClick={onSend}
               disabled={isRunning}

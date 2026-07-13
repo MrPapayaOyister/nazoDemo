@@ -21,7 +21,7 @@ export function TopBar() {
         </span>
         <div className="leading-tight">
           <div className="text-sm font-semibold tracking-tight">{APP_NAME}</div>
-          <div className="text-[10px] text-white/45 -mt-0.5">{tr('Correspondence, orchestrated', 'مراسلات مُنسّقة')}</div>
+          <div className="text-[10px] text-white/45 -mt-0.5">{tr('Correspondence management', 'إدارة المراسلات')}</div>
         </div>
       </div>
 
