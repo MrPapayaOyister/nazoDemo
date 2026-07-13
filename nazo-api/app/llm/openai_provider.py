@@ -114,7 +114,7 @@ class OpenAIProvider:
         self,
         base_url: str | None = None,
         model: str | None = None,
-        timeout: float = 60.0,
+        timeout: float = 45.0,
     ) -> None:
         self.base_url = (base_url or settings.llm_base_url).rstrip("/")
         self.model = model or settings.llm_model
@@ -156,6 +156,7 @@ class OpenAIProvider:
         temperature: float = 0.2,
         max_tokens: int = 1200,
         validator: Optional[Callable[[dict[str, Any]], bool]] = None,
+        fast: bool = False,
         **opts: Any,
     ) -> dict[str, Any]:
         """VERIFIED structured-output call.
@@ -168,6 +169,13 @@ class OpenAIProvider:
         FALLBACK is NOT — so the fallback dict is re-validated against `schema`
         (plus an optional caller `validator`) before being returned. Raises
         StructuredOutputError if still invalid.
+
+        `fast=True`: SKIP the strict json_schema primary and use ONE json_object
+        call (a far cheaper JSON grammar than full guided decoding — big latency
+        win) WITHOUT hard re-validation. Use this only when the caller sanitizes
+        the result downstream (e.g. the template generator, which coerces every
+        field). json_object mode still guarantees VALID JSON, just not schema
+        conformance.
         """
         base: dict[str, Any] = {
             "model": self.model,
@@ -179,19 +187,20 @@ class OpenAIProvider:
         base.update(opts)
 
         # --- Primary: json_schema strict (schema-enforced) ------------------
-        try:
-            payload = dict(base)
-            payload["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {"name": name, "strict": True, "schema": schema},
-            }
-            content = await self._post_chat(payload)
-            parsed = _parse_json_object(content)
-            if parsed is not None:
-                return parsed
-        except (httpx.HTTPError, KeyError, IndexError, ValueError):
-            # Empty/malformed choices or transport error — fall through to retry.
-            pass
+        if not fast:
+            try:
+                payload = dict(base)
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {"name": name, "strict": True, "schema": schema},
+                }
+                content = await self._post_chat(payload)
+                parsed = _parse_json_object(content)
+                if parsed is not None:
+                    return parsed
+            except (httpx.HTTPError, KeyError, IndexError, ValueError):
+                # Empty/malformed choices or transport error — fall through to retry.
+                pass
 
         # --- Fallback: json_object + schema-in-prompt (retry once) ----------
         retry_messages = list(messages) + [
@@ -217,17 +226,19 @@ class OpenAIProvider:
             raise StructuredOutputError(
                 "model did not return a valid JSON object after json_object retry"
             )
-        # The fallback path is NOT server-enforced — re-validate against the schema
-        # (and any caller validator) so a hallucinated/missing/mistyped field on this
-        # path is rejected rather than returned unfiltered.
-        if not _validate_against_schema(parsed, schema):
-            raise StructuredOutputError(
-                "json_object fallback did not satisfy the required schema"
-            )
-        if validator is not None and not validator(parsed):
-            raise StructuredOutputError(
-                "json_object fallback failed the caller-supplied validator"
-            )
+        # The json_object path is NOT server-enforced. Re-validate against the schema
+        # (and any caller validator) so a hallucinated/missing/mistyped field is
+        # rejected rather than returned unfiltered — UNLESS fast=True, where the
+        # caller sanitizes downstream and we trade strictness for latency.
+        if not fast:
+            if not _validate_against_schema(parsed, schema):
+                raise StructuredOutputError(
+                    "json_object fallback did not satisfy the required schema"
+                )
+            if validator is not None and not validator(parsed):
+                raise StructuredOutputError(
+                    "json_object fallback failed the caller-supplied validator"
+                )
         return parsed
 
     async def astream(

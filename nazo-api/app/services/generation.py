@@ -215,14 +215,15 @@ _ARABIC_RE = re.compile(
     "[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]"
 )
 _LATIN_RE = re.compile("[A-Za-z]")
-# Minimum body word count before the length-floor regeneration kicks in (F1).
-_BODY_WORD_FLOOR = 220
-# Token budgets. English 500 words ~= 700 tokens fits 2200 with headroom. Arabic
-# tokenizes on Qwen at ~2-3 tokens/word, so a 350-500 word AR memo plus HTML tags,
-# contentVariables, workflow_ir, titles and JSON escaping can reach ~2000-2600
-# tokens; give it real headroom so a truncated (unparseable) reply can't occur.
-_EN_MAX_TOKENS = 2200
-_AR_MAX_TOKENS = 3400
+# Token budgets. A 350-500 word memo is ~700 tokens; plus contentVariables,
+# workflow_ir, titles and JSON escaping that lands around ~1000-1300 tokens.
+# These caps give headroom for a complete reply WITHOUT letting the model ramble
+# for tens of extra seconds under (slow) guided decoding. Arabic tokenizes at
+# ~2-3 tokens/word so it gets a larger cap. Kept single-call: the previous
+# length-floor REGENERATION doubled latency (2 extra calls) and frequently failed
+# — the system prompt already demands a full-page memo, so the first draft stands.
+_EN_MAX_TOKENS = 1500
+_AR_MAX_TOKENS = 2200
 # Literal money the model was told never to emit (e.g. "AED 75,000", "$1,200").
 _AMOUNT_RE = re.compile(r"(?:AED|USD|\$|SAR|EUR|€)\s*[0-9][0-9,\.]*", re.IGNORECASE)
 
@@ -533,25 +534,9 @@ async def _generate_en(
         name="template_generation",
         temperature=0.3,
         max_tokens=_EN_MAX_TOKENS,
+        fast=True,  # one cheap json_object call; every field is sanitized below
     )
     body_raw = str(data.get("bodyEn") or "")
-
-    # Length floor (F1): a too-short body triggers ONE stronger regeneration; the
-    # longer of the two drafts wins so we never regress below the first attempt.
-    if _word_count(body_raw) < _BODY_WORD_FLOOR:
-        try:
-            data2 = await provider.complete_structured(
-                messages + [{"role": "system", "content": _LENGTH_FLOOR_EN}],
-                GENERATION_SCHEMA,
-                name="template_generation",
-                temperature=0.35,
-                max_tokens=_EN_MAX_TOKENS,
-            )
-            if _word_count(str(data2.get("bodyEn") or "")) > _word_count(body_raw):
-                data, body_raw = data2, str(data2.get("bodyEn") or "")
-        except Exception:  # noqa: BLE001 - keep the first draft if the retry fails
-            logger.warning("EN length-floor regeneration failed; keeping first draft")
-
     title_en = str(data.get("titleEn") or "Official Memo").strip()
     title_ar = str(data.get("titleAr") or title_en).strip()
     category = _category_of(data)
@@ -589,23 +574,9 @@ async def _generate_ar(
         name="template_generation_ar",
         temperature=0.3,
         max_tokens=_AR_MAX_TOKENS,
+        fast=True,  # one cheap json_object call; every field is sanitized below
     )
     body_raw = str(data.get("bodyAr") or "")
-
-    if _word_count(body_raw) < _BODY_WORD_FLOOR:
-        try:
-            data2 = await provider.complete_structured(
-                messages + [{"role": "system", "content": _LENGTH_FLOOR_AR}],
-                GENERATION_SCHEMA_AR,
-                name="template_generation_ar",
-                temperature=0.35,
-                max_tokens=_AR_MAX_TOKENS,
-            )
-            if _word_count(str(data2.get("bodyAr") or "")) > _word_count(body_raw):
-                data, body_raw = data2, str(data2.get("bodyAr") or "")
-        except Exception:  # noqa: BLE001 - keep the first draft if the retry fails
-            logger.warning("AR length-floor regeneration failed; keeping first draft")
-
     title_ar = str(data.get("titleAr") or "مذكرة رسمية").strip()
     title_en = str(data.get("titleEn") or title_ar).strip()
     category = _category_of(data)
