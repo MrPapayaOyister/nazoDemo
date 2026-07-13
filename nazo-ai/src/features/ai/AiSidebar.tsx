@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Sparkles, ChevronRight, ArrowUp, Undo2, ArrowUpRight } from 'lucide-react'
+import { Sparkles, ChevronRight, ArrowUp, Undo2, ArrowUpRight, MessageSquarePlus } from 'lucide-react'
 import { useStore, useCurrentUser } from '@/store'
 import { useAI } from '@/ai/useAI'
 import { getChips } from '@/ai/chips'
@@ -48,7 +48,8 @@ function PanelBody({ onCollapse }: { onCollapse: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   const user = useCurrentUser()
-  const { run, isRunning, messages } = useAI()
+  const { run, isRunning, messages, newChat } = useAI()
+  const pushUserMessage = useStore((s) => s.pushUserMessage)
   const [input, setInput] = useState('')
 
   const hasDraft = useStore((s) => !!s.studioDraft)
@@ -82,6 +83,9 @@ function PanelBody({ onCollapse }: { onCollapse: () => void }) {
     // prompt the Step-6a handlers (generateTemplate / buildWorkflow) require.
     const text = input.trim()
     setInput('')
+    // Show the typed prompt as a user bubble so the transcript reads coherently,
+    // then run the action with the same text as its prompt.
+    pushUserMessage(text)
     fire(chips[0].actionId, text)
   }
 
@@ -99,13 +103,23 @@ function PanelBody({ onCollapse }: { onCollapse: () => void }) {
               <div className="text-[11px] text-ink-muted">{t('ai.subtitle')}</div>
             </div>
           </div>
-          <button
-            onClick={onCollapse}
-            aria-label="Collapse AI panel"
-            className="grid place-items-center size-7 rounded-lg text-ink-muted hover:bg-hover hover:text-ink transition-colors"
-          >
-            <ChevronRight className="size-4 rtl:rotate-180" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={newChat}
+              title={tr('New chat', 'محادثة جديدة')}
+              aria-label={tr('New chat', 'محادثة جديدة')}
+              className="grid place-items-center size-7 rounded-lg text-ink-muted hover:bg-hover hover:text-ink transition-colors"
+            >
+              <MessageSquarePlus className="size-4" />
+            </button>
+            <button
+              onClick={onCollapse}
+              aria-label="Collapse AI panel"
+              className="grid place-items-center size-7 rounded-lg text-ink-muted hover:bg-hover hover:text-ink transition-colors"
+            >
+              <ChevronRight className="size-4 rtl:rotate-180" />
+            </button>
+          </div>
         </div>
       </div>
 

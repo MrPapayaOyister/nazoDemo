@@ -51,7 +51,9 @@ interface ViewerState {
 }
 
 interface AiRuntime {
-  messages: AiMessage[]
+  /** Chat transcript namespaced per identity, so switching users never leaks one
+   *  person's conversation into another's. Keyed by User.id. */
+  threads: Record<string, AiMessage[]>
   isRunning: boolean
   runningAction: AiActionId | null
 }
@@ -139,6 +141,10 @@ interface AppState {
   applyEffects: (effects: SideEffect[]) => void
   undoLast: () => void
   clearMessages: () => void
+  /** Append a user-typed bubble to the current identity's thread. */
+  pushUserMessage: (text: string) => void
+  /** Start a fresh conversation: abort any in-flight run and clear the current thread. */
+  newChat: () => void
 
   // correspondence lifecycle (backed by the real API)
   sendCorrespondence: (args?: { templateId?: string; values?: Record<string, string> }) => Promise<string>
@@ -325,7 +331,7 @@ export const useStore = create<AppState>()(
       viewer: emptyViewer(),
       canvasSteps: [],
 
-      ai: { messages: [], isRunning: false, runningAction: null },
+      ai: { threads: {}, isRunning: false, runningAction: null },
       lastUndo: null,
 
       navigate: () => {},
@@ -349,7 +355,30 @@ export const useStore = create<AppState>()(
 
       // ---- ui ----
       switchUser: (id) => {
-        set({ currentUserId: id })
+        // Abort any in-flight run and invalidate its token so a stream started
+        // under the OLD identity can't resolve into the NEW user's session.
+        // Threads are namespaced per user, so switching simply surfaces the
+        // target user's own (possibly empty) thread — no other thread is touched.
+        runToken++
+        aiAbort?.abort()
+        // Strip the departing user's orphaned 'thinking' bubble: the aborted run's
+        // continuation returns early (token bump) and never replaces it with a
+        // result, so without this it would spin forever when we return to them.
+        // Also drop lastUndo — it holds a single cross-identity snapshot that would
+        // otherwise let the target user's trailing card revert THIS user's state.
+        set((s) => ({
+          currentUserId: id,
+          ai: {
+            ...s.ai,
+            threads: {
+              ...s.ai.threads,
+              [s.currentUserId]: (s.ai.threads[s.currentUserId] ?? []).filter((m) => m.role !== 'thinking'),
+            },
+            isRunning: false,
+            runningAction: null,
+          },
+          lastUndo: null,
+        }))
         api.setApiUser(id)
         // Re-fetch so the server identity drives inbox/state; keep seed on failure.
         void (async () => {
@@ -409,9 +438,20 @@ export const useStore = create<AppState>()(
         // insert the WRONG correspondence's summary card into this viewer.
         runToken++
         aiAbort?.abort()
+        // Strip the aborted run's orphaned 'thinking' bubble from the current
+        // thread so repeatedly opening correspondences doesn't accumulate dead
+        // spinners that the token-invalidated continuation will never resolve.
         set((s) => ({
           viewer: { ...emptyViewer(), corrId },
-          ai: { ...s.ai, isRunning: false, runningAction: null },
+          ai: {
+            ...s.ai,
+            threads: {
+              ...s.ai.threads,
+              [s.currentUserId]: (s.ai.threads[s.currentUserId] ?? []).filter((m) => m.role !== 'thinking'),
+            },
+            isRunning: false,
+            runningAction: null,
+          },
         }))
       },
       setViewerComment: (en, ar) => set((s) => ({ viewer: { ...s.viewer, comment: en, commentAr: ar ?? '' } })),
@@ -422,6 +462,10 @@ export const useStore = create<AppState>()(
         const token = ++runToken
         const lang = get().ui.lang
         const thinkingId = genId('msg')
+        // Bind this run to the identity that started it. Every thread read/write
+        // below targets THIS user's thread, so a late resolution can't post into
+        // whoever is active later (the token guard also blocks cross-identity writes).
+        const uid = get().currentUserId
 
         const snapshot = (): Snapshot => ({
           studioDraft: get().studioDraft,
@@ -436,7 +480,12 @@ export const useStore = create<AppState>()(
           set((s) => ({
             ai: {
               ...s.ai,
-              messages: s.ai.messages.map((m) => (m.id === thinkingId ? { ...m, textEn: en, textAr: ar } : m)),
+              threads: {
+                ...s.ai.threads,
+                [uid]: (s.ai.threads[uid] ?? []).map((m) =>
+                  m.id === thinkingId ? { ...m, textEn: en, textAr: ar } : m,
+                ),
+              },
             },
           }))
         }
@@ -444,10 +493,14 @@ export const useStore = create<AppState>()(
         const pushResult = (card: ResultCard) => {
           set((s) => ({
             ai: {
-              messages: [
-                ...s.ai.messages.filter((m) => m.id !== thinkingId),
-                { id: genId('msg'), role: 'result', card, actionId: ctx.actionId },
-              ],
+              ...s.ai,
+              threads: {
+                ...s.ai.threads,
+                [uid]: [
+                  ...(s.ai.threads[uid] ?? []).filter((m) => m.id !== thinkingId),
+                  { id: genId('msg'), role: 'result', card, actionId: ctx.actionId },
+                ],
+              },
               isRunning: false,
               runningAction: null,
             },
@@ -458,10 +511,14 @@ export const useStore = create<AppState>()(
         if (ctx.actionId === 'requester.genRef') {
           set((s) => ({
             ai: {
-              messages: [
-                ...s.ai.messages,
-                { id: thinkingId, role: 'thinking', textEn: 'Reserving a reference number…', textAr: 'حجز رقم مرجعي…', actionId: ctx.actionId },
-              ],
+              ...s.ai,
+              threads: {
+                ...s.ai.threads,
+                [uid]: [
+                  ...(s.ai.threads[uid] ?? []),
+                  { id: thinkingId, role: 'thinking', textEn: 'Reserving a reference number…', textAr: 'حجز رقم مرجعي…', actionId: ctx.actionId },
+                ],
+              },
               isRunning: true,
               runningAction: ctx.actionId,
             },
@@ -504,10 +561,14 @@ export const useStore = create<AppState>()(
         const meta = resolveScenario(ctx)
         set((s) => ({
           ai: {
-            messages: [
-              ...s.ai.messages,
-              { id: thinkingId, role: 'thinking', textEn: meta.thinkingEn[0], textAr: meta.thinkingAr[0], actionId: ctx.actionId },
-            ],
+            ...s.ai,
+            threads: {
+              ...s.ai.threads,
+              [uid]: [
+                ...(s.ai.threads[uid] ?? []),
+                { id: thinkingId, role: 'thinking', textEn: meta.thinkingEn[0], textAr: meta.thinkingAr[0], actionId: ctx.actionId },
+              ],
+            },
             isRunning: true,
             runningAction: ctx.actionId,
           },
@@ -643,7 +704,38 @@ export const useStore = create<AppState>()(
         toast(get().ui.lang === 'ar' ? 'تم التراجع' : 'Reverted')
       },
 
-      clearMessages: () => set((s) => ({ ai: { ...s.ai, messages: [] } })),
+      clearMessages: () =>
+        set((s) => ({ ai: { ...s.ai, threads: { ...s.ai.threads, [s.currentUserId]: [] } } })),
+
+      pushUserMessage: (text) =>
+        set((s) => ({
+          ai: {
+            ...s.ai,
+            threads: {
+              ...s.ai.threads,
+              [s.currentUserId]: [
+                ...(s.ai.threads[s.currentUserId] ?? []),
+                { id: genId('msg'), role: 'user', textEn: text, textAr: text },
+              ],
+            },
+          },
+        })),
+
+      newChat: () => {
+        // Abort any in-flight run and invalidate its token, then clear ONLY the
+        // current identity's thread and drop the pending undo.
+        runToken++
+        aiAbort?.abort()
+        set((s) => ({
+          ai: {
+            ...s.ai,
+            threads: { ...s.ai.threads, [s.currentUserId]: [] },
+            isRunning: false,
+            runningAction: null,
+          },
+          lastUndo: null,
+        }))
+      },
 
       // ---- correspondence lifecycle (real API) ----
       sendCorrespondence: async (args) => {
@@ -770,7 +862,7 @@ export const useStore = create<AppState>()(
           createDraftCorrId: null,
           viewer: emptyViewer(),
           canvasSteps: [],
-          ai: { messages: [], isRunning: false, runningAction: null },
+          ai: { threads: {}, isRunning: false, runningAction: null },
           lastUndo: null,
         })
         api.setApiUser('u_admin')
@@ -809,6 +901,16 @@ export const useStore = create<AppState>()(
 // ---------------------------------------------------------------------------
 // Selector hooks
 // ---------------------------------------------------------------------------
+// Stable empty reference so a user with no thread yet doesn't hand
+// useSyncExternalStore a fresh [] each render (which would loop forever).
+const EMPTY_THREAD: AiMessage[] = []
+
+/** The current identity's AI transcript. Namespaced per user; switching users
+ *  surfaces that user's own thread without leaking the previous conversation. */
+export function useAiMessages(): AiMessage[] {
+  return useStore((s) => s.ai.threads[s.currentUserId] ?? EMPTY_THREAD)
+}
+
 export function useCurrentUser(): User {
   const id = useStore((s) => s.currentUserId)
   const users = useStore((s) => s.users)
