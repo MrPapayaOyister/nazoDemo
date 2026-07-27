@@ -110,8 +110,8 @@ export function CorrespondenceViewer() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-5">
-          {/* document */}
-          <div>
+          {/* document + its attachments (a clear, prominent place to view files) */}
+          <div className="space-y-4">
             <DocumentRenderer
               docHtml={previewDoc}
               values={corr.values}
@@ -120,6 +120,7 @@ export function CorrespondenceViewer() {
               showTokens={false}
               stampTag={stampTag}
             />
+            <AttachmentsCard corrId={corr.id} attachments={corr.attachments ?? []} />
           </div>
 
           {/* side column */}
@@ -147,8 +148,6 @@ export function CorrespondenceViewer() {
               </div>
               <ChainStepper steps={corr.workflow} currentIndex={corr.currentStepIndex} status={corr.status} signedRoles={signed} variant="full" />
             </div>
-
-            <AttachmentsCard corrId={corr.id} attachments={corr.attachments ?? []} />
 
             <div className="rounded-2xl hairline bg-surface shadow-e1 p-4">
               <div className="text-[13px] font-semibold text-ink mb-3">{tr('Audit trail', 'سجل التدقيق')}</div>
@@ -219,10 +218,14 @@ function ActionBar({
   const setViewerComment = useStore((s) => s.setViewerComment)
   const approveAndSign = useStore((s) => s.approveAndSign)
   const rejectCorrespondence = useStore((s) => s.rejectCorrespondence)
-  const [mode, setMode] = useState<'approve' | 'reject'>('approve')
+  const redirectCorrespondence = useStore((s) => s.redirectCorrespondence)
+  const users = useStore((s) => s.users)
+  const currentUserId = useStore((s) => s.currentUserId)
+  const [mode, setMode] = useState<'approve' | 'reject' | 'redirect'>('approve')
   const [busy, setBusy] = useState(false)
   const [applySig, setApplySig] = useState(true)
   const [selectedSigId, setSelectedSigId] = useState<string | undefined>(undefined)
+  const [redirectTarget, setRedirectTarget] = useState('')
   const tr2 = useLocalized()
 
   // Action + signature UI are driven by the ACTIVE step's TYPE (item 2): only a
@@ -257,6 +260,18 @@ function ActionBar({
 
   const submit = async () => {
     if (busy) return
+    if (mode === 'redirect') {
+      if (!redirectTarget) {
+        toast(tr('Pick a colleague to redirect to.', 'اختر زميلاً للإحالة إليه.'))
+        return
+      }
+      setBusy(true)
+      await redirectCorrespondence(corr.id, redirectTarget, viewerComment || undefined)
+      setBusy(false)
+      setRedirectTarget('')
+      onSigned(undefined, false)
+      return
+    }
     if (mode === 'reject') {
       if (!viewerComment.trim()) {
         toast(tr('A comment is required to return.', 'يلزم تعليق للإعادة.'))
@@ -284,21 +299,28 @@ function ActionBar({
         <span className="text-[13px] font-semibold text-ink">{tr('Your decision', 'قرارك')}</span>
       </div>
       <div className="p-4 space-y-3">
-        {/* mode toggle */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* decision mode — Approve · Return · Redirect side by side */}
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => setMode('approve')}
-            className={cn('flex items-center justify-center gap-1.5 rounded-xl py-2 text-[13px] font-semibold transition-colors', mode === 'approve' ? 'bg-success text-white' : 'hairline bg-app text-ink-secondary hover:bg-hover')}
+            className={cn('flex items-center justify-center gap-1.5 rounded-xl py-2 text-[12.5px] font-semibold transition-colors', mode === 'approve' ? 'bg-success text-white' : 'hairline bg-app text-ink-secondary hover:bg-hover')}
           >
             <Check className="size-4" />
             {tr(isReviewing ? 'Review' : 'Approve', isReviewing ? 'مراجعة' : 'اعتماد')}
           </button>
           <button
             onClick={() => setMode('reject')}
-            className={cn('flex items-center justify-center gap-1.5 rounded-xl py-2 text-[13px] font-semibold transition-colors', mode === 'reject' ? 'bg-danger text-white' : 'hairline bg-app text-ink-secondary hover:bg-hover')}
+            className={cn('flex items-center justify-center gap-1.5 rounded-xl py-2 text-[12.5px] font-semibold transition-colors', mode === 'reject' ? 'bg-danger text-white' : 'hairline bg-app text-ink-secondary hover:bg-hover')}
           >
             <X className="size-4" />
             {tr('Return', 'إعادة')}
+          </button>
+          <button
+            onClick={() => setMode('redirect')}
+            className={cn('flex items-center justify-center gap-1.5 rounded-xl py-2 text-[12.5px] font-semibold transition-colors', mode === 'redirect' ? 'bg-ai text-white' : 'hairline bg-app text-ink-secondary hover:bg-hover')}
+          >
+            <Share2 className="size-4" />
+            {tr('Redirect', 'إحالة')}
           </button>
         </div>
 
@@ -372,81 +394,71 @@ function ActionBar({
           </div>
         )}
 
+        {/* redirect target picker (consultation — returns to you; chain unchanged) */}
+        {mode === 'redirect' && (
+          <div className="rounded-xl hairline bg-app p-2.5">
+            <div className="text-[11px] font-semibold text-ink-muted mb-1.5 flex items-center gap-1">
+              <Share2 className="size-3" />
+              {tr('Redirect to a colleague for input', 'إحالة إلى زميل لإبداء الرأي')}
+            </div>
+            <select
+              value={redirectTarget}
+              onChange={(e) => setRedirectTarget(e.target.value)}
+              disabled={busy}
+              className="w-full rounded-lg hairline bg-surface px-2 py-1.5 text-[12.5px] text-ink outline-none focus:ring-2 focus:ring-ai/30 disabled:opacity-50"
+            >
+              <option value="">{tr('Select a colleague…', 'اختر زميلاً…')}</option>
+              {users
+                .filter((u) => u.id !== currentUserId)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {tr(u.nameEn, u.nameAr)} — {tr(u.titleEn, u.titleAr)}
+                  </option>
+                ))}
+            </select>
+            <p className="mt-1.5 text-[11px] text-ink-muted">
+              {tr('They give input and it returns to you — the approval chain is unchanged.', 'يبدون رأيهم ثم تعود إليك — مسار الاعتماد لا يتغيّر.')}
+            </p>
+          </div>
+        )}
+
         {/* attach a supporting / marked-up file with this decision */}
-        <div className="flex items-center justify-between gap-2 rounded-xl hairline bg-app px-3 py-2">
-          <span className="text-[11.5px] text-ink-muted">
-            {mode === 'reject'
-              ? tr('Attach a marked-up file', 'أرفق ملفاً موضّحاً')
-              : tr('Attach a supporting file', 'أرفق ملفاً داعماً')}
-          </span>
-          <AttachmentUploader corrId={corr.id} context={mode} label={tr('Attach', 'إرفاق')} />
-        </div>
+        {mode !== 'redirect' && (
+          <div className="flex items-center justify-between gap-2 rounded-xl hairline bg-app px-3 py-2">
+            <span className="text-[11.5px] text-ink-muted">
+              {mode === 'reject'
+                ? tr('Attach a marked-up file', 'أرفق ملفاً موضّحاً')
+                : tr('Attach a supporting file', 'أرفق ملفاً داعماً')}
+            </span>
+            <AttachmentUploader corrId={corr.id} context={mode === 'reject' ? 'reject' : 'approve'} label={tr('Attach', 'إرفاق')} />
+          </div>
+        )}
 
         <Button
-          variant={mode === 'reject' ? 'danger' : 'primary'}
+          variant={mode === 'reject' ? 'danger' : mode === 'redirect' ? 'secondary' : 'primary'}
           size="lg"
           className="w-full"
           onClick={submit}
-          disabled={busy}
+          disabled={busy || (mode === 'redirect' && !redirectTarget)}
         >
-          {mode === 'reject' ? <X className="size-4" /> : isSigning ? <PenTool className="size-4" /> : <Check className="size-4" />}
+          {mode === 'reject' ? (
+            <X className="size-4" />
+          ) : mode === 'redirect' ? (
+            <Share2 className="size-4" />
+          ) : isSigning ? (
+            <PenTool className="size-4" />
+          ) : (
+            <Check className="size-4" />
+          )}
           {mode === 'reject'
             ? tr('Return for changes', 'إعادة للتعديل')
-            : isSigning
-              ? tr('Approve & Sign', 'اعتماد وتوقيع')
-              : isReviewing
-                ? tr('Mark as reviewed', 'تأكيد المراجعة')
-                : tr('Approve', 'اعتماد')}
-        </Button>
-
-        <RedirectRow corrId={corr.id} disabled={busy} />
-      </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-function RedirectRow({ corrId, disabled }: { corrId: string; disabled?: boolean }) {
-  const tr = useLocalized()
-  const users = useStore((s) => s.users)
-  const currentId = useStore((s) => s.currentUserId)
-  const viewerComment = useStore((s) => s.viewer.comment)
-  const redirectCorrespondence = useStore((s) => s.redirectCorrespondence)
-  const [target, setTarget] = useState('')
-  const [busy, setBusy] = useState(false)
-  const options = users.filter((u) => u.id !== currentId)
-
-  const go = async () => {
-    if (!target || busy) return
-    setBusy(true)
-    await redirectCorrespondence(corrId, target, viewerComment || undefined)
-    setBusy(false)
-    setTarget('')
-  }
-
-  return (
-    <div className="rounded-xl hairline bg-app p-2.5">
-      <div className="text-[11px] font-semibold text-ink-muted mb-1.5 flex items-center gap-1">
-        <Share2 className="size-3" />
-        {tr('Redirect for input', 'إحالة لإبداء الرأي')}
-      </div>
-      <div className="flex items-center gap-2">
-        <select
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          disabled={disabled || busy}
-          className="min-w-0 flex-1 rounded-lg hairline bg-surface px-2 py-1.5 text-[12px] text-ink outline-none focus:ring-2 focus:ring-ai/30 disabled:opacity-50"
-        >
-          <option value="">{tr('Select a colleague…', 'اختر زميلاً…')}</option>
-          {options.map((u) => (
-            <option key={u.id} value={u.id}>
-              {tr(u.nameEn, u.nameAr)} — {tr(u.titleEn, u.titleAr)}
-            </option>
-          ))}
-        </select>
-        <Button variant="secondary" size="sm" onClick={go} disabled={disabled || busy || !target}>
-          <Share2 className="size-3.5" />
-          {tr('Redirect', 'إحالة')}
+            : mode === 'redirect'
+              ? tr('Redirect for input', 'إحالة لإبداء الرأي')
+              : isSigning
+                ? tr('Approve & Sign', 'اعتماد وتوقيع')
+                : isReviewing
+                  ? tr('Mark as reviewed', 'تأكيد المراجعة')
+                  : tr('Approve', 'اعتماد')}
         </Button>
       </div>
     </div>

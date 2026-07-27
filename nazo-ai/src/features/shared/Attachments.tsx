@@ -99,10 +99,10 @@ export function AttachmentList({ corrId, attachments, className }: { corrId: str
   )
 }
 
-/** The viewer's "Attachments" card (right column). Renders nothing when empty. */
+/** The viewer's "Attachments" card. Always rendered (with an empty state) so it is
+ *  a discoverable, consistent place to view files attached at create/approve/reject. */
 export function AttachmentsCard({ corrId, attachments }: { corrId: string; attachments: Attachment[] }) {
   const tr = useLocalized()
-  if (!attachments.length) return null
   return (
     <div className="rounded-2xl hairline bg-surface shadow-e1 overflow-hidden">
       <div className="px-4 py-3 border-b border-line flex items-center gap-2">
@@ -113,7 +113,14 @@ export function AttachmentsCard({ corrId, attachments }: { corrId: string; attac
         </span>
       </div>
       <div className="p-2.5">
-        <AttachmentList corrId={corrId} attachments={attachments} />
+        {attachments.length ? (
+          <AttachmentList corrId={corrId} attachments={attachments} />
+        ) : (
+          <div className="grid place-items-center gap-1.5 py-5 text-center">
+            <Paperclip className="size-5 text-ink-muted/60" />
+            <span className="text-[12px] text-ink-muted">{tr('No files attached', 'لا توجد ملفات مرفقة')}</span>
+          </div>
+        )}
       </div>
     </div>
   )
