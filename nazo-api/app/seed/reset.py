@@ -26,6 +26,7 @@ Custom-signature PRESERVATION:
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 from sqlalchemy import inspect as sa_inspect, make_url, text
 from sqlmodel import Session, SQLModel, select
@@ -269,6 +270,19 @@ def _backup_custom_signatures(session: Session) -> list[dict]:
     if has_created:
         sel_cols.append(Signature.created_at)
     rows = list(session.exec(select(*sel_cols).where(Signature.is_custom == True)).all())  # noqa: E712
+    # Which signature is each owner's DEFAULT. Select ONLY app_user.id/signature_id —
+    # NOT session.get(AppUser, ...), which loads EVERY model column and therefore breaks
+    # on exactly the schema bump this backup exists to survive (access_level/department
+    # are new in the permission model, so a pre-migration app_user lacks them and the
+    # whole reset aborts before it can create them). Same migration-safe rule as the
+    # Signature columns above.
+    default_sig_by_owner: dict[str, Optional[str]] = {}
+    owner_ids = {r.owner_id for r in rows}
+    if owner_ids:
+        for uid, sig_id in session.exec(
+            select(AppUser.id, AppUser.signature_id).where(AppUser.id.in_(owner_ids))
+        ).all():
+            default_sig_by_owner[uid] = sig_id
     # A user may own MANY custom signatures (item 1). Capture the label/created_at and
     # WHICH one is the owner's default so the whole gallery + the chosen default survive.
     backup = [
@@ -279,10 +293,7 @@ def _backup_custom_signatures(session: Session) -> list[dict]:
             "style": r.style,
             "label": getattr(r, "label", "") if has_label else "",
             "created_at": getattr(r, "created_at", "") if has_created else "",
-            "is_default": (
-                (u := session.get(AppUser, r.owner_id)) is not None
-                and u.signature_id == r.id
-            ),
+            "is_default": default_sig_by_owner.get(r.owner_id) == r.id,
         }
         for r in rows
     ]
