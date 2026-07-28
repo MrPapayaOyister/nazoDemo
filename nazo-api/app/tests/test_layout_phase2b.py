@@ -19,7 +19,7 @@ from app.routers import templates as T
 from app.services import workflow
 from app.services.layout import locked_zones_changed, split_doc
 
-SEED = "tpl_tutoring_en"  # dynamic seed template, owner u_admin, master lm_default (locked)
+SEED = "tpl_trademark_en"  # dynamic seed template, owner u_admin, master lm_default (locked)
 
 
 def _user(session, uid: str) -> AppUser:
@@ -164,7 +164,7 @@ def test_unlocking_master_frees_the_frame(session):
 def test_template_with_no_master_is_freely_editable(session):
     admin, req = _user(session, "u_admin"), _user(session, "u_req")
     # a personal template created via save-as has NO master (unlocked)
-    corr = workflow.create_correspondence(session, req, SEED, {"{{VENDOR}}": "X"})
+    corr = workflow.create_correspondence(session, req, SEED, {"{{APPLICANT}}": "X"})
     session.commit()
     out = T.save_from_correspondence(
         T.SaveFromCorrespondenceBody(correspondenceId=corr.id, titleEn="Personal"),

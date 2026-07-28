@@ -19,7 +19,7 @@ from app.routers import correspondences as C
 from app.routers import templates as T
 from app.services import workflow
 
-SEED_TEMPLATE = "tpl_tutoring_en"  # STANDARD_CHAIN, admin-owned + global by seed
+SEED_TEMPLATE = "tpl_trademark_en"  # STANDARD_CHAIN, admin-owned + global by seed
 
 # A minimal non-empty, NON-signing workflow step (these tests don't exercise signing;
 # a signing step would require a matching Signature variable — enforced in Phase 4).
@@ -188,7 +188,7 @@ def test_scope_mine_and_global(session):
 def test_future_only_freeze_preserved(session):
     req, admin = _user(session, "u_req"), _user(session, "u_admin")
     corr = workflow.create_correspondence(
-        session, req, SEED_TEMPLATE, {"{{VENDOR}}": "X", "{{AMOUNT}}": "1,000"}
+        session, req, SEED_TEMPLATE, {"{{APPLICANT}}": "X", "{{AMOUNT}}": "1,000"}
     )
     session.commit()
     old_doc = session.get(Template, SEED_TEMPLATE).doc_html
@@ -214,7 +214,7 @@ def test_future_only_freeze_preserved(session):
 
     # a correspondence created AFTER the edit tracks the new template (override still None)
     corr2 = workflow.create_correspondence(
-        session, req, SEED_TEMPLATE, {"{{VENDOR}}": "Y", "{{AMOUNT}}": "2,000"}
+        session, req, SEED_TEMPLATE, {"{{APPLICANT}}": "Y", "{{AMOUNT}}": "2,000"}
     )
     session.commit()
     assert corr2.doc_html_override is None
@@ -247,7 +247,7 @@ def test_non_admin_cannot_raise_visibility_to_global(session):
 
 def test_save_from_correspondence_clamps_global_for_non_admin(session):
     req = _user(session, "u_req")
-    corr = workflow.create_correspondence(session, req, SEED_TEMPLATE, {"{{VENDOR}}": "X"})
+    corr = workflow.create_correspondence(session, req, SEED_TEMPLATE, {"{{APPLICANT}}": "X"})
     session.commit()
     out = T.save_from_correspondence(
         T.SaveFromCorrespondenceBody(correspondenceId=corr.id, titleEn="Mine", visibility="global"),
@@ -270,22 +270,35 @@ def test_share_management_is_owner_or_admin_only(session):
     assert e.value.status_code == 403
 
 
-def test_cannot_grant_write_caps_to_restricted_role(session):
+def test_write_caps_can_be_granted_to_every_participant_role(session):
+    """FULL PARTICIPANT PARITY: every role now holds SAVE_TEMPLATE, so a share grant may
+    carry WRITE capabilities to any of them (the old viewer/broadcaster 422 is gone).
+    The grant is still the ONLY thing that confers them — see the privacy test below."""
     req = _user(session, "u_req")
     tid = _create(session, req, titleEn="R", visibility="private")["id"]
-    # a viewer/broadcaster grantee may not receive WRITE caps
-    with pytest.raises(HTTPException) as e:
-        T.share_template(tid, T.ShareBody(granteeKind="role", granteeRef="viewer", capabilities=["edit_template"]), session, req)
-    assert e.value.status_code == 422
-    # a 'use' grant to a viewer role is fine, and a viewer only ever gets USE (floored)
-    T.share_template(tid, T.ShareBody(granteeKind="role", granteeRef="viewer", capabilities=["use"]), session, req)
+    T.share_template(tid, T.ShareBody(granteeKind="role", granteeRef="viewer", capabilities=["edit_template"]), session, req)
     from app import permissions as P
 
     viewer = _user(session, "u_view_fin")
     tpl = session.get(Template, tid)
     shares = T._shares_for(session, tid)
-    assert P.template_capabilities_for(viewer, tpl, shares) == {"use"}
-    assert not P.has_template_capability(viewer, tpl, shares, "edit_template")
+    assert P.has_template_capability(viewer, tpl, shares, "edit_template")
+
+
+def test_participant_without_a_grant_cannot_touch_a_private_template(session):
+    """REGRESSION GUARD: granting AUTHOR_TEMPLATE to everyone must NOT hand them
+    god-mode over other people's templates — that authority is MANAGE_ALL_TEMPLATES
+    (admin-only). A participant with no grant sees and can do nothing here."""
+    from app import permissions as P
+
+    req, gm = _user(session, "u_req"), _user(session, "u_gm")
+    tid = _create(session, req, titleEn="Private", visibility="private")["id"]
+    tpl = session.get(Template, tid)
+    shares = T._shares_for(session, tid)
+    assert P.has_capability(gm, P.AUTHOR_TEMPLATE)          # can author their OWN
+    assert not P.has_capability(gm, P.MANAGE_ALL_TEMPLATES)  # but not others'
+    assert P.template_capabilities_for(gm, tpl, shares) == set()
+    assert not P.can_view_template(gm, tpl, shares)
 
 
 def test_private_template_hidden_from_others_on_read(session):
@@ -328,8 +341,8 @@ def test_update_preserves_arabic_name_when_titlear_blank(session):
 
 def test_freeze_snapshots_are_independent(session):
     req, admin = _user(session, "u_req"), _user(session, "u_admin")
-    c1 = workflow.create_correspondence(session, req, SEED_TEMPLATE, {"{{VENDOR}}": "A"})
-    c2 = workflow.create_correspondence(session, req, SEED_TEMPLATE, {"{{VENDOR}}": "B"})
+    c1 = workflow.create_correspondence(session, req, SEED_TEMPLATE, {"{{APPLICANT}}": "A"})
+    c2 = workflow.create_correspondence(session, req, SEED_TEMPLATE, {"{{APPLICANT}}": "B"})
     session.commit()
     tpl = session.get(Template, SEED_TEMPLATE)
     T.update_template(
@@ -351,7 +364,7 @@ def test_freeze_snapshots_are_independent(session):
 def test_save_from_correspondence(session):
     req, dt = _user(session, "u_req"), _user(session, "u_dt")
     corr = workflow.create_correspondence(
-        session, req, SEED_TEMPLATE, {"{{VENDOR}}": "X", "{{AMOUNT}}": "1,000"}
+        session, req, SEED_TEMPLATE, {"{{APPLICANT}}": "X", "{{AMOUNT}}": "1,000"}
     )
     session.commit()
 

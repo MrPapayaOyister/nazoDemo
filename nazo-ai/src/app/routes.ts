@@ -7,9 +7,9 @@ export const DEFAULT_ROUTE_BY_ROLE: Record<RoleId, string> = {
   director: '/inbox',
   gm: '/inbox',
   chair: '/inbox',
-  // Phase 1 restricted identities land on the read-only tracking board.
-  broadcaster: '/tracking',
-  viewer: '/tracking',
+  // Full-parity (2026-07-28): every identity is a working participant with an inbox.
+  broadcaster: '/inbox',
+  viewer: '/inbox',
 }
 
 export interface NavSection {
@@ -39,15 +39,10 @@ const approverNav: NavSection[] = [
   },
 ]
 
-// Phase 1: broadcaster/viewer are read-only — a single tracking board, no create,
-// no inbox, no "Sent by me" (they never author). Their action affordances are also
-// gated server-side + hidden in the viewer.
-const readOnlyNav: NavSection[] = [
-  {
-    titleKey: 'section.workspace',
-    items: [{ to: '/tracking', labelKey: 'nav.tracking', icon: 'Radar' }],
-  },
-]
+// Full parity (2026-07-28): the broadcaster/viewer identities are working participants
+// too — same workspace as any approver (inbox + create + sent + tracking). Their titles
+// describe their job, not a restriction.
+const participantNav: NavSection[] = approverNav
 
 export const NAV_BY_ROLE: Record<RoleId, NavSection[]> = {
   admin: [
@@ -78,6 +73,6 @@ export const NAV_BY_ROLE: Record<RoleId, NavSection[]> = {
   director: approverNav,
   gm: approverNav,
   chair: approverNav,
-  broadcaster: readOnlyNav,
-  viewer: readOnlyNav,
+  broadcaster: participantNav,
+  viewer: participantNav,
 }

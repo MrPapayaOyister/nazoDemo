@@ -22,11 +22,19 @@ export const ADD_ATTACHMENT: Capability = 'attachment.add'
 export const DOWNLOAD_DOCUMENT: Capability = 'document.download'
 export const AUTHOR_TEMPLATE: Capability = 'template.author'
 export const SAVE_TEMPLATE: Capability = 'template.save_personal'
+/** Org-wide template administration (see/edit EVERY template). Admin-only —
+ *  deliberately separate from AUTHOR_TEMPLATE, which every identity holds. */
+export const MANAGE_ALL_TEMPLATES: Capability = 'template.manage_all'
 export const MANAGE_ORG_CONFIG: Capability = 'org.config'
 export const CREATE_BROADCAST: Capability = 'broadcast.create'
 export const MANAGE_USERS: Capability = 'users.manage'
 export const RESET_DEMO: Capability = 'admin.reset'
 
+// FULL PARTICIPANT PARITY (2026-07-28): every one of the 12 identities is a working
+// participant — inbox, create, "Sent by me", and inline template authoring from the
+// create flow. This SUPERSEDES the earlier read-only broadcaster/viewer design;
+// `accessLevel` is now a descriptive job label, not a restriction. Only the
+// org-administration capabilities stay admin-only. Mirrors backend CAPS_BY_ROLE.
 const ACTOR_BASE: Capability[] = [
   VIEW,
   CREATE_CORRESPONDENCE,
@@ -34,11 +42,12 @@ const ACTOR_BASE: Capability[] = [
   ACT_ON_STEP,
   ADD_ATTACHMENT,
   DOWNLOAD_DOCUMENT,
-  SAVE_TEMPLATE, // every actor may save a personal (manual) template from their own work
+  SAVE_TEMPLATE, // save a personal (manual) template from their own work
+  AUTHOR_TEMPLATE, // author/publish a template, incl. inline from the create flow
 ]
 const ADMIN: Capability[] = [
   ...ACTOR_BASE,
-  AUTHOR_TEMPLATE,
+  MANAGE_ALL_TEMPLATES,
   MANAGE_ORG_CONFIG,
   CREATE_BROADCAST,
   MANAGE_USERS,
@@ -54,8 +63,8 @@ export const CAPS_BY_ROLE: Record<RoleId, Capability[]> = {
   director: ACTOR_BASE,
   gm: ACTOR_BASE,
   chair: ACTOR_BASE,
-  broadcaster: [VIEW, DOWNLOAD_DOCUMENT, CREATE_BROADCAST],
-  viewer: [VIEW],
+  broadcaster: [...ACTOR_BASE, CREATE_BROADCAST],
+  viewer: ACTOR_BASE,
 }
 
 export function accessLevelFor(role: RoleId): AccessLevel {

@@ -62,14 +62,14 @@ _GOLD = "#b0871c"
 
 # ORG constants (mirror nazo-ai/src/lib/constants.ts ORG).
 _ORG = {
-    "nameEn": "Education, Human Development & Community Development Council",
-    "nameAr": "مجلس التعليم والتنمية البشرية والتنمية المجتمعية",
-    "subEn": "Federal Authority for Government Human Resources",
-    "subAr": "الهيئة الاتحادية للموارد البشرية الحكومية",
+    "nameEn": "United Arab Emirates",
+    "nameAr": "الإمارات العربية المتحدة",
+    "subEn": "Ministry of Economy & Tourism",
+    "subAr": "وزارة الاقتصاد والسياحة",
     "cityEn": "Abu Dhabi, United Arab Emirates",
     "cityAr": "أبوظبي، الإمارات العربية المتحدة",
-    "poBox": "P.O. Box 33845",
-    "web": "www.ehcd.gov.ae",
+    "poBox": "P.O. Box 901",
+    "web": "www.moet.gov.ae",
 }
 
 

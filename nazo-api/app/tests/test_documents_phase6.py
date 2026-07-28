@@ -31,7 +31,7 @@ def _user(session, uid: str) -> AppUser:
 def _corr_with_attachment(
     session, user, *, ctype: str = "application/pdf", data: bytes = b"%PDF-1.4 test"
 ):
-    corr = workflow.create_correspondence(session, user, "tpl_tutoring_en", {})
+    corr = workflow.create_correspondence(session, user, "tpl_trademark_en", {})
     session.commit()
     att = Attachment(
         id="att_test1",

@@ -2,14 +2,14 @@
 import type { OrgConfig } from '@/types'
 
 export const ORG = {
-  code: 'EHCD',
-  nameEn: 'Education, Human Development & Community Development Council',
-  nameAr: 'مجلس التعليم والتنمية البشرية والتنمية المجتمعية',
-  authority: 'FAHR',
+  code: 'MOET',
+  nameEn: 'United Arab Emirates',
+  nameAr: 'الإمارات العربية المتحدة',
+  authority: 'MoET',
   cityEn: 'Abu Dhabi, United Arab Emirates',
   cityAr: 'أبوظبي، الإمارات العربية المتحدة',
-  poBox: 'P.O. Box 33845',
-  web: 'www.ehcd.gov.ae',
+  poBox: 'P.O. Box 901',
+  web: 'www.moet.gov.ae',
 } as const
 
 /** Frontend fallback for the global letterhead config (item 2) — used before the
@@ -20,18 +20,18 @@ export const DEFAULT_ORG_CONFIG: OrgConfig = {
     code: ORG.code,
     nameEn: ORG.nameEn,
     nameAr: ORG.nameAr,
-    subEn: 'Federal Authority for Government Human Resources',
-    subAr: 'الهيئة الاتحادية للموارد البشرية الحكومية',
+    subEn: 'Ministry of Economy & Tourism',
+    subAr: 'وزارة الاقتصاد والسياحة',
     poBox: ORG.poBox,
     cityEn: ORG.cityEn,
     cityAr: ORG.cityAr,
     web: ORG.web,
   },
   footer: {
-    lineEn: 'This is an official document of the EHCD e-correspondence system. Verify at www.ehcd.gov.ae.',
-    lineAr: 'هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية EHCD. للتحقق: www.ehcd.gov.ae.',
-    contactEn: 'P.O. Box 33845 · Abu Dhabi, UAE · +971 2 000 0000',
-    contactAr: 'ص.ب ٣٣٨٤٥ · أبوظبي، الإمارات · ٩٧١٢٠٠٠٠٠٠٠+',
+    lineEn: 'This is an official document of the Ministry of Economy & Tourism e-correspondence system. Verify at www.moet.gov.ae.',
+    lineAr: 'هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية بوزارة الاقتصاد والسياحة. للتحقق: www.moet.gov.ae.',
+    contactEn: 'P.O. Box 901 · Abu Dhabi, UAE · 800 1222',
+    contactAr: 'ص.ب ٩٠١ · أبوظبي، الإمارات · ٨٠٠ ١٢٢٢',
     showPageNumbers: true,
   },
 }
@@ -43,7 +43,7 @@ export const CURRENCY = 'AED'
  *  timestamps is timezone-independent (deterministic across machines). */
 export const DEMO_CLOCK = new Date('2026-07-10T09:12:00Z')
 
-export const DEMO_REF = 'EHCD/REQ/2026/031'
+export const DEMO_REF = 'MOET/REQ/2026/031'
 
 /** Uniformly scales every scripted AI delay. 1 = cinematic default; 0.4 = rehearsal; 2 = quick. */
 export const AI_SPEED = 1

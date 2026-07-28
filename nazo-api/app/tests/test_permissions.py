@@ -30,58 +30,73 @@ def _u(role: str) -> AppUser:
 
 
 def test_actor_capabilities():
-    # All six actor roles can create/send/act/attach/download (item-11 parity).
-    for role in ("requester", "dtManager", "director", "gm", "chair", "admin"):
+    # FULL PARTICIPANT PARITY: every one of the 8 roles (incl. broadcaster/viewer)
+    # can create/send/act/attach/download and author a template.
+    for role in ("requester", "dtManager", "director", "gm", "chair", "admin",
+                 "broadcaster", "viewer"):
         u = _u(role)
         assert P.has_capability(u, P.CREATE_CORRESPONDENCE)
         assert P.has_capability(u, P.SEND_CORRESPONDENCE)
         assert P.has_capability(u, P.ACT_ON_STEP)
         assert P.has_capability(u, P.ADD_ATTACHMENT)
         assert P.has_capability(u, P.DOWNLOAD_DOCUMENT)
+        assert P.has_capability(u, P.AUTHOR_TEMPLATE)
 
 
 def test_admin_only_capabilities():
-    admin, gm = _u("admin"), _u("gm")
-    for cap in (P.AUTHOR_TEMPLATE, P.MANAGE_ORG_CONFIG, P.MANAGE_USERS, P.RESET_DEMO):
+    """Org ADMINISTRATION stays admin-only even though authoring is universal.
+    MANAGE_ALL_TEMPLATES is the god-mode over OTHER people's templates — it is what
+    the per-template ACL keys on, and must NOT leak to ordinary participants."""
+    admin = _u("admin")
+    for cap in (P.MANAGE_ALL_TEMPLATES, P.MANAGE_ORG_CONFIG, P.MANAGE_USERS, P.RESET_DEMO):
         assert P.has_capability(admin, cap)
-        assert not P.has_capability(gm, cap)  # a non-admin actor cannot
+        for role in ("gm", "requester", "dtManager", "director", "chair",
+                     "broadcaster", "viewer"):
+            assert not P.has_capability(_u(role), cap)
 
 
-def test_viewer_is_read_only():
+def test_viewer_is_a_full_participant():
+    """The 'viewer' job title is descriptive only — they work like any participant
+    (inbox, create, send, act, attach, download, author)."""
     v = _u("viewer")
-    assert P.has_capability(v, P.VIEW)
     for cap in (
+        P.VIEW,
         P.CREATE_CORRESPONDENCE,
         P.SEND_CORRESPONDENCE,
         P.ACT_ON_STEP,
         P.ADD_ATTACHMENT,
-        P.DOWNLOAD_DOCUMENT,  # viewers cannot download by default
+        P.DOWNLOAD_DOCUMENT,
         P.AUTHOR_TEMPLATE,
-        P.CREATE_BROADCAST,
     ):
-        assert not P.has_capability(v, cap)
+        assert P.has_capability(v, cap)
+    # ...but no org administration and no broadcasting.
+    assert not P.has_capability(v, P.CREATE_BROADCAST)
+    assert not P.has_capability(v, P.MANAGE_ALL_TEMPLATES)
 
 
-def test_broadcaster_can_only_broadcast_and_view():
+def test_broadcaster_is_a_participant_who_can_also_broadcast():
     b = _u("broadcaster")
-    assert P.has_capability(b, P.CREATE_BROADCAST)
-    assert P.has_capability(b, P.VIEW)
-    assert P.has_capability(b, P.DOWNLOAD_DOCUMENT)
-    # No authoring authority.
-    for cap in (P.CREATE_CORRESPONDENCE, P.SEND_CORRESPONDENCE, P.ACT_ON_STEP, P.AUTHOR_TEMPLATE):
-        assert not P.has_capability(b, cap)
+    assert P.has_capability(b, P.CREATE_BROADCAST)  # the one extra
+    for cap in (P.VIEW, P.CREATE_CORRESPONDENCE, P.SEND_CORRESPONDENCE,
+                P.ACT_ON_STEP, P.DOWNLOAD_DOCUMENT, P.AUTHOR_TEMPLATE):
+        assert P.has_capability(b, cap)
+    assert not P.has_capability(b, P.MANAGE_ALL_TEMPLATES)
 
 
 def test_require_dependency_allows_and_denies():
     dep = P.require(P.CREATE_CORRESPONDENCE)
     actor = _u("requester")
     assert dep(current_user=actor) is actor  # allowed → passes the user through
+    # Denial still works — use an ADMIN-only capability, since every role may now create.
+    admin_dep = P.require(P.MANAGE_USERS)
     with pytest.raises(HTTPException) as exc:
-        dep(current_user=_u("viewer"))
+        admin_dep(current_user=_u("viewer"))
     assert exc.value.status_code == 403
 
 
 def test_access_level_derivation():
+    """access_level is now only a descriptive LABEL for the job title (it no longer
+    restricts anything — see the capability tests above)."""
     assert P.access_level_for("viewer") == "viewer"
     assert P.access_level_for("broadcaster") == "broadcaster"
     for role in ("admin", "requester", "gm", "chair"):

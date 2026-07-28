@@ -13,7 +13,7 @@ from app.models import AppUser, CorrespondenceStep, WorkflowEvent
 from app.routers.serializers import derive_current_step_index
 from app.services import workflow
 
-TEMPLATE_ID = "tpl_tutoring_en"  # STANDARD_CHAIN: dtManager -> director -> gm
+TEMPLATE_ID = "tpl_trademark_en"  # STANDARD_CHAIN: dtManager -> director -> gm
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ def _fresh_inreview(session: Session):
     """create + send a standard-chain correspondence; dtManager is the active step."""
     req = _user(session, "u_req")
     corr = workflow.create_correspondence(
-        session, req, TEMPLATE_ID, {"{{VENDOR}}": "TutorCloud", "{{AMOUNT}}": "75,000"}
+        session, req, TEMPLATE_ID, {"{{APPLICANT}}": "Al Noor Trading LLC", "{{AMOUNT}}": "6,700"}
     )
     session.commit()
     workflow.send(session, req, corr)

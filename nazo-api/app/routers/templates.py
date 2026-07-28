@@ -10,7 +10,7 @@ used to create a correspondence:
 
 Persisted rows use the SAME frontend camelCase shape as /api/bootstrap
 (serializers.serialize_template), so a published template drops straight into the
-store's template list and the tutoring/circular flows keep working unchanged.
+store's template list and the trademark/circular flows keep working unchanged.
 """
 
 from __future__ import annotations
@@ -36,12 +36,15 @@ from app.models import (
 from app.permissions import (
     AUTHOR_TEMPLATE,
     CAPS_BY_ROLE,
+    MANAGE_ALL_TEMPLATES,
+    SAVE_TEMPLATE,
+    CAPS_BY_ROLE,
     SAVE_TEMPLATE,
     TEMPLATE_CAPABILITIES,
     TPL_EDIT_LAYOUT,
     TPL_EDIT_TEMPLATE,
     TPL_USE,
-    access_level_for,
+
     can_view_template,
     has_capability,
     has_template_capability,
@@ -61,7 +64,6 @@ _TEMPLATE_TYPES = {"dynamic", "manual"}
 _VISIBILITIES = {"private", "shared", "global"}
 _GRANTEE_KINDS = {"user", "role"}
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
-
 
 class CreateTemplateBody(BaseModel):
     titleEn: str
@@ -84,16 +86,13 @@ class CreateTemplateBody(BaseModel):
     # unbind it); a valid id (re)binds. Invalid id -> 404.
     workflowVersionId: Optional[str] = None
 
-
 class ShareBody(BaseModel):
     granteeKind: str  # 'user' | 'role'
     granteeRef: str  # AppUser.id (kind=user) | RoleId (kind=role)
     capabilities: list[str] = Field(default_factory=list)
 
-
 # Template-ACL WRITE capabilities (used to reject nonsensical grants to restricted roles).
 _TPL_WRITE_CAPS = TEMPLATE_CAPABILITIES - {TPL_USE}
-
 
 def _shares_for(session: Session, template_id: str) -> list[TemplateShare]:
     return list(
@@ -102,7 +101,6 @@ def _shares_for(session: Session, template_id: str) -> list[TemplateShare]:
         ).all()
     )
 
-
 def _require_non_empty_workflow_for_manual(template_type: str, workflow: list) -> None:
     """Manual templates ALWAYS carry an approval chain (product decision 2026-07-27)."""
     if template_type == "manual" and not workflow:
@@ -110,7 +108,6 @@ def _require_non_empty_workflow_for_manual(template_type: str, workflow: list) -
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A manual template must define a workflow (at least one step).",
         )
-
 
 def _require_signing_wiring(variables: list, workflow: list) -> None:
     """Phase 4: every SIGNING step must have a matching Signature variable (one whose
@@ -144,7 +141,6 @@ def _require_signing_wiring(variables: list, workflow: list) -> None:
             ),
         )
 
-
 def _layout_is_locked(session: Session, tpl: Template) -> bool:
     """True if this template binds a LOCKED layout master (its letterhead/sign-block
     frame is protected unless the caller holds edit_layout). A template with no master
@@ -153,7 +149,6 @@ def _layout_is_locked(session: Session, tpl: Template) -> bool:
         return False
     lm = session.get(LayoutMaster, tpl.layout_master_id)
     return lm is not None and lm.locked
-
 
 def _validate_workflow_version(session: Session, version_id: Optional[str]) -> Optional[str]:
     """Return version_id if it names a real WorkflowDefinitionVersion; None if version_id
@@ -167,31 +162,26 @@ def _validate_workflow_version(session: Session, version_id: Optional[str]) -> O
         )
     return version_id
 
-
 def _resolve_create_visibility(requested: Optional[str], current_user: AppUser) -> str:
     """Visibility for a NEWLY created template. None -> 'private'. Only an admin
-    (AUTHOR_TEMPLATE) may make a template org-wide 'global'; a non-admin's 'global'
+    (MANAGE_ALL_TEMPLATES) may make a template org-wide 'global'; a non-admin's 'global'
     request is clamped to 'shared'."""
     vis = requested if requested in _VISIBILITIES else "private"
-    if vis == "global" and not has_capability(current_user, AUTHOR_TEMPLATE):
+    if vis == "global" and not has_capability(current_user, MANAGE_ALL_TEMPLATES):
         vis = "shared"
     return vis
 
-
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
 
 def _slug(value: str) -> str:
     s = _SLUG_RE.sub("-", (value or "").strip().lower()).strip("-")
     return s or "template"
 
-
 def _new_template_id(title_en: str) -> str:
     """'tpl_' + slug(titleEn)[:24] + short-unique-suffix (collision-free)."""
     base = _slug(title_en)[:24].strip("-") or "template"
     return f"tpl_{base}_{uuid.uuid4().hex[:6]}"
-
 
 @router.get("")
 def list_templates(
@@ -234,7 +224,6 @@ def list_templates(
         rows = [t for t in rows if can_view_template(current_user, t, shares_by_tpl.get(t.id, []))]
     return [serialize_template(t) for t in order_templates(rows)]
 
-
 @router.get("/{template_id}")
 def get_template(
     template_id: str,
@@ -255,7 +244,6 @@ def get_template(
             detail=f"Template '{template_id}' not found.",
         )
     return serialize_template(tpl)
-
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_template(
@@ -301,7 +289,7 @@ def create_template(
         template_type=template_type,
         owner_id=current_user.id,
         visibility=visibility,
-        # Phase 2b: bind the layout master (default = the locked EHCD letterhead).
+        # Phase 2b: bind the layout master (default = the locked MoET letterhead).
         layout_master_id=layout_master_id,
         # Phase 3: reusable-workflow provenance (None = ad-hoc inline chain).
         workflow_version_id=workflow_version_id,
@@ -310,7 +298,6 @@ def create_template(
     session.commit()
     session.refresh(tpl)
     return serialize_template(tpl)
-
 
 @router.put("/{template_id}")
 def update_template(
@@ -321,8 +308,8 @@ def update_template(
 ) -> dict:
     """Update an existing template in place (item 4 — edit a saved template).
 
-    AUTHZ (Phase 2a): the owner, any admin (AUTHOR_TEMPLATE), or a holder of an
-    `edit_template` share grant may edit — a coarse require(AUTHOR_TEMPLATE) would
+    AUTHZ (Phase 2a): the owner, any admin (MANAGE_ALL_TEMPLATES), or a holder of an
+    `edit_template` share grant may edit — a coarse require(MANAGE_ALL_TEMPLATES) would
     wrongly block the owner of a personal template. `use`-only grantees cannot edit.
 
     FUTURE-ONLY by construction: before overwriting the shared row, every existing
@@ -392,10 +379,10 @@ def update_template(
     tpl.workflow = new_workflow
     # visibility: change ONLY when explicitly provided AND different (an omitted value
     # PRESERVES the stored one — a plain content edit must not reset it). Only an admin
-    # (AUTHOR_TEMPLATE) may RAISE a template to org-wide 'global'. owner_id + template_type
+    # (MANAGE_ALL_TEMPLATES) may RAISE a template to org-wide 'global'. owner_id + template_type
     # are always PRESERVED.
     if body.visibility in _VISIBILITIES and body.visibility != tpl.visibility:
-        if body.visibility == "global" and not has_capability(current_user, AUTHOR_TEMPLATE):
+        if body.visibility == "global" and not has_capability(current_user, MANAGE_ALL_TEMPLATES):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Only an administrator can make a template globally visible.",
@@ -413,10 +400,9 @@ def update_template(
     session.refresh(tpl)
     return serialize_template(tpl)
 
-
 # ---------------------------------------------------------------------------
 # Sharing grants (Phase 2a). Managing shares is restricted to the template OWNER or
-# an admin (AUTHOR_TEMPLATE) — NOT delegated via a `share` grant, which (unceilinged)
+# an admin (MANAGE_ALL_TEMPLATES) — NOT delegated via a `share` grant, which (unceilinged)
 # would let a grantee escalate by re-granting edit/share to anyone.
 # ---------------------------------------------------------------------------
 def _load_template_for_share(
@@ -429,13 +415,12 @@ def _load_template_for_share(
             detail=f"Template '{template_id}' not found.",
         )
     is_owner = tpl.owner_id is not None and tpl.owner_id == current_user.id
-    if not (is_owner or has_capability(current_user, AUTHOR_TEMPLATE)):
+    if not (is_owner or has_capability(current_user, MANAGE_ALL_TEMPLATES)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the template owner or an administrator can manage sharing.",
         )
     return tpl, _shares_for(session, template_id)
-
 
 @router.get("/{template_id}/shares")
 def list_template_shares(
@@ -445,7 +430,6 @@ def list_template_shares(
 ) -> list[dict]:
     _tpl, shares = _load_template_for_share(session, template_id, current_user)
     return [serialize_template_share(s) for s in shares]
-
 
 def _notify_share_grantees(session: Session, tpl, kind: str, ref: str, sharer) -> None:
     """Phase 7 — notify the grantee(s) that a template was shared with them. A user grant
@@ -475,7 +459,6 @@ def _notify_share_grantees(session: Session, tpl, kind: str, ref: str, sharer) -
             dedupe_key=f"share:{tpl.id}:{rid}",
             payload=payload,
         )
-
 
 @router.post("/{template_id}/shares", status_code=status.HTTP_201_CREATED)
 def share_template(
@@ -519,7 +502,8 @@ def share_template(
                 detail=f"Unknown role '{ref}'.",
             )
         grantee_role = ref
-    if access_level_for(grantee_role) != "actor" and any(c in _TPL_WRITE_CAPS for c in caps):
+    grantee_caps = CAPS_BY_ROLE.get(grantee_role, set())
+    if SAVE_TEMPLATE not in grantee_caps and any(c in _TPL_WRITE_CAPS for c in caps):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A viewer/broadcaster grantee may only be granted 'use'.",
@@ -554,7 +538,6 @@ def share_template(
     session.refresh(share)
     return serialize_template_share(share)
 
-
 @router.delete("/{template_id}/shares/{share_id}", status_code=status.HTTP_204_NO_CONTENT)
 def unshare_template(
     template_id: str,
@@ -569,7 +552,6 @@ def unshare_template(
         session.commit()
     # Idempotent: deleting an absent/mismatched grant is a no-op 204.
 
-
 # ---------------------------------------------------------------------------
 # Save an existing correspondence as a personal (manual) template (Phase 2a).
 # ---------------------------------------------------------------------------
@@ -580,7 +562,6 @@ class SaveFromCorrespondenceBody(BaseModel):
     lang: str = "en"
     category: str = "Approval"
     visibility: str = "private"
-
 
 @router.post("/from-correspondence", status_code=status.HTTP_201_CREATED)
 def save_from_correspondence(
@@ -604,7 +585,7 @@ def save_from_correspondence(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Correspondence '{body.correspondenceId}' not found.",
         )
-    if corr.requester_id != current_user.id and not has_capability(current_user, AUTHOR_TEMPLATE):
+    if corr.requester_id != current_user.id and not has_capability(current_user, MANAGE_ALL_TEMPLATES):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the correspondence's owner may save it as a template.",

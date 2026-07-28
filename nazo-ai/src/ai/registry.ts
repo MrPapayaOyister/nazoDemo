@@ -15,8 +15,8 @@ export const CREATE = 'create'
 export const REVIEW = 'review'
 export const DOCTOP = 'docTop'
 
-const TUTOR = TEMPLATE_BY_ID['tpl_tutoring_en']
-const TUTOR_AR = TEMPLATE_BY_ID['tpl_tutoring_ar']
+const TUTOR = TEMPLATE_BY_ID['tpl_trademark_en']
+const TUTOR_AR = TEMPLATE_BY_ID['tpl_trademark_ar']
 
 function card(
   titleEn: string,
@@ -49,18 +49,18 @@ const STAGE_COMMENTS: Record<string, { en: string; ar: string }> = {
 
 const SUMMARY_BY_CORR: Record<string, ResultCard> = {
   corr_1001: card(
-    'Summary — TutorCloud License',
-    'ملخّص — رخصة TutorCloud',
+    'Summary — Trademark Registration',
+    'ملخّص — تسجيل علامة تجارية',
     'DT Manager approved and signed; awaiting your review as Director.',
     'اعتمد مدير التحول الرقمي ووقّع؛ بانتظار مراجعتك كمدير.',
     {
       bulletsEn: [
-        'Ask: Approve the TutorCloud online tutoring platform license.',
+        'Ask: Approve the trademark registration application for Al Noor Trading LLC.',
         'Cost: AED 75,000 for 12 months — from the approved Digitalization budget.',
         'Your step: Digitalization Director — Approve & Sign, or Reject back.',
       ],
       bulletsAr: [
-        'الطلب: اعتماد رخصة منصة TutorCloud للدروس المساندة.',
+        'الطلب: اعتماد طلب تسجيل العلامة التجارية لشركة النور للتجارة.',
         'التكلفة: 75,000 درهم لمدة 12 شهراً من ميزانية الرقمنة المعتمدة.',
         'خطوتك: مدير الرقمنة — اعتماد وتوقيع أو إعادة للطلب.',
       ],
@@ -84,11 +84,11 @@ function defaultSummary(role?: RoleId): ResultCard {
   return card(
     'Summary — REQ-031',
     'ملخّص — REQ-031',
-    'Approve procurement of the tutoring software license.',
+    'Approve the trademark registration application.',
     'اعتماد شراء رخصة برنامج الدروس المساندة.',
     {
       bulletsEn: [
-        'Ask: Approve procurement of the tutoring software license.',
+        'Ask: Approve the trademark registration application.',
         'Cost: AED 185,000 — within the approved fiscal budget.',
         `Your step: ${step}`,
       ],
@@ -113,7 +113,7 @@ const resolvers: Record<AiActionId, ScenarioResolver> = {
     undoable: true,
     thinkingEn: [
       'Reading your request…',
-      'Drafting an official EHCD memo…',
+      'Drafting an official MoET memo…',
       'Structuring justification & budget…',
       'Detecting fields to make reusable…',
     ],
@@ -126,7 +126,7 @@ const resolvers: Record<AiActionId, ScenarioResolver> = {
     result: card(
       'Template drafted',
       'تم إنشاء النموذج',
-      'Created "Tutoring Software Approval" — 1 page, 7 variables, suggested 3-step workflow.',
+      'Created "Trademark Registration Approval" — 1 page, 7 variables, suggested 3-step workflow.',
       'تم إنشاء "اعتماد برنامج الدروس المساندة" — صفحة واحدة، 7 متغيرات، مسار من 3 خطوات.',
       { cta: { labelEn: 'Open in Canvas', labelAr: 'فتح في اللوحة', to: '/admin/workflows', action: 'admin.buildWorkflow' } },
     ),
@@ -228,13 +228,13 @@ const resolvers: Record<AiActionId, ScenarioResolver> = {
     result: card(
       'Draft ready',
       'المسودة جاهزة',
-      'Filled the Tutoring Software Approval with your intent.',
+      'Filled the Trademark Registration Approval with your intent.',
       'تم تعبئة نموذج اعتماد برنامج الدروس المساندة وفق قصدك.',
     ),
     effects: [
-      { type: 'setFieldValues', targetId: ctx.targetId ?? CREATE, values: { '{{VENDOR}}': 'TutorPro LMS', '{{AMOUNT}}': '185,000' } },
+      { type: 'setFieldValues', targetId: ctx.targetId ?? CREATE, values: { '{{APPLICANT}}': 'TutorPro LMS', '{{AMOUNT}}': '185,000' } },
       // carry the template so the wizard opens on the filled step, not the picker
-      { type: 'navigate', to: '/requester/new?template=tpl_tutoring_en' },
+      { type: 'navigate', to: '/requester/new?template=tpl_trademark_en' },
     ],
   }),
 
@@ -255,7 +255,7 @@ const resolvers: Record<AiActionId, ScenarioResolver> = {
       {
         type: 'setFieldValues',
         targetId: ctx.targetId ?? CREATE,
-        values: { '{{VENDOR}}': 'TutorPro LMS', '{{AMOUNT}}': '185,000' },
+        values: { '{{APPLICANT}}': 'TutorPro LMS', '{{AMOUNT}}': '185,000' },
       },
     ],
   }),
@@ -408,7 +408,7 @@ const resolvers: Record<AiActionId, ScenarioResolver> = {
         cta: { labelEn: 'Open draft', labelAr: 'فتح المسودة', to: '/requester/new' },
       })
     } else if (role === 'admin') {
-      result = card('Your next step', 'خطوتك التالية', 'Your Tutoring Software template is ready to publish.', 'نموذج برنامج الدروس المساندة جاهز للنشر.', {
+      result = card('Your next step', 'خطوتك التالية', 'Your Trademark Registration template is ready to publish.', 'نموذج تسجيل العلامة التجارية جاهز للنشر.', {
         cta: { labelEn: 'Open Templates', labelAr: 'فتح النماذج', to: '/admin/templates' },
       })
     } else {

@@ -41,10 +41,10 @@ def test_seed_definitions_and_template_binding(session):
     admin = _user(session, "u_admin")
     v1 = session.get(WorkflowDefinitionVersion, "wfv_standard_v1")
     assert v1 is not None and v1.version == 1 and v1.definition_id == "wfd_standard"
-    tpl = session.get(Template, "tpl_tutoring_en")
+    tpl = session.get(Template, "tpl_trademark_en")
     assert tpl.workflow_version_id == "wfv_standard_v1"
     # serialized template exposes the provenance
-    assert T.get_template("tpl_tutoring_en", session, admin).get("workflowVersionId") == "wfv_standard_v1"
+    assert T.get_template("tpl_trademark_en", session, admin).get("workflowVersionId") == "wfv_standard_v1"
     # list surfaces the definition + its versions
     defs = WD.list_definitions(session, admin)
     std = next(d for d in defs if d["id"] == "wfd_standard")
@@ -83,10 +83,10 @@ def test_create_and_add_version_is_append_only(session):
 # ---------------------------------------------------------------------------
 def test_new_version_does_not_change_existing_correspondence_or_template(session):
     req, admin = _user(session, "u_req"), _user(session, "u_admin")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {"{{VENDOR}}": "X"})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {"{{APPLICANT}}": "X"})
     session.commit()
     snap_before = [dict(s) for s in corr.workflow_snapshot]
-    tpl_wf_before = [dict(s) for s in session.get(Template, "tpl_tutoring_en").workflow]
+    tpl_wf_before = [dict(s) for s in session.get(Template, "tpl_trademark_en").workflow]
 
     # append a NEW version to the standard definition with entirely different steps
     WD.add_version("wfd_standard", WD.AddVersionBody(steps=[_STEP]), session, admin, admin)
@@ -95,15 +95,15 @@ def test_new_version_does_not_change_existing_correspondence_or_template(session
     # the historical correspondence's frozen chain is UNCHANGED
     assert [dict(s) for s in corr.workflow_snapshot] == snap_before
     # the template stays pinned to v1 and keeps its own workflow copy
-    tpl = session.get(Template, "tpl_tutoring_en")
+    tpl = session.get(Template, "tpl_trademark_en")
     assert tpl.workflow_version_id == "wfv_standard_v1"
     assert [dict(s) for s in tpl.workflow] == tpl_wf_before
 
 
 def test_snapshot_is_deep_copied_from_template(session):
     req = _user(session, "u_req")
-    tpl = session.get(Template, "tpl_tutoring_en")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {})
+    tpl = session.get(Template, "tpl_trademark_en")
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {})
     session.commit()
     # a distinct object, not an alias of template.workflow
     assert corr.workflow_snapshot is not tpl.workflow
@@ -153,11 +153,11 @@ def test_bind_and_rebind_template_to_version(session):
 
 def test_unbind_workflow_version_via_empty_string(session):
     admin = _user(session, "u_admin")
-    tpl = session.get(Template, "tpl_tutoring_en")
+    tpl = session.get(Template, "tpl_trademark_en")
     assert tpl.workflow_version_id == "wfv_standard_v1"  # seed binding
     # an explicit empty string UNBINDS (a content edit that omits the field preserves it)
     T.update_template(
-        "tpl_tutoring_en",
+        "tpl_trademark_en",
         T.CreateTemplateBody(
             titleEn=tpl.name_en,
             docHtml=tpl.doc_html,
@@ -168,14 +168,14 @@ def test_unbind_workflow_version_via_empty_string(session):
         session,
         admin,
     )
-    assert session.get(Template, "tpl_tutoring_en").workflow_version_id is None
+    assert session.get(Template, "tpl_trademark_en").workflow_version_id is None
 
 
 def test_revise_clears_stamped_signature_even_if_tag_renamed(session):
     """Review fix: revise must clear a stamped signature by its rendered {{SIG*}} tag,
     not only via the LIVE template's (possibly renamed) signature variables."""
     req, dt = _user(session, "u_req"), _user(session, "u_dt")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {"{{VENDOR}}": "X"})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {"{{APPLICANT}}": "X"})
     session.commit()
     workflow.send(session, req, corr)
     session.commit()

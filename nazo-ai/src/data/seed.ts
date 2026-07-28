@@ -92,24 +92,24 @@ export const HOLIDAY_CHAIN: WorkflowStep[] = [
 // Templates (5 language-variant entries). docHtml uses {{LETTERHEAD}} + tokens.
 // ============================================================================
 
-const TUTORING_EN_BODY = `
+const TRADEMARK_EN_BODY = `
 {{LETTERHEAD}}
-<h1>Subject: Approval — Online Tutoring Software License</h1>
+<h1>Subject: Approval — Trademark Registration Application</h1>
 <p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
 <p>Dear Sir/Madam,</p>
-<p>With reference to the Digital Transformation plan for the current fiscal year, we seek approval to procure an annual license for the <em>{{VENDOR}}</em> online tutoring platform, to be deployed across EHCD learning programmes.</p>
+<p>With reference to Federal Decree-Law No. 36 of 2021 on Trademarks and its Implementing Regulation, we submit for your approval the trademark registration application filed by <em>{{APPLICANT}}</em> through the Ministry’s Industrial Property Services portal.</p>
 <p>The total contract value is <strong>AED {{AMOUNT}}</strong> for a twelve (12) month term, funded from the approved Digitalization budget line.</p>
 <p>Your kind approval and signature are appreciated to proceed with procurement.</p>
 <p>Respectfully,</p>
 <div class="sign-block">{{SIG_GM}}</div>
 `
 
-const TUTORING_AR_BODY = `
+const TRADEMARK_AR_BODY = `
 {{LETTERHEAD}}
 <h1>الموضوع: اعتماد رخصة برنامج الدروس المساندة الإلكتروني</h1>
 <p class="meta"><strong>الإشارة:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>التاريخ:</strong> {{DATE}}</p>
 <p>تحية طيبة وبعد،</p>
-<p>بالإشارة إلى خطة التحول الرقمي للسنة المالية الحالية، نلتمس اعتماد شراء رخصة سنوية لمنصة <em>{{VENDOR}}</em> للدروس المساندة الإلكترونية لتُعتمد في برامج المجلس التعليمية.</p>
+<p>بالإشارة إلى خطة التحول الرقمي للسنة المالية الحالية، نلتمس اعتماد شراء رخصة سنوية لمنصة <em>{{APPLICANT}}</em> للدروس المساندة الإلكترونية لتُعتمد في برامج المجلس التعليمية.</p>
 <p>تبلغ القيمة الإجمالية للعقد <strong>{{AMOUNT}} درهم إماراتي</strong> لمدة اثني عشر (12) شهراً، تُموَّل من بند ميزانية الرقمنة المعتمد.</p>
 <p>نأمل التكرم بالاعتماد والتوقيع للمضي في إجراءات الشراء.</p>
 <p>وتفضلوا بقبول فائق الاحترام،</p>
@@ -141,65 +141,65 @@ const HOLIDAY_EN_BODY = `
 <h1>Announcement: Official Holiday</h1>
 <p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
 <p>Dear Colleagues,</p>
-<p>In line with the directives of the Federal Authority for Government Human Resources (FAHR), we are pleased to announce that <strong>{{OCCASION}}</strong> will be an official paid holiday. Offices will be closed from <strong>{{FROM_DATE}}</strong> to <strong>{{TO_DATE}}</strong>, resuming work on the following business day.</p>
+<p>In line with the official holiday schedule approved for the federal government, the Ministry of Economy &amp; Tourism is pleased to announce that <strong>{{OCCASION}}</strong> will be an official paid holiday. The Ministry’s offices and customer happiness centres will be closed from <strong>{{FROM_DATE}}</strong> to <strong>{{TO_DATE}}</strong>, resuming work on the following business day.</p>
 <p>We extend our warmest wishes to you and your families.</p>
 <div class="sign-block">{{SIG_GM}}</div>
 `
 
-const TUTORING_VARS: Template['variables'] = [
-  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'EHCD/REQ/2026/___', required: true },
+const TRADEMARK_VARS: Template['variables'] = [
+  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'MOET/REQ/2026/___', required: true },
   { tag: '{{DATE}}', labelEn: 'Date', labelAr: 'التاريخ', type: 'Date', group: 'Requester', required: true },
-  { tag: '{{VENDOR}}', labelEn: 'Vendor / Platform', labelAr: 'المزوّد / المنصة', type: 'Text', group: 'Requester', placeholder: 'e.g. TutorCloud', required: true },
-  { tag: '{{AMOUNT}}', labelEn: 'Contract Value (AED)', labelAr: 'قيمة العقد (درهم)', type: 'Text', group: 'Requester', placeholder: '75,000', required: true },
-  { tag: '{{SIG_GM}}', labelEn: 'General Manager Signature', labelAr: 'توقيع المدير العام', type: 'Signature', group: 'gm' },
+  { tag: '{{APPLICANT}}', labelEn: 'Applicant / Company', labelAr: 'مقدّم الطلب / الشركة', type: 'Text', group: 'Requester', placeholder: 'e.g. Al Noor Trading LLC', required: true },
+  { tag: '{{AMOUNT}}', labelEn: 'Registration Fee (AED)', labelAr: 'رسوم التسجيل (درهم)', type: 'Text', group: 'Requester', placeholder: '75,000', required: true },
+  { tag: '{{SIG_GM}}', labelEn: 'Undersecretary Signature', labelAr: 'توقيع وكيل الوزارة', type: 'Signature', group: 'gm' },
 ]
 
 const CIRCULAR_VARS: Template['variables'] = [
-  { tag: '{{REF_NO}}', labelEn: 'Circular Number', labelAr: 'رقم التعميم', type: 'Text', group: 'Requester', placeholder: 'EHCD/CIR/2026/__', required: true },
+  { tag: '{{REF_NO}}', labelEn: 'Circular Number', labelAr: 'رقم التعميم', type: 'Text', group: 'Requester', placeholder: 'MOET/CIR/2026/__', required: true },
   { tag: '{{DATE}}', labelEn: 'Date', labelAr: 'التاريخ', type: 'Date', group: 'Requester', required: true },
-  { tag: '{{AUDIENCE}}', labelEn: 'Audience', labelAr: 'الجهة المستهدفة', type: 'Text', group: 'Requester', placeholder: 'All Departments', required: true },
+  { tag: '{{AUDIENCE}}', labelEn: 'Audience', labelAr: 'الجهة المستهدفة', type: 'Text', group: 'Requester', placeholder: 'All Departments and Licensed Establishments', required: true },
   { tag: '{{SUBJECT}}', labelEn: 'Subject', labelAr: 'الموضوع', type: 'Text', group: 'Requester', required: true },
   { tag: '{{BODY}}', labelEn: 'Body', labelAr: 'النص', type: 'Text', group: 'Requester', required: true },
-  { tag: '{{SIG_GM}}', labelEn: 'General Manager Signature', labelAr: 'توقيع المدير العام', type: 'Signature', group: 'gm' },
+  { tag: '{{SIG_GM}}', labelEn: 'Undersecretary Signature', labelAr: 'توقيع وكيل الوزارة', type: 'Signature', group: 'gm' },
 ]
 
 const HOLIDAY_VARS: Template['variables'] = [
-  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'EHCD/HR/2026/__', required: true },
+  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'MOET/HR/2026/__', required: true },
   { tag: '{{DATE}}', labelEn: 'Date', labelAr: 'التاريخ', type: 'Date', group: 'Requester', required: true },
   { tag: '{{OCCASION}}', labelEn: 'Occasion', labelAr: 'المناسبة', type: 'Text', group: 'Requester', placeholder: 'Eid Al Adha', required: true },
   { tag: '{{FROM_DATE}}', labelEn: 'Holiday Start', labelAr: 'بداية العطلة', type: 'Date', group: 'Requester', required: true },
   { tag: '{{TO_DATE}}', labelEn: 'Holiday End', labelAr: 'نهاية العطلة', type: 'Date', group: 'Requester', required: true },
-  { tag: '{{SIG_GM}}', labelEn: 'General Manager Signature', labelAr: 'توقيع المدير العام', type: 'Signature', group: 'gm' },
+  { tag: '{{SIG_GM}}', labelEn: 'Undersecretary Signature', labelAr: 'توقيع وكيل الوزارة', type: 'Signature', group: 'gm' },
 ]
 
 export const TEMPLATES: Template[] = [
   {
-    id: 'tpl_tutoring_en',
-    nameEn: 'Tutoring Software Approval',
+    id: 'tpl_trademark_en',
+    nameEn: 'Trademark Registration Approval',
     nameAr: 'اعتماد برنامج الدروس المساندة',
     lang: 'en',
     category: 'Approval',
-    descEn: 'Approval to procure an online tutoring platform license.',
+    descEn: 'Approval of a trademark registration application under Industrial Property Services.',
     descAr: 'اعتماد شراء رخصة منصة دروس مساندة إلكترونية.',
-    docHtml: TUTORING_EN_BODY,
-    variables: TUTORING_VARS,
+    docHtml: TRADEMARK_EN_BODY,
+    variables: TRADEMARK_VARS,
     workflow: STANDARD_CHAIN,
-    twinId: 'tpl_tutoring_ar',
+    twinId: 'tpl_trademark_ar',
     updatedAt: '2026-06-28T09:12:00Z',
     usageCount: 14,
   },
   {
-    id: 'tpl_tutoring_ar',
-    nameEn: 'Tutoring Software Approval (AR)',
+    id: 'tpl_trademark_ar',
+    nameEn: 'Trademark Registration Approval (AR)',
     nameAr: 'اعتماد برنامج الدروس المساندة',
     lang: 'ar',
     category: 'Approval',
-    descEn: 'Arabic variant of the tutoring software approval letter.',
+    descEn: 'Arabic variant of the trademark registration approval letter.',
     descAr: 'النسخة العربية من خطاب اعتماد برنامج الدروس المساندة.',
-    docHtml: TUTORING_AR_BODY,
-    variables: TUTORING_VARS,
+    docHtml: TRADEMARK_AR_BODY,
+    variables: TRADEMARK_VARS,
     workflow: STANDARD_CHAIN,
-    twinId: 'tpl_tutoring_en',
+    twinId: 'tpl_trademark_en',
     updatedAt: '2026-06-28T09:15:00Z',
     usageCount: 9,
   },
@@ -209,7 +209,7 @@ export const TEMPLATES: Template[] = [
     nameAr: 'تعميم رسمي',
     lang: 'en',
     category: 'Circular',
-    descEn: 'General internal circular to all EHCD units.',
+    descEn: 'Circular to Ministry departments and licensed establishments.',
     descAr: 'تعميم داخلي عام لجميع وحدات المجلس.',
     docHtml: CIRCULAR_EN_BODY,
     variables: CIRCULAR_VARS,
@@ -235,11 +235,11 @@ export const TEMPLATES: Template[] = [
   },
   {
     id: 'tpl_holiday_en',
-    nameEn: 'HR Holiday Announcement',
+    nameEn: 'Official Holiday Announcement',
     nameAr: 'إعلان عطلة من الموارد البشرية',
     lang: 'en',
     category: 'Announcement',
-    descEn: 'Announces an official public holiday to all staff.',
+    descEn: 'Announces an official public holiday to all Ministry staff.',
     descAr: 'يعلن عطلة رسمية لجميع الموظفين.',
     docHtml: HOLIDAY_EN_BODY,
     variables: HOLIDAY_VARS,
@@ -263,16 +263,16 @@ export const TEMPLATE_BY_ID = Object.fromEntries(
 export const SEED_CORRESPONDENCES: Correspondence[] = [
   {
     id: 'corr_1001',
-    ref: 'EHCD/REQ/2026/012',
-    titleEn: 'Approval — TutorCloud License',
-    titleAr: 'اعتماد — رخصة TutorCloud',
-    templateId: 'tpl_tutoring_en',
+    ref: 'MOET/REQ/2026/012',
+    titleEn: 'Approval — Trademark Registration (Al Noor Trading)',
+    titleAr: 'اعتماد — تسجيل علامة تجارية (النور للتجارة)',
+    templateId: 'tpl_trademark_en',
     requesterId: 'u_req',
     status: 'InReview',
     values: {
-      '{{REF_NO}}': 'EHCD/REQ/2026/012',
+      '{{REF_NO}}': 'MOET/REQ/2026/012',
       '{{DATE}}': '2026-07-06',
-      '{{VENDOR}}': 'TutorCloud',
+      '{{APPLICANT}}': 'Al Noor Trading LLC',
       '{{AMOUNT}}': '75,000',
       '{{SIG_DT}}': 'sig_dt', // DT Manager already signed
       '{{SIG_DIR}}': '',
@@ -283,7 +283,7 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
     history: [
       { id: 'h_1', actorId: 'u_req', action: 'Created', comment: '', at: '2026-07-06T08:20:00Z' },
       { id: 'h_2', actorId: 'u_req', action: 'Sent', comment: 'Routing for approval.', at: '2026-07-06T08:22:00Z' },
-      { id: 'h_3', actorId: 'u_dt', action: 'Approved', comment: 'Budget line confirmed. Vendor pre-qualified.', commentAr: 'تم تأكيد بند الميزانية وتأهيل المزوّد.', at: '2026-07-06T10:05:00Z' },
+      { id: 'h_3', actorId: 'u_dt', action: 'Approved', comment: 'Formal examination complete; no opposition filed within the statutory period.', commentAr: 'تم تأكيد بند الميزانية وتأهيل المزوّد.', at: '2026-07-06T10:05:00Z' },
       { id: 'h_4', actorId: 'u_dt', action: 'Signed', comment: '', at: '2026-07-06T10:05:30Z' },
     ],
     createdAt: '2026-07-06T08:20:00Z',
@@ -291,14 +291,14 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
   },
   {
     id: 'corr_1002',
-    ref: 'EHCD/CIR/2026/031',
-    titleEn: 'Circular — Remote Work Guidelines',
-    titleAr: 'تعميم — إرشادات العمل عن بُعد',
+    ref: 'MOET/CIR/2026/031',
+    titleEn: 'Circular — Consumer Protection Compliance',
+    titleAr: 'تعميم — الامتثال لحماية المستهلك',
     templateId: 'tpl_circular_en',
     requesterId: 'u_req',
     status: 'Rejected',
     values: {
-      '{{REF_NO}}': 'EHCD/CIR/2026/031',
+      '{{REF_NO}}': 'MOET/CIR/2026/031',
       '{{DATE}}': '2026-07-02',
       '{{AUDIENCE}}': 'All Departments',
       '{{SUBJECT}}': 'Updated Remote Work Guidelines',
@@ -311,21 +311,21 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
     history: [
       { id: 'h_1', actorId: 'u_req', action: 'Created', comment: '', at: '2026-07-02T09:00:00Z' },
       { id: 'h_2', actorId: 'u_req', action: 'Sent', comment: '', at: '2026-07-02T09:03:00Z' },
-      { id: 'h_3', actorId: 'u_dir', action: 'Rejected', comment: 'Please align wording with FAHR remote-work policy 2026 and cite the policy reference number.', commentAr: 'يرجى مواءمة الصياغة مع سياسة العمل عن بُعد 2026 وذكر رقمها المرجعي.', at: '2026-07-02T14:30:00Z' },
+      { id: 'h_3', actorId: 'u_dir', action: 'Rejected', comment: 'Please cite the Consumer Protection Law and its Implementing Regulation, and add the penalty schedule for non-compliance.', commentAr: 'يرجى مواءمة الصياغة مع سياسة العمل عن بُعد 2026 وذكر رقمها المرجعي.', at: '2026-07-02T14:30:00Z' },
     ],
     createdAt: '2026-07-02T09:00:00Z',
     updatedAt: '2026-07-02T14:30:00Z',
   },
   {
     id: 'corr_1003',
-    ref: 'EHCD/HR/2026/019',
+    ref: 'MOET/HR/2026/019',
     titleEn: 'Announcement — Eid Al Adha Holiday',
     titleAr: 'إعلان — عطلة عيد الأضحى',
     templateId: 'tpl_holiday_en',
     requesterId: 'u_req',
     status: 'Completed',
     values: {
-      '{{REF_NO}}': 'EHCD/HR/2026/019',
+      '{{REF_NO}}': 'MOET/HR/2026/019',
       '{{DATE}}': '2026-05-28',
       '{{OCCASION}}': 'Eid Al Adha',
       '{{FROM_DATE}}': '2026-06-05',
@@ -347,16 +347,16 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
   {
     // dtManager PENDING (stage 0)
     id: 'corr_1004',
-    ref: 'EHCD/REQ/2026/018',
-    titleEn: 'Approval — LMS Analytics Add-on',
+    ref: 'MOET/REQ/2026/018',
+    titleEn: 'Approval — Industrial Design Registration',
     titleAr: 'اعتماد — إضافة تحليلات نظام التعلّم',
-    templateId: 'tpl_tutoring_en',
+    templateId: 'tpl_trademark_en',
     requesterId: 'u_req',
     status: 'InReview',
     values: {
-      '{{REF_NO}}': 'EHCD/REQ/2026/018',
+      '{{REF_NO}}': 'MOET/REQ/2026/018',
       '{{DATE}}': '2026-07-09',
-      '{{VENDOR}}': 'InsightLearn Analytics',
+      '{{APPLICANT}}': 'InsightLearn Analytics',
       '{{AMOUNT}}': '48,500',
       '{{SIG_DT}}': '',
       '{{SIG_DIR}}': '',
@@ -374,14 +374,14 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
   {
     // gm PENDING (circular stage 1 — director already signed)
     id: 'corr_1005',
-    ref: 'EHCD/CIR/2026/029',
-    titleEn: 'Circular — Digital Correspondence Rollout',
+    ref: 'MOET/CIR/2026/029',
+    titleEn: 'Circular — National SME Programme Rollout',
     titleAr: 'تعميم — إطلاق المراسلات الرقمية',
     templateId: 'tpl_circular_en',
     requesterId: 'u_req',
     status: 'InReview',
     values: {
-      '{{REF_NO}}': 'EHCD/CIR/2026/029',
+      '{{REF_NO}}': 'MOET/CIR/2026/029',
       '{{DATE}}': '2026-07-08',
       '{{AUDIENCE}}': 'All Departments',
       '{{SUBJECT}}': 'Adoption of the NAZO Digital Correspondence System',

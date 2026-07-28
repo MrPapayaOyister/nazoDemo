@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     # --- API ---
     api_port: int = 8200
 
-    # --- Reference number allocation (EHCD/REQ/2026/031 first) ---
-    ref_prefix: str = "EHCD/REQ"
+    # --- Reference number allocation (MOET/REQ/2026/031 first) ---
+    ref_prefix: str = "MOET/REQ"
     ref_year: int = 2026
     ref_start: int = 31
 

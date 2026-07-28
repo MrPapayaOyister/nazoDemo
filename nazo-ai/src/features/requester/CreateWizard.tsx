@@ -14,6 +14,7 @@ import {
   FileText,
   Lock,
   PartyPopper,
+  Plus,
 } from 'lucide-react'
 import { SlidersHorizontal } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
@@ -22,6 +23,7 @@ import { DocumentRenderer } from '@/components/common/DocumentRenderer'
 import { ChainStepper } from '@/components/common/ChainStepper'
 import { Button } from '@/components/ui/Button'
 import { useStore, useCurrentUser } from '@/store'
+import { useCan, AUTHOR_TEMPLATE } from '@/lib/permissions'
 import { useAI } from '@/ai/useAI'
 import { useLocalized } from '@/i18n'
 import { TEMPLATE_BY_ID } from '@/data/seed'
@@ -155,6 +157,8 @@ function StartStep({
   setPrompt: (v: string) => void
 }) {
   const tr = useLocalized()
+  const navigate = useNavigate()
+  const canAuthor = useCan(AUTHOR_TEMPLATE)
   const [thinking, setThinking] = useState(false)
   const [bestMatch, setBestMatch] = useState<string | null>(null)
 
@@ -165,7 +169,7 @@ function StartStep({
     // scripted best-match reveal (template-picker flourish)
     window.setTimeout(() => {
       setThinking(false)
-      setBestMatch('tpl_tutoring_en')
+      setBestMatch('tpl_trademark_en')
     }, 2600)
   }
 
@@ -182,7 +186,7 @@ function StartStep({
             rows={3}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder={tr('e.g. Approval to purchase tutoring software for the National Tutoring Program…', 'مثال: اعتماد شراء برنامج دروس مساندة للبرنامج الوطني…')}
+            placeholder={tr('e.g. Approval of a trademark registration application for a new applicant…', 'مثال: اعتماد طلب تسجيل علامة تجارية لمقدّم طلب جديد…')}
             className="w-full resize-none bg-transparent px-2 py-1.5 text-[14px] text-ink placeholder:text-ink-muted outline-none"
           />
           <div className="flex justify-end px-1">
@@ -205,7 +209,7 @@ function StartStep({
         {bestMatch && (
           <motion.div variants={aiReveal} initial="initial" animate="animate" className="mt-3 rounded-xl bg-ai/[0.06] p-3">
             <div className="text-[11px] font-semibold text-ai mb-1">{tr('Recommended template', 'نموذج مقترح')}</div>
-            <p className="text-[12.5px] text-ink-secondary">{tr('“Tutoring Software Approval” already contains the purchase-approval language you described.', '"اعتماد برنامج الدروس المساندة" يحتوي بالفعل على صياغة الاعتماد التي وصفتها.')}</p>
+            <p className="text-[12.5px] text-ink-secondary">{tr('“Trademark Registration Approval” already contains the approval language you described.', '"اعتماد تسجيل علامة تجارية" يحتوي بالفعل على صياغة الاعتماد التي وصفتها.')}</p>
             <Button variant="primary" size="sm" className="mt-2.5" onClick={() => onPick(bestMatch)}>
               {tr('Use this template', 'استخدم هذا النموذج')}
               <ArrowRight className="size-3.5 rtl:rotate-180" />
@@ -237,6 +241,27 @@ function StartStep({
               </div>
             </motion.button>
           ))}
+
+          {/* None of these fit? Author a new template WITHOUT leaving the flow —
+              the studio returns here once it's published. */}
+          {canAuthor && (
+            <motion.button
+              variants={riseItem}
+              onClick={() => navigate(`/admin/templates?returnTo=${encodeURIComponent('/requester/new')}`)}
+              className="text-start rounded-2xl border-2 border-dashed border-line bg-surface/50 p-4 hover:border-brand hover:bg-surface hover:-translate-y-0.5 transition-all"
+            >
+              <span className="grid place-items-center size-8 rounded-xl bg-ai/12 text-ai"><Plus className="size-4" /></span>
+              <div className="mt-2.5 text-[13.5px] font-semibold text-ink">
+                {tr('Create a new template', 'إنشاء نموذج جديد')}
+              </div>
+              <div className="mt-0.5 text-[11px] text-ink-muted line-clamp-2">
+                {tr(
+                  'Draft one with AI, set its fields and approval route, then come back here.',
+                  'صِغ نموذجاً بالذكاء الاصطناعي، وحدّد حقوله ومسار اعتماده، ثم عُد إلى هنا.',
+                )}
+              </div>
+            </motion.button>
+          )}
         </motion.div>
       </div>
     </div>

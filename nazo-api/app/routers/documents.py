@@ -35,7 +35,7 @@ def _get_or_404(session: Session, corr_id: str) -> Correspondence:
 
 
 def _safe_ref(corr: Correspondence) -> str:
-    """Filename-safe reference: 'EHCD/REQ/2026/012' -> 'EHCD-REQ-2026-012'."""
+    """Filename-safe reference: 'MOET/REQ/2026/012' -> 'MOET-REQ-2026-012'."""
     ref = (corr.ref or corr.id or "document").strip()
     for ch in "/\\:*?\"<>| ":
         ref = ref.replace(ch, "-")

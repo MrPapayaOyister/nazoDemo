@@ -13,12 +13,14 @@ import { DEFAULT_ROUTE_BY_ROLE } from '@/app/routes'
 import {
   AUTHOR_TEMPLATE,
   CREATE_CORRESPONDENCE,
+  MANAGE_ALL_TEMPLATES,
   MANAGE_USERS,
   hasCapability,
 } from '@/lib/permissions'
 import type { Capability } from '@/types'
 import { TopBar } from '@/app/TopBar'
 import { LeftNav } from '@/app/LeftNav'
+import { CreateFab } from '@/app/CreateFab'
 import { AiSidebar } from '@/features/ai/AiSidebar'
 import { AdminOverview } from '@/features/admin/AdminOverview'
 import { AdminUsers } from '@/features/admin/AdminUsers'
@@ -76,7 +78,9 @@ function AnimatedRoutes() {
         <Route
           path="/admin"
           element={
-            <RequireCapability cap={AUTHOR_TEMPLATE}>
+            // The admin DASHBOARD stays admin-only. Authoring surfaces below are open to
+            // every participant (they all hold AUTHOR_TEMPLATE).
+            <RequireCapability cap={MANAGE_ALL_TEMPLATES}>
               <AdminOverview />
             </RequireCapability>
           }
@@ -158,6 +162,9 @@ export function AppShell() {
         </main>
         <AiSidebar />
       </div>
+      {/* Global "start a correspondence" shortcut — capability-gated, hidden on the
+          create wizard + authoring surfaces where it would be redundant. */}
+      <CreateFab />
     </div>
   )
 }

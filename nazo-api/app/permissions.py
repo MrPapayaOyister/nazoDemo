@@ -29,18 +29,25 @@ SEND_CORRESPONDENCE = "correspondence.send"
 ACT_ON_STEP = "correspondence.act"
 ADD_ATTACHMENT = "attachment.add"
 DOWNLOAD_DOCUMENT = "document.download"  # generated PDF/DOCX + attachment download
-AUTHOR_TEMPLATE = "template.author"  # create/edit/publish ORG templates + the studio; admin-only
+AUTHOR_TEMPLATE = "template.author"  # open the studio + create/publish a template of one's OWN
 SAVE_TEMPLATE = "template.save_personal"  # Phase 2a: save a personal (manual) template, e.g. from a correspondence
+# Org-wide template administration: see and edit EVERY template regardless of owner or
+# share grants. Deliberately SEPARATE from AUTHOR_TEMPLATE — every identity may author
+# their own templates, but only an admin may reach into someone else's.
+MANAGE_ALL_TEMPLATES = "template.manage_all"
 MANAGE_ORG_CONFIG = "org.config"  # global letterhead
 CREATE_BROADCAST = "broadcast.create"
 MANAGE_USERS = "users.manage"
 RESET_DEMO = "admin.reset"
 
 # --- role -> capabilities -------------------------------------------------
-# Every one of the 6 ACTOR roles can create/send/act/attach/download + view (item 11
-# parity). Admin additionally authors templates, edits the letterhead, manages users,
-# resets, and can broadcast. Broadcaster: view + download + send broadcasts, nothing
-# else. Viewer: read-only (no download by default).
+# FULL PARTICIPANT PARITY (2026-07-28, product decision): EVERY one of the 12 identities
+# is a working participant — each gets an inbox, a create button and "Sent by me", and can
+# author a template inline while creating correspondence. So all roles share _ACTOR_BASE
+# (+ AUTHOR_TEMPLATE). This intentionally SUPERSEDES the earlier read-only broadcaster /
+# viewer design: `access_level` is now only a descriptive label for those job titles, NOT
+# a restriction. Admin still exclusively holds the org-administration capabilities
+# (letterhead, user management, reset); broadcaster additionally keeps CREATE_BROADCAST.
 _ACTOR_BASE = {
     VIEW,
     CREATE_CORRESPONDENCE,
@@ -48,10 +55,11 @@ _ACTOR_BASE = {
     ACT_ON_STEP,
     ADD_ATTACHMENT,
     DOWNLOAD_DOCUMENT,
-    SAVE_TEMPLATE,  # every actor may save a personal (manual) template from their own work
+    SAVE_TEMPLATE,  # save a personal (manual) template from their own work
+    AUTHOR_TEMPLATE,  # author/publish a template, incl. inline from the create flow
 }
 _ADMIN = _ACTOR_BASE | {
-    AUTHOR_TEMPLATE,
+    MANAGE_ALL_TEMPLATES,
     MANAGE_ORG_CONFIG,
     CREATE_BROADCAST,
     MANAGE_USERS,
@@ -65,8 +73,8 @@ CAPS_BY_ROLE: dict[str, set[str]] = {
     "director": set(_ACTOR_BASE),
     "gm": set(_ACTOR_BASE),
     "chair": set(_ACTOR_BASE),
-    "broadcaster": {VIEW, DOWNLOAD_DOCUMENT, CREATE_BROADCAST},
-    "viewer": {VIEW},
+    "broadcaster": _ACTOR_BASE | {CREATE_BROADCAST},
+    "viewer": set(_ACTOR_BASE),
 }
 
 # Coarse UI label: which of the 6 new roles are restricted vs the 6 actors.
@@ -122,11 +130,11 @@ def template_capabilities_for(
 ) -> set[str]:
     """Effective template-level capabilities for `user` on `template`.
 
-    Owner and any AUTHOR_TEMPLATE holder (admin) get EVERY capability. Otherwise:
+    Owner and any MANAGE_ALL_TEMPLATES holder (admin) get EVERY capability. Otherwise:
     'global' visibility grants USE to everyone; explicit TemplateShare grants (matched
     by user id or role) add their capabilities. `shares` should be the grant rows for
     THIS template (pass [] or None when there are none)."""
-    if has_capability(user, AUTHOR_TEMPLATE):
+    if has_capability(user, MANAGE_ALL_TEMPLATES):
         return set(TEMPLATE_CAPABILITIES)
     if template.owner_id is not None and template.owner_id == user.id:
         return set(TEMPLATE_CAPABILITIES)
@@ -159,7 +167,7 @@ def can_view_template(
 ) -> bool:
     """Whether `user` may SEE/list `template` (visibility enforcement on read paths).
     Broader than USE: owner, admin, 'global' visibility, or ANY matching share grant."""
-    if has_capability(user, AUTHOR_TEMPLATE):
+    if has_capability(user, MANAGE_ALL_TEMPLATES):
         return True
     if template.owner_id is not None and template.owner_id == user.id:
         return True

@@ -38,7 +38,7 @@ class _FakeProvider:
 # ---------------------------------------------------------------------------
 def test_translate_persists_arabic_body(session):
     req = _u(session, "u_req")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {"{{VENDOR}}": "X"})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {"{{APPLICANT}}": "X"})
     session.commit()
 
     provider = _FakeProvider('{"translation": "مرحبا بالعالم\\nفقرة ثانية مترجمة"}')
@@ -59,7 +59,7 @@ def test_translate_without_corr_does_not_persist(session):
     """Studio/create-draft translate (no corrId) must NOT try to persist an AR body."""
     admin = _u(session, "u_admin")
     provider = _FakeProvider('{"translation": "نص"}')
-    ctx = {"docId": "tpl_tutoring_en"}  # no corrId
+    ctx = {"docId": "tpl_trademark_en"}  # no corrId
     out = asyncio.run(ai_actions._translate(session, admin, ctx, provider, studio=True))
     assert "effects" in out  # returns normally, nothing to persist
 
@@ -69,7 +69,7 @@ def test_studio_translate_never_persists_to_a_stale_corr(session):
     action, so a STUDIO translate must never overwrite that correspondence's Arabic body."""
     admin = _u(session, "u_admin")
     req = _u(session, "u_req")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {})
     session.commit()
 
     provider = _FakeProvider('{"translation": "نص عربي"}')
@@ -83,7 +83,7 @@ def test_studio_translate_never_persists_to_a_stale_corr(session):
 def test_translate_without_persist_optin_does_not_persist(session):
     """Preview-only translate (no persistAr) must not write to the correspondence."""
     req = _u(session, "u_req")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {})
     session.commit()
     provider = _FakeProvider('{"translation": "نص عربي"}')
     asyncio.run(ai_actions._translate(session, req, {"corrId": corr.id}, provider, studio=False))
@@ -96,7 +96,7 @@ def test_translate_without_persist_optin_does_not_persist(session):
 # ---------------------------------------------------------------------------
 def test_render_prefers_persisted_arabic_for_ar_only(session):
     req = _u(session, "u_req")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {})
     corr.doc_html_ar = "{{LETTERHEAD}}\n<p>نص عربي مترجم للاختبار</p>"
     session.add(corr)
     session.commit()
@@ -114,7 +114,7 @@ def test_render_prefers_persisted_arabic_for_ar_only(session):
 def test_render_falls_back_when_no_arabic_body(session):
     """No persisted AR body → the AR render degrades to the template (unchanged)."""
     req = _u(session, "u_req")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {})
     session.commit()
     html_ar = documents.render_letter_html(session, corr, lang="ar")
     assert 'dir="rtl"' in html_ar  # still renders, just from the template
@@ -125,7 +125,7 @@ def test_render_falls_back_when_no_arabic_body(session):
 # ---------------------------------------------------------------------------
 def test_serializer_exposes_doc_html_ar(session):
     req = _u(session, "u_req")
-    corr = workflow.create_correspondence(session, req, "tpl_tutoring_en", {})
+    corr = workflow.create_correspondence(session, req, "tpl_trademark_en", {})
     session.commit()
     assert "docHtmlAr" not in serialize_correspondence(corr, [])
 

@@ -469,7 +469,7 @@ function buildAiBody(ctx: AiContext, state: AppState): api.AiContextBody {
   ) {
     const cd = state.createDraft
     body.targetId = ctx.targetId ?? CREATE
-    body.docId = ctx.docId ?? cd.templateId ?? 'tpl_tutoring_en'
+    body.docId = ctx.docId ?? cd.templateId ?? 'tpl_trademark_en'
     body.values = cd.values
   }
   return body
@@ -886,7 +886,7 @@ export const useStore = create<AppState>()(
           }))
           const snap = snapshot()
           try {
-            const tid = get().createDraft.templateId ?? 'tpl_tutoring_en'
+            const tid = get().createDraft.templateId ?? 'tpl_trademark_en'
             let corrId = get().createDraftCorrId
             if (!corrId) corrId = await get().createDraftCorrespondence(tid)
             if (!corrId) {

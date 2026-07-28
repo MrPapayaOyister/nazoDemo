@@ -159,7 +159,7 @@ def test_mark_all_read(session):
 def test_share_notifies_user_grantee(session):
     admin = _u(session, "u_admin")
     T.share_template(
-        "tpl_tutoring_en",
+        "tpl_trademark_en",
         T.ShareBody(granteeKind="user", granteeRef="u_dir", capabilities=["use"]),
         session,
         admin,
@@ -167,7 +167,7 @@ def test_share_notifies_user_grantee(session):
     assert any(n.type == "template_shared" for n in _notifs(session, "u_dir"))
     # re-sharing (capability update) does NOT create a duplicate
     T.share_template(
-        "tpl_tutoring_en",
+        "tpl_trademark_en",
         T.ShareBody(granteeKind="user", granteeRef="u_dir", capabilities=["use", "edit_content"]),
         session,
         admin,

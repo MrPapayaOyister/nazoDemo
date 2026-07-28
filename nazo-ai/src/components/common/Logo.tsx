@@ -9,7 +9,7 @@ interface LogoProps {
 
 /**
  * The NAZO brand mark — the single source of truth for the product logo across the
- * app chrome (top bar) and the login gate. The in-document EHCD crest (Letterhead.tsx)
+ * app chrome (top bar) and the login gate. The in-document UAE crest (Letterhead.tsx)
  * is intentionally a SEPARATE emblem (the issuing authority's, not the product's).
  * Assets: public/nazo-logo.png (full, transparent), public/nazo-mark.png (mark on white).
  */

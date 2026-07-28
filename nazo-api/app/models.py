@@ -338,7 +338,7 @@ class OrgConfig(SQLModel, table=True):
     """Singleton (id='default') global letterhead config — the editable header org
     block + a document footer, EN/AR (item 2). GLOBAL, not per-template: least
     data-model disruption (no Template/Correspondence columns, no per-instance
-    snapshotting) and matches reality — the EHCD/FAHR letterhead is uniform. The
+    snapshotting) and matches reality — the MoET letterhead is uniform. The
     frontend Letterhead + DocumentFooter and the backend PDF/DOCX pipeline both read
     this; `{{LETTERHEAD}}` still resolves to the header, `{{FOOTER}}` to the footer.
     header/footer are JSON dicts in the frontend camelCase shape."""

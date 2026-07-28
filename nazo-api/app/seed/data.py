@@ -27,21 +27,21 @@ from app.models import normalize_step_type
 ORG_CONFIG: dict = {
     "id": "default",
     "header": {
-        "code": "EHCD",
-        "nameEn": "Education, Human Development & Community Development Council",
-        "nameAr": "مجلس التعليم والتنمية البشرية والتنمية المجتمعية",
-        "subEn": "Federal Authority for Government Human Resources",
-        "subAr": "الهيئة الاتحادية للموارد البشرية الحكومية",
-        "poBox": "P.O. Box 33845",
+        "code": "MOET",
+        "nameEn": "United Arab Emirates",
+        "nameAr": "الإمارات العربية المتحدة",
+        "subEn": "Ministry of Economy & Tourism",
+        "subAr": "وزارة الاقتصاد والسياحة",
+        "poBox": "P.O. Box 901",
         "cityEn": "Abu Dhabi, United Arab Emirates",
         "cityAr": "أبوظبي، الإمارات العربية المتحدة",
-        "web": "www.ehcd.gov.ae",
+        "web": "www.moet.gov.ae",
     },
     "footer": {
-        "lineEn": "This is an official document of the EHCD e-correspondence system. Verify at www.ehcd.gov.ae.",
-        "lineAr": "هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية EHCD. للتحقق: www.ehcd.gov.ae.",
-        "contactEn": "P.O. Box 33845 · Abu Dhabi, UAE · +971 2 000 0000",
-        "contactAr": "ص.ب ٣٣٨٤٥ · أبوظبي، الإمارات · ٩٧١٢٠٠٠٠٠٠٠+",
+        "lineEn": "This is an official document of the Ministry of Economy & Tourism e-correspondence system. Verify at www.moet.gov.ae.",
+        "lineAr": "هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية بوزارة الاقتصاد والسياحة. للتحقق: www.moet.gov.ae.",
+        "contactEn": "P.O. Box 901 · Abu Dhabi, UAE · 800 1222",
+        "contactAr": "ص.ب ٩٠١ · أبوظبي، الإمارات · ٨٠٠ ١٢٢٢",
         "showPageNumbers": True,
     },
     "updatedAt": "2026-07-10T09:12:00Z",
@@ -56,7 +56,7 @@ ORG_CONFIG: dict = {
 LAYOUT_MASTERS: list[dict] = [
     {
         "id": "lm_default",
-        "name": "EHCD Official Letterhead",
+        "name": "MoET Official Letterhead",
         "header": {},
         "footer": {},
         "locked": True,
@@ -76,9 +76,9 @@ USERS: list[dict] = [
         "nameAr": "ليلى المرـي",
         "titleEn": "System Administrator",
         "titleAr": "مسؤول النظام",
-        "unitEn": "Information Technology",
-        "unitAr": "تقنية المعلومات",
-        "email": "admin@ehcd.gov.ae",
+        "unitEn": "Information Technology Department",
+        "unitAr": "إدارة تقنية المعلومات",
+        "email": "admin@moet.gov.ae",
         "initials": "LM",
         "color": "#1552b5",
     },
@@ -87,11 +87,11 @@ USERS: list[dict] = [
         "role": "requester",
         "nameEn": "Noura Al Suwaidi",
         "nameAr": "نورة السويدي",
-        "titleEn": "GM Office",
-        "titleAr": "مكتب المدير العام",
-        "unitEn": "General Manager Office",
-        "unitAr": "مكتب المدير العام",
-        "email": "gm.office@fahr.ae",
+        "titleEn": "Commercial Registry Officer",
+        "titleAr": "أخصائي السجل التجاري",
+        "unitEn": "Trademarks & Commercial Registry",
+        "unitAr": "إدارة العلامات التجارية والسجل التجاري",
+        "email": "registry.officer@moet.gov.ae",
         "initials": "NS",
         "color": "#0e7c86",
     },
@@ -100,11 +100,11 @@ USERS: list[dict] = [
         "role": "dtManager",
         "nameEn": "Khalid Al Mansoori",
         "nameAr": "خالد المنصوري",
-        "titleEn": "Digital Transformation Manager",
-        "titleAr": "مدير التحول الرقمي",
-        "unitEn": "Digital Transformation Department",
-        "unitAr": "إدارة التحول الرقمي",
-        "email": "dt.manager@fahr.ae",
+        "titleEn": "Industrial Property Manager",
+        "titleAr": "مدير الملكية الصناعية",
+        "unitEn": "Industrial Property Department",
+        "unitAr": "إدارة الملكية الصناعية",
+        "email": "ip.manager@moet.gov.ae",
         "initials": "KM",
         "color": "#6e56cf",
         "signatureId": "sig_dt",
@@ -114,11 +114,11 @@ USERS: list[dict] = [
         "role": "director",
         "nameEn": "Aisha Al Zaabi",
         "nameAr": "عائشة الزعابي",
-        "titleEn": "Digitalization Director",
-        "titleAr": "مدير الرقمنة",
-        "unitEn": "Digitalization Sector",
-        "unitAr": "قطاع الرقمنة",
-        "email": "ds.director@fahr.ae",
+        "titleEn": "Director of Commercial Affairs",
+        "titleAr": "مدير الشؤون التجارية",
+        "unitEn": "Commercial Affairs Sector",
+        "unitAr": "قطاع الشؤون التجارية",
+        "email": "commercial.director@moet.gov.ae",
         "initials": "AZ",
         "color": "#b0871c",
         "signatureId": "sig_dir",
@@ -128,11 +128,11 @@ USERS: list[dict] = [
         "role": "gm",
         "nameEn": "Mohammed Al Hashimi",
         "nameAr": "محمد الهاشمي",
-        "titleEn": "General Manager",
-        "titleAr": "المدير العام",
-        "unitEn": "General Manager Office",
-        "unitAr": "مكتب المدير العام",
-        "email": "gm.manager@fahr.ae",
+        "titleEn": "Undersecretary",
+        "titleAr": "وكيل الوزارة",
+        "unitEn": "Ministry Undersecretariat",
+        "unitAr": "وكالة الوزارة",
+        "email": "undersecretary@moet.gov.ae",
         "initials": "MH",
         "color": "#12336b",
         "signatureId": "sig_gm",
@@ -142,11 +142,11 @@ USERS: list[dict] = [
         "role": "chair",
         "nameEn": "Ahmed Al Nuaimi",
         "nameAr": "أحمد النعيمي",
-        "titleEn": "Chairperson",
-        "titleAr": "الرئيس",
-        "unitEn": "ChairPerson Office",
-        "unitAr": "مكتب الرئيس",
-        "email": "chairperson@fahr.ae",
+        "titleEn": "Minister of Economy & Tourism",
+        "titleAr": "وزير الاقتصاد والسياحة",
+        "unitEn": "Minister's Office",
+        "unitAr": "مكتب الوزير",
+        "email": "minister.office@moet.gov.ae",
         "initials": "AN",
         "color": "#d64550",
     },
@@ -158,11 +158,11 @@ USERS: list[dict] = [
         "role": "broadcaster",
         "nameEn": "Fatima Al Blooshi",
         "nameAr": "فاطمة البلوشي",
-        "titleEn": "Corporate Communications Lead",
-        "titleAr": "رئيس الاتصال المؤسسي",
-        "unitEn": "Corporate Communications",
-        "unitAr": "الاتصال المؤسسي",
-        "email": "comms.lead@ehcd.gov.ae",
+        "titleEn": "Government Communication Lead",
+        "titleAr": "مدير الاتصال الحكومي",
+        "unitEn": "Government Communication",
+        "unitAr": "إدارة الاتصال الحكومي",
+        "email": "comms.lead@moet.gov.ae",
         "initials": "FB",
         "color": "#0891b2",
         "accessLevel": "broadcaster",
@@ -173,11 +173,11 @@ USERS: list[dict] = [
         "role": "broadcaster",
         "nameEn": "Yousef Al Rashid",
         "nameAr": "يوسف الراشد",
-        "titleEn": "Executive Office Broadcaster",
-        "titleAr": "مذيع المكتب التنفيذي",
+        "titleEn": "Executive Office Coordinator",
+        "titleAr": "منسق المكتب التنفيذي",
         "unitEn": "Executive Office",
         "unitAr": "المكتب التنفيذي",
-        "email": "exec.broadcast@ehcd.gov.ae",
+        "email": "exec.office@moet.gov.ae",
         "initials": "YR",
         "color": "#7c3aed",
         "accessLevel": "broadcaster",
@@ -188,11 +188,11 @@ USERS: list[dict] = [
         "role": "viewer",
         "nameEn": "Maryam Al Ali",
         "nameAr": "مريم العلي",
-        "titleEn": "Finance Observer",
-        "titleAr": "مراقب الشؤون المالية",
-        "unitEn": "Finance",
-        "unitAr": "الشؤون المالية",
-        "email": "finance.view@ehcd.gov.ae",
+        "titleEn": "SME Programme Officer",
+        "titleAr": "أخصائي برنامج المنشآت الصغيرة والمتوسطة",
+        "unitEn": "National SME Programme",
+        "unitAr": "البرنامج الوطني للمنشآت الصغيرة والمتوسطة",
+        "email": "sme.programme@moet.gov.ae",
         "initials": "MA",
         "color": "#059669",
         "accessLevel": "viewer",
@@ -203,11 +203,11 @@ USERS: list[dict] = [
         "role": "viewer",
         "nameEn": "Omar Al Habsi",
         "nameAr": "عمر الحبسي",
-        "titleEn": "Legal Observer",
-        "titleAr": "مراقب الشؤون القانونية",
-        "unitEn": "Legal Affairs",
-        "unitAr": "الشؤون القانونية",
-        "email": "legal.view@ehcd.gov.ae",
+        "titleEn": "Legal Affairs Counsel",
+        "titleAr": "مستشار الشؤون القانونية",
+        "unitEn": "Legal Affairs Department",
+        "unitAr": "إدارة الشؤون القانونية",
+        "email": "legal.affairs@moet.gov.ae",
         "initials": "OH",
         "color": "#b45309",
         "accessLevel": "viewer",
@@ -218,11 +218,11 @@ USERS: list[dict] = [
         "role": "viewer",
         "nameEn": "Hessa Al Mheiri",
         "nameAr": "حصة المهيري",
-        "titleEn": "HR Observer",
-        "titleAr": "مراقب الموارد البشرية",
-        "unitEn": "Human Resources",
-        "unitAr": "الموارد البشرية",
-        "email": "hr.view@ehcd.gov.ae",
+        "titleEn": "Consumer Protection Officer",
+        "titleAr": "أخصائي حماية المستهلك",
+        "unitEn": "Consumer Protection Department",
+        "unitAr": "إدارة حماية المستهلك",
+        "email": "consumer.protection@moet.gov.ae",
         "initials": "HM",
         "color": "#be185d",
         "accessLevel": "viewer",
@@ -233,11 +233,11 @@ USERS: list[dict] = [
         "role": "viewer",
         "nameEn": "Saeed Al Dhaheri",
         "nameAr": "سعيد الظاهري",
-        "titleEn": "Strategy Observer",
-        "titleAr": "مراقب الاستراتيجية",
-        "unitEn": "Strategy & Planning",
-        "unitAr": "الاستراتيجية والتخطيط",
-        "email": "strategy.view@ehcd.gov.ae",
+        "titleEn": "Tourism Development Officer",
+        "titleAr": "أخصائي تنمية السياحة",
+        "unitEn": "Tourism Sector",
+        "unitAr": "قطاع السياحة",
+        "email": "tourism.dev@moet.gov.ae",
         "initials": "SD",
         "color": "#475569",
         "accessLevel": "viewer",
@@ -468,26 +468,26 @@ WORKFLOW_DEFINITION_VERSIONS: list[dict] = [
 # ===========================================================================
 # Template document bodies (docHtml) — verbatim, incl. leading/trailing newline.
 # ===========================================================================
-TUTORING_EN_BODY = """
+TRADEMARK_EN_BODY = """
 {{LETTERHEAD}}
-<h1>Subject: Approval — Online Tutoring Software License</h1>
+<h1>Subject: Approval — Trademark Registration Application</h1>
 <p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
 <p>Dear Sir/Madam,</p>
-<p>With reference to the Digital Transformation plan for the current fiscal year, we seek approval to procure an annual license for the <em>{{VENDOR}}</em> online tutoring platform, to be deployed across EHCD learning programmes.</p>
-<p>The total contract value is <strong>AED {{AMOUNT}}</strong> for a twelve (12) month term, funded from the approved Digitalization budget line.</p>
-<p>Your kind approval and signature are appreciated to proceed with procurement.</p>
+<p>With reference to Federal Decree-Law No. 36 of 2021 on Trademarks and its Implementing Regulation, we submit for your approval the trademark registration application filed by <em>{{APPLICANT}}</em> through the Ministry’s Industrial Property Services portal.</p>
+<p>The application has completed formal examination and publication, and no opposition was received within the statutory period. The prescribed registration fee of <strong>AED {{AMOUNT}}</strong> has been settled in full.</p>
+<p>Your kind approval and signature are appreciated to issue the registration certificate.</p>
 <p>Respectfully,</p>
 <div class="sign-block">{{SIG_GM}}</div>
 """
 
-TUTORING_AR_BODY = """
+TRADEMARK_AR_BODY = """
 {{LETTERHEAD}}
-<h1>الموضوع: اعتماد رخصة برنامج الدروس المساندة الإلكتروني</h1>
+<h1>الموضوع: اعتماد طلب تسجيل علامة تجارية</h1>
 <p class="meta"><strong>الإشارة:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>التاريخ:</strong> {{DATE}}</p>
 <p>تحية طيبة وبعد،</p>
-<p>بالإشارة إلى خطة التحول الرقمي للسنة المالية الحالية، نلتمس اعتماد شراء رخصة سنوية لمنصة <em>{{VENDOR}}</em> للدروس المساندة الإلكترونية لتُعتمد في برامج المجلس التعليمية.</p>
-<p>تبلغ القيمة الإجمالية للعقد <strong>{{AMOUNT}} درهم إماراتي</strong> لمدة اثني عشر (12) شهراً، تُموَّل من بند ميزانية الرقمنة المعتمد.</p>
-<p>نأمل التكرم بالاعتماد والتوقيع للمضي في إجراءات الشراء.</p>
+<p>بالإشارة إلى المرسوم بقانون اتحادي رقم (36) لسنة 2021 في شأن العلامات التجارية ولائحته التنفيذية، نرفع لسيادتكم طلب تسجيل العلامة التجارية المقدّم من <em>{{APPLICANT}}</em> عبر بوابة خدمات الملكية الصناعية بالوزارة.</p>
+<p>وقد استوفى الطلب إجراءات الفحص الشكلي والنشر، ولم تُقدّم أي اعتراضات خلال المدة القانونية، كما سُدّدت رسوم التسجيل المقررة وقدرها <strong>{{AMOUNT}} درهم إماراتي</strong> بالكامل.</p>
+<p>نأمل التكرم بالاعتماد والتوقيع لإصدار شهادة التسجيل.</p>
 <p>وتفضلوا بقبول فائق الاحترام،</p>
 <div class="sign-block">{{SIG_GM}}</div>
 """
@@ -517,20 +517,20 @@ HOLIDAY_EN_BODY = """
 <h1>Announcement: Official Holiday</h1>
 <p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
 <p>Dear Colleagues,</p>
-<p>In line with the directives of the Federal Authority for Government Human Resources (FAHR), we are pleased to announce that <strong>{{OCCASION}}</strong> will be an official paid holiday. Offices will be closed from <strong>{{FROM_DATE}}</strong> to <strong>{{TO_DATE}}</strong>, resuming work on the following business day.</p>
+<p>In line with the official holiday schedule approved for the federal government, the Ministry of Economy &amp; Tourism is pleased to announce that <strong>{{OCCASION}}</strong> will be an official paid holiday. The Ministry’s offices and customer happiness centres will be closed from <strong>{{FROM_DATE}}</strong> to <strong>{{TO_DATE}}</strong>, resuming work on the following business day. Digital services remain available on www.moet.gov.ae throughout.</p>
 <p>We extend our warmest wishes to you and your families.</p>
 <div class="sign-block">{{SIG_GM}}</div>
 """
 
-# Phase 4 — a dual-signature memo: the sign-block carries BOTH signature tokens so the
-# Director and the GM each stamp their own signature.
+# A dual-signature memo: the sign-block carries BOTH signature tokens so the Sector
+# Director and the Undersecretary each stamp their own signature.
 DUAL_EN_BODY = """
 {{LETTERHEAD}}
 <h1>Subject: Executive Endorsement — {{SUBJECT}}</h1>
 <p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
 <p>Dear Sir/Madam,</p>
-<p>Following review by the Digital Transformation department, this memorandum is submitted for the joint endorsement of the Digitalization Director and the General Manager.</p>
-<p>Upon signature by both authorities below, the initiative is formally approved for execution.</p>
+<p>Following technical review by the Commercial Affairs department, this memorandum is submitted for the joint endorsement of the Sector Director and the Undersecretary in accordance with the Ministry’s delegation of authority.</p>
+<p>Upon signature by both authorities below, the licence is formally approved for issuance and entry into the Commercial Register.</p>
 <p>Respectfully,</p>
 <div class="sign-block">{{SIG_DIR}} {{SIG_GM}}</div>
 """
@@ -538,39 +538,39 @@ DUAL_EN_BODY = """
 # ---------------------------------------------------------------------------
 # Template variables (TemplateVariable[] verbatim).
 # ---------------------------------------------------------------------------
-TUTORING_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "EHCD/REQ/2026/___", "required": True},
+TRADEMARK_VARS: list[dict] = [
+    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "MOET/REQ/2026/___", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
-    {"tag": "{{VENDOR}}", "labelEn": "Vendor / Platform", "labelAr": "المزوّد / المنصة", "type": "Text", "group": "Requester", "placeholder": "e.g. TutorCloud", "required": True},
-    {"tag": "{{AMOUNT}}", "labelEn": "Contract Value (AED)", "labelAr": "قيمة العقد (درهم)", "type": "Text", "group": "Requester", "placeholder": "75,000", "required": True},
-    {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
+    {"tag": "{{APPLICANT}}", "labelEn": "Applicant / Company", "labelAr": "مقدّم الطلب / الشركة", "type": "Text", "group": "Requester", "placeholder": "e.g. Al Noor Trading LLC", "required": True},
+    {"tag": "{{AMOUNT}}", "labelEn": "Registration Fee (AED)", "labelAr": "رسوم التسجيل (درهم)", "type": "Text", "group": "Requester", "placeholder": "6,700", "required": True},
+    {"tag": "{{SIG_GM}}", "labelEn": "Undersecretary Signature", "labelAr": "توقيع وكيل الوزارة", "type": "Signature", "group": "gm"},
 ]
 
 CIRCULAR_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Circular Number", "labelAr": "رقم التعميم", "type": "Text", "group": "Requester", "placeholder": "EHCD/CIR/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Circular Number", "labelAr": "رقم التعميم", "type": "Text", "group": "Requester", "placeholder": "MOET/CIR/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
-    {"tag": "{{AUDIENCE}}", "labelEn": "Audience", "labelAr": "الجهة المستهدفة", "type": "Text", "group": "Requester", "placeholder": "All Departments", "required": True},
+    {"tag": "{{AUDIENCE}}", "labelEn": "Audience", "labelAr": "الجهة المستهدفة", "type": "Text", "group": "Requester", "placeholder": "All Departments and Licensed Establishments", "required": True},
     {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
     {"tag": "{{BODY}}", "labelEn": "Body", "labelAr": "النص", "type": "Text", "group": "Requester", "required": True},
-    {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
+    {"tag": "{{SIG_GM}}", "labelEn": "Undersecretary Signature", "labelAr": "توقيع وكيل الوزارة", "type": "Signature", "group": "gm"},
 ]
 
 HOLIDAY_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "EHCD/HR/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "MOET/HR/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{OCCASION}}", "labelEn": "Occasion", "labelAr": "المناسبة", "type": "Text", "group": "Requester", "placeholder": "Eid Al Adha", "required": True},
     {"tag": "{{FROM_DATE}}", "labelEn": "Holiday Start", "labelAr": "بداية العطلة", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{TO_DATE}}", "labelEn": "Holiday End", "labelAr": "نهاية العطلة", "type": "Date", "group": "Requester", "required": True},
-    {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
+    {"tag": "{{SIG_GM}}", "labelEn": "Undersecretary Signature", "labelAr": "توقيع وكيل الوزارة", "type": "Signature", "group": "gm"},
 ]
 
-# Phase 4 — dual-signature vars: a Signature variable for BOTH the Director and the GM.
+# Dual-signature vars: a Signature variable for BOTH the Director and the Undersecretary.
 DUAL_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "EHCD/EXE/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "MOET/EXE/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
     {"tag": "{{SIG_DIR}}", "labelEn": "Director Signature", "labelAr": "توقيع المدير", "type": "Signature", "group": "director"},
-    {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
+    {"tag": "{{SIG_GM}}", "labelEn": "Undersecretary Signature", "labelAr": "توقيع وكيل الوزارة", "type": "Signature", "group": "gm"},
 ]
 
 # ===========================================================================
@@ -578,34 +578,34 @@ DUAL_VARS: list[dict] = [
 # ===========================================================================
 TEMPLATES: list[dict] = [
     {
-        "id": "tpl_tutoring_en",
-        "nameEn": "Tutoring Software Approval",
-        "nameAr": "اعتماد برنامج الدروس المساندة",
+        "id": "tpl_trademark_en",
+        "nameEn": "Trademark Registration Approval",
+        "nameAr": "اعتماد تسجيل علامة تجارية",
         "lang": "en",
         "category": "Approval",
-        "descEn": "Approval to procure an online tutoring platform license.",
-        "descAr": "اعتماد شراء رخصة منصة دروس مساندة إلكترونية.",
-        "docHtml": TUTORING_EN_BODY,
-        "variables": TUTORING_VARS,
+        "descEn": "Approval of a trademark registration application under Industrial Property Services.",
+        "descAr": "اعتماد طلب تسجيل علامة تجارية ضمن خدمات الملكية الصناعية.",
+        "docHtml": TRADEMARK_EN_BODY,
+        "variables": TRADEMARK_VARS,
         "workflow": STANDARD_CHAIN,
         "workflowVersionId": "wfv_standard_v1",
-        "twinId": "tpl_tutoring_ar",
+        "twinId": "tpl_trademark_ar",
         "updatedAt": "2026-06-28T09:12:00Z",
         "usageCount": 14,
     },
     {
-        "id": "tpl_tutoring_ar",
-        "nameEn": "Tutoring Software Approval (AR)",
-        "nameAr": "اعتماد برنامج الدروس المساندة",
+        "id": "tpl_trademark_ar",
+        "nameEn": "Trademark Registration Approval (AR)",
+        "nameAr": "اعتماد تسجيل علامة تجارية",
         "lang": "ar",
         "category": "Approval",
-        "descEn": "Arabic variant of the tutoring software approval letter.",
-        "descAr": "النسخة العربية من خطاب اعتماد برنامج الدروس المساندة.",
-        "docHtml": TUTORING_AR_BODY,
-        "variables": TUTORING_VARS,
+        "descEn": "Arabic variant of the trademark registration approval letter.",
+        "descAr": "النسخة العربية من خطاب اعتماد تسجيل العلامة التجارية.",
+        "docHtml": TRADEMARK_AR_BODY,
+        "variables": TRADEMARK_VARS,
         "workflow": STANDARD_CHAIN,
         "workflowVersionId": "wfv_standard_v1",
-        "twinId": "tpl_tutoring_en",
+        "twinId": "tpl_trademark_en",
         "updatedAt": "2026-06-28T09:15:00Z",
         "usageCount": 9,
     },
@@ -615,8 +615,8 @@ TEMPLATES: list[dict] = [
         "nameAr": "تعميم رسمي",
         "lang": "en",
         "category": "Circular",
-        "descEn": "General internal circular to all EHCD units.",
-        "descAr": "تعميم داخلي عام لجميع وحدات المجلس.",
+        "descEn": "Circular to Ministry departments and licensed establishments.",
+        "descAr": "تعميم إلى إدارات الوزارة والمنشآت المرخّصة.",
         "docHtml": CIRCULAR_EN_BODY,
         "variables": CIRCULAR_VARS,
         "workflow": CIRCULAR_CHAIN,
@@ -641,12 +641,12 @@ TEMPLATES: list[dict] = [
     },
     {
         "id": "tpl_holiday_en",
-        "nameEn": "HR Holiday Announcement",
-        "nameAr": "إعلان عطلة من الموارد البشرية",
+        "nameEn": "Official Holiday Announcement",
+        "nameAr": "إعلان عطلة رسمية",
         "lang": "en",
         "category": "Announcement",
-        "descEn": "Announces an official public holiday to all staff.",
-        "descAr": "يعلن عطلة رسمية لجميع الموظفين.",
+        "descEn": "Announces an official public holiday to all Ministry staff.",
+        "descAr": "يعلن عطلة رسمية لجميع موظفي الوزارة.",
         "docHtml": HOLIDAY_EN_BODY,
         "variables": HOLIDAY_VARS,
         "workflow": HOLIDAY_CHAIN,
@@ -655,12 +655,12 @@ TEMPLATES: list[dict] = [
     },
     {
         "id": "tpl_executive_en",
-        "nameEn": "Executive Dual-Signature Endorsement",
-        "nameAr": "اعتماد تنفيذي بتوقيعين",
+        "nameEn": "Foreign Company Branch Licence Endorsement",
+        "nameAr": "اعتماد رخصة فرع شركة أجنبية بتوقيعين",
         "lang": "en",
         "category": "Approval",
-        "descEn": "A memo jointly signed by the Digitalization Director and the General Manager.",
-        "descAr": "مذكرة موقّعة من مدير الرقمنة والمدير العام معاً.",
+        "descEn": "A branch licence memo jointly signed by the Sector Director and the Undersecretary.",
+        "descAr": "مذكرة رخصة فرع موقّعة من مدير القطاع ووكيل الوزارة معاً.",
         "docHtml": DUAL_EN_BODY,
         "variables": DUAL_VARS,
         "workflow": DUAL_SIGN_CHAIN,
@@ -678,17 +678,17 @@ TEMPLATES: list[dict] = [
 CORRESPONDENCES: list[dict] = [
     {
         "id": "corr_1001",
-        "ref": "EHCD/REQ/2026/012",
-        "titleEn": "Approval — TutorCloud License",
-        "titleAr": "اعتماد — رخصة TutorCloud",
-        "templateId": "tpl_tutoring_en",
+        "ref": "MOET/REQ/2026/012",
+        "titleEn": "Approval — Trademark Registration (Al Noor Trading)",
+        "titleAr": "اعتماد — تسجيل علامة تجارية (النور للتجارة)",
+        "templateId": "tpl_trademark_en",
         "requesterId": "u_req",
         "status": "InReview",
         "values": {
-            "{{REF_NO}}": "EHCD/REQ/2026/012",
+            "{{REF_NO}}": "MOET/REQ/2026/012",
             "{{DATE}}": "2026-07-06",
-            "{{VENDOR}}": "TutorCloud",
-            "{{AMOUNT}}": "75,000",
+            "{{APPLICANT}}": "Al Noor Trading LLC",
+            "{{AMOUNT}}": "6,700",
             "{{SIG_DT}}": "sig_dt",
             "{{SIG_DIR}}": "",
             "{{SIG_GM}}": "",
@@ -698,7 +698,7 @@ CORRESPONDENCES: list[dict] = [
         "history": [
             {"id": "h_1", "actorId": "u_req", "action": "Created", "comment": "", "at": "2026-07-06T08:20:00Z"},
             {"id": "h_2", "actorId": "u_req", "action": "Sent", "comment": "Routing for approval.", "at": "2026-07-06T08:22:00Z"},
-            {"id": "h_3", "actorId": "u_dt", "action": "Approved", "comment": "Budget line confirmed. Vendor pre-qualified.", "commentAr": "تم تأكيد بند الميزانية وتأهيل المزوّد.", "at": "2026-07-06T10:05:00Z"},
+            {"id": "h_3", "actorId": "u_dt", "action": "Approved", "comment": "Formal examination complete; no opposition filed within the statutory period.", "commentAr": "اكتمل الفحص الشكلي ولم تُقدَّم اعتراضات خلال المدة القانونية.", "at": "2026-07-06T10:05:00Z"},
             {"id": "h_4", "actorId": "u_dt", "action": "Signed", "comment": "", "at": "2026-07-06T10:05:30Z"},
         ],
         "createdAt": "2026-07-06T08:20:00Z",
@@ -706,18 +706,18 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1002",
-        "ref": "EHCD/CIR/2026/031",
-        "titleEn": "Circular — Remote Work Guidelines",
-        "titleAr": "تعميم — إرشادات العمل عن بُعد",
+        "ref": "MOET/CIR/2026/031",
+        "titleEn": "Circular — Consumer Protection Compliance",
+        "titleAr": "تعميم — الامتثال لحماية المستهلك",
         "templateId": "tpl_circular_en",
         "requesterId": "u_req",
         "status": "Rejected",
         "values": {
-            "{{REF_NO}}": "EHCD/CIR/2026/031",
+            "{{REF_NO}}": "MOET/CIR/2026/031",
             "{{DATE}}": "2026-07-02",
-            "{{AUDIENCE}}": "All Departments",
-            "{{SUBJECT}}": "Updated Remote Work Guidelines",
-            "{{BODY}}": "Effective from the date of this circular, remote work requests must be submitted through the digital HR portal at least three (3) working days in advance.",
+            "{{AUDIENCE}}": "All Licensed Commercial Establishments",
+            "{{SUBJECT}}": "Updated Consumer Protection Compliance Requirements",
+            "{{BODY}}": "Effective from the date of this circular, all licensed establishments must display clear pricing and honour advertised promotional prices, and must respond to consumer complaints received through the Ministry within five (5) working days.",
             "{{SIG_DIR}}": "",
             "{{SIG_GM}}": "",
         },
@@ -726,21 +726,21 @@ CORRESPONDENCES: list[dict] = [
         "history": [
             {"id": "h_1", "actorId": "u_req", "action": "Created", "comment": "", "at": "2026-07-02T09:00:00Z"},
             {"id": "h_2", "actorId": "u_req", "action": "Sent", "comment": "", "at": "2026-07-02T09:03:00Z"},
-            {"id": "h_3", "actorId": "u_dir", "action": "Rejected", "comment": "Please align wording with FAHR remote-work policy 2026 and cite the policy reference number.", "commentAr": "يرجى مواءمة الصياغة مع سياسة العمل عن بُعد 2026 وذكر رقمها المرجعي.", "at": "2026-07-02T14:30:00Z"},
+            {"id": "h_3", "actorId": "u_dir", "action": "Rejected", "comment": "Please cite the Consumer Protection Law and its Implementing Regulation, and add the penalty schedule for non-compliance.", "commentAr": "يرجى الاستناد إلى قانون حماية المستهلك ولائحته التنفيذية، وإضافة جدول الجزاءات عند المخالفة.", "at": "2026-07-02T14:30:00Z"},
         ],
         "createdAt": "2026-07-02T09:00:00Z",
         "updatedAt": "2026-07-02T14:30:00Z",
     },
     {
         "id": "corr_1003",
-        "ref": "EHCD/HR/2026/019",
+        "ref": "MOET/HR/2026/019",
         "titleEn": "Announcement — Eid Al Adha Holiday",
         "titleAr": "إعلان — عطلة عيد الأضحى",
         "templateId": "tpl_holiday_en",
         "requesterId": "u_req",
         "status": "Completed",
         "values": {
-            "{{REF_NO}}": "EHCD/HR/2026/019",
+            "{{REF_NO}}": "MOET/HR/2026/019",
             "{{DATE}}": "2026-05-28",
             "{{OCCASION}}": "Eid Al Adha",
             "{{FROM_DATE}}": "2026-06-05",
@@ -761,16 +761,16 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1004",
-        "ref": "EHCD/REQ/2026/018",
-        "titleEn": "Approval — LMS Analytics Add-on",
-        "titleAr": "اعتماد — إضافة تحليلات نظام التعلّم",
-        "templateId": "tpl_tutoring_en",
+        "ref": "MOET/REQ/2026/018",
+        "titleEn": "Approval — Industrial Design Registration",
+        "titleAr": "اعتماد — تسجيل تصميم صناعي",
+        "templateId": "tpl_trademark_en",
         "requesterId": "u_req",
         "status": "InReview",
         "values": {
-            "{{REF_NO}}": "EHCD/REQ/2026/018",
+            "{{REF_NO}}": "MOET/REQ/2026/018",
             "{{DATE}}": "2026-07-09",
-            "{{VENDOR}}": "InsightLearn Analytics",
+            "{{APPLICANT}}": "InsightLearn Analytics",
             "{{AMOUNT}}": "48,500",
             "{{SIG_DT}}": "",
             "{{SIG_DIR}}": "",
@@ -787,16 +787,16 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1005",
-        "ref": "EHCD/CIR/2026/029",
-        "titleEn": "Circular — Digital Correspondence Rollout",
-        "titleAr": "تعميم — إطلاق المراسلات الرقمية",
+        "ref": "MOET/CIR/2026/029",
+        "titleEn": "Circular — National SME Programme Rollout",
+        "titleAr": "تعميم — إطلاق البرنامج الوطني للمنشآت الصغيرة والمتوسطة",
         "templateId": "tpl_circular_en",
         "requesterId": "u_req",
         "status": "InReview",
         "values": {
-            "{{REF_NO}}": "EHCD/CIR/2026/029",
+            "{{REF_NO}}": "MOET/CIR/2026/029",
             "{{DATE}}": "2026-07-08",
-            "{{AUDIENCE}}": "All Departments",
+            "{{AUDIENCE}}": "All Licensed Commercial Establishments",
             "{{SUBJECT}}": "Adoption of the NAZO Digital Correspondence System",
             "{{BODY}}": "All units are requested to route official correspondence through the NAZO platform effective immediately, ensuring reference numbers and approvals are recorded digitally.",
             "{{SIG_DIR}}": "sig_dir",

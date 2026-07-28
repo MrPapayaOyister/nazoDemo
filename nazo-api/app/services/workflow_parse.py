@@ -84,7 +84,7 @@ WORKFLOW_IR_SCHEMA: dict[str, Any] = {
 }
 
 _IR_SYSTEM = (
-    "You convert a described approval chain for the EHCD e-correspondence system "
+    "You convert a described approval chain for the Ministry of Economy & Tourism e-correspondence system "
     "into a structured workflow IR. Map every role name to one of these role ids "
     "ONLY: requester (GM Office), dtManager (Digital Transformation Manager), "
     "director (Digitalization Director), gm (General Manager), chair (Chairperson), "

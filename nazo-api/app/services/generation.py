@@ -31,7 +31,7 @@ from app.services.workflow_parse import WORKFLOW_IR_SCHEMA
 logger = logging.getLogger("nazo.ai.generation")
 
 # ---------------------------------------------------------------------------
-# Standard requester-owned variables (mirror seed TUTORING_VARS head).
+# Standard requester-owned variables (mirror seed TRADEMARK_VARS head).
 # ---------------------------------------------------------------------------
 STANDARD_VARS: list[dict[str, Any]] = [
     {
@@ -40,7 +40,7 @@ STANDARD_VARS: list[dict[str, Any]] = [
         "labelAr": "الرقم المرجعي",
         "type": "Text",
         "group": "Requester",
-        "placeholder": "EHCD/REQ/2026/___",
+        "placeholder": "MOET/REQ/2026/___",
         "required": True,
     },
     {
@@ -149,7 +149,7 @@ GENERATION_SCHEMA_AR: dict[str, Any] = {
 }
 
 _GEN_SYSTEM = (
-    "You are Nazo, drafting official government memos for the EHCD e-correspondence "
+    "You are Nazo, drafting official government memos for the UAE Ministry of Economy & Tourism e-correspondence "
     "system. Produce a reusable TEMPLATE, not a filled letter: put reusable data "
     "behind {{PLACEHOLDER}} tokens (e.g. {{VENDOR}}, {{AMOUNT}}, {{SUBJECT}}, "
     "{{AUDIENCE}}) — NEVER write a literal money amount or reference number. "
@@ -174,7 +174,7 @@ _GEN_SYSTEM = (
 # Arabic-native generation system prompt (F2). The Arabic memo is drafted in its
 # OWN structured call — never emitted alongside the English body (that truncates).
 _GEN_SYSTEM_AR = (
-    "أنت نازو، تُعِدّ مذكّرات حكومية رسمية لنظام المراسلات الإلكترونية EHCD. "
+    "أنت نازو، تُعِدّ مذكّرات حكومية رسمية لنظام المراسلات الإلكترونية بوزارة الاقتصاد والسياحة. "
     "Produce a reusable Arabic TEMPLATE. Write EVERYTHING in formal Modern Standard "
     "Arabic. bodyAr MUST be a COMPLETE full-page official Arabic memo of roughly "
     "350-500 words, written as multiple HTML <p> paragraphs and organised into "
@@ -400,7 +400,7 @@ def _clean_content_variables(raw: Any, lang: str = "en") -> list[dict[str, Any]]
 
 def _signature_vars_for(workflow: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """One Signature TemplateVariable per SIGNING workflow step, in chain order,
-    deduped by tag. group = that role (matches seed TUTORING_VARS signatures)."""
+    deduped by tag. group = that role (matches seed TRADEMARK_VARS signatures)."""
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for step in workflow:

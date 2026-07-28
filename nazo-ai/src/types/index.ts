@@ -2,7 +2,7 @@
 // NAZO AI — domain + AI types.
 // Canonical bindings (master prompt §3.1): RoleId literals, dotted AiActionId
 // registry, 10-member SideEffect union, chain node ids n_start/n_dt/n_dir/n_gm/
-// n_end, DEMO_REF = EHCD/REQ/2026/031, currency AED, demo clock base 2026-07-10.
+// n_end, DEMO_REF = MOET/REQ/2026/031, currency AED, demo clock base 2026-07-10.
 // ============================================================================
 
 // ---------- Enums / unions ----------
@@ -33,6 +33,7 @@ export type Capability =
   | 'document.download'
   | 'template.author'
   | 'template.save_personal'
+  | 'template.manage_all'
   | 'org.config'
   | 'broadcast.create'
   | 'users.manage'
@@ -215,7 +216,7 @@ export interface TemplateShare {
 }
 
 export interface Template {
-  id: string // 'tpl_tutoring_en'
+  id: string // 'tpl_trademark_en'
   nameEn: string
   nameAr: string
   lang: Lang // primary language of this variant
@@ -353,7 +354,7 @@ export interface Attachment {
 
 export interface Correspondence {
   id: string // 'corr_1001'
-  ref: string // 'EHCD/REQ/2026/031'
+  ref: string // 'MOET/REQ/2026/031'
   titleEn: string
   titleAr: string
   templateId: string

@@ -55,7 +55,7 @@ DOCTOP = "docTop"
 # Prompt scaffolding.
 # ---------------------------------------------------------------------------
 SYSTEM_BASE = (
-    "You are Nazo, an assistant embedded in the EHCD government e-correspondence "
+    "You are Nazo, an assistant embedded in the UAE Ministry of Economy & Tourism e-correspondence "
     "system. You help approvers and requesters work with official bilingual "
     "(Arabic/English) letters. Be concise, factual, and neutral. Never invent "
     "monetary amounts, reference numbers, names, or dates that are not present in "
@@ -97,7 +97,7 @@ def render_letter_text(template: Template, values: dict[str, str]) -> str:
     for tag, val in (values or {}).items():
         replacement = "" if tag in sig_tags else str(val or "")
         doc = doc.replace(tag, replacement)
-    doc = doc.replace("{{LETTERHEAD}}", "Emirates Health Council Directorate (EHCD)")
+    doc = doc.replace("{{LETTERHEAD}}", "Ministry of Economy & Tourism (MoET)")
     doc = _LEFTOVER_TAG_RE.sub("", doc)
     return strip_html(doc)
 
@@ -361,8 +361,8 @@ async def requester_check_errors(session: Session, user: AppUser, ctx: dict[str,
         tpl = _template_for(session, corr)
         values = corr.values or {}
     else:
-        hint = ctx.get("docId") or "tpl_tutoring_en"
-        tpl = session.get(Template, hint) or session.get(Template, "tpl_tutoring_en")
+        hint = ctx.get("docId") or "tpl_trademark_en"
+        tpl = session.get(Template, hint) or session.get(Template, "tpl_trademark_en")
         values = ctx.get("values") or {}
 
     if tpl is not None:
@@ -422,10 +422,10 @@ async def requester_auto_fill(session: Session, user: AppUser, ctx: dict[str, An
     if corr is not None:
         tpl = _template_for(session, corr)
     else:
-        # Create-draft path: resolve a template hint or fall back to the tutoring
+        # Create-draft path: resolve a template hint or fall back to the trademark
         # approval template that the demo drives.
-        hint = ctx.get("docId") or "tpl_tutoring_en"
-        tpl = session.get(Template, hint) or session.get(Template, "tpl_tutoring_en")
+        hint = ctx.get("docId") or "tpl_trademark_en"
+        tpl = session.get(Template, hint) or session.get(Template, "tpl_trademark_en")
     if tpl is None:
         raise SSEError(
             "No template is available to fill.",
@@ -506,8 +506,8 @@ async def _translate(session: Session, user: AppUser, ctx: dict[str, Any], provi
         tpl = _template_for(session, corr)
         values = corr.values or {}
     else:
-        hint = ctx.get("docId") or "tpl_tutoring_en"
-        tpl = session.get(Template, hint) or session.get(Template, "tpl_tutoring_en")
+        hint = ctx.get("docId") or "tpl_trademark_en"
+        tpl = session.get(Template, hint) or session.get(Template, "tpl_trademark_en")
         values = {}
     if tpl is None:
         raise SSEError(
@@ -545,7 +545,7 @@ async def _translate(session: Session, user: AppUser, ctx: dict[str, Any], provi
         and paragraphs
     ):
         # Lead with the letterhead token so BOTH the viewer's DocumentRenderer and the
-        # backend PDF render the EHCD header identically, and CARRY OVER the source
+        # backend PDF render the MoET header identically, and CARRY OVER the source
         # document's locked sign-block (its {{SIG_*}} tokens) so the translated view/PDF
         # still stamps the approvers' signatures instead of appearing unsigned.
         src_doc = (
@@ -775,7 +775,7 @@ STAGES: dict[str, list[dict[str, str]]] = {
     ],
     "admin.generateTemplate": [
         _stage("read", "Reading your request…", "قراءة طلبك…", "Understanding the request…", "فهم الطلب…"),
-        _stage("draft", "Drafting an official EHCD memo…", "صياغة مذكرة رسمية…", "Writing the letter…", "كتابة الخطاب…"),
+        _stage("draft", "Drafting an official MoET memo…", "صياغة مذكرة رسمية…", "Writing the letter…", "كتابة الخطاب…"),
         _stage("structure", "Structuring justification & budget…", "هيكلة المبررات والميزانية…", "Structuring the memo…", "هيكلة المذكرة…"),
         _stage("detect", "Detecting fields to make reusable…", "اكتشاف الحقول القابلة لإعادة الاستخدام…", "Detecting fields…", "اكتشاف الحقول…"),
     ],

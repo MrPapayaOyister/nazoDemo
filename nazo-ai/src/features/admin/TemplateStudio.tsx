@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Sparkles,
   FileText,
@@ -47,7 +47,7 @@ const LANG_OPTS: { value: GenLang; en: string; ar: string }[] = [
 ]
 
 const PLACEHOLDERS: { en: string; ar: string }[] = [
-  { en: 'Approval memo to purchase tutoring software for the National Tutoring Program…', ar: 'مذكرة اعتماد لشراء برنامج دروس مساندة للبرنامج الوطني للدروس…' },
+  { en: 'Approval memo for a trademark registration application under Industrial Property Services…', ar: 'مذكرة اعتماد لطلب تسجيل علامة تجارية ضمن خدمات الملكية الصناعية…' },
   { en: 'Official circular to all departments about the new correspondence system…', ar: 'تعميم رسمي لجميع الإدارات حول نظام المراسلات الجديد…' },
   { en: 'HR announcement for an upcoming public holiday…', ar: 'إعلان من الموارد البشرية عن عطلة رسمية قادمة…' },
 ]
@@ -65,6 +65,7 @@ export function TemplateStudio() {
   const editingTemplateId = useStore((s) => s.editingTemplateId)
   const templates = useStore((s) => s.templates)
 
+  const [params] = useSearchParams()
   const [prompt, setPrompt] = useState('')
   const [phIdx, setPhIdx] = useState(0)
   const [size, setSize] = useState<TemplateSize>('large')
@@ -116,6 +117,12 @@ export function TemplateStudio() {
     }
     if (editingTemplateId) void updateTemplate(tpl)
     else void publishTemplate(tpl)
+    // Authored inline from the create flow (?returnTo=) — hand the user straight back
+    // so they can pick the template they just made without re-navigating.
+    const returnTo = params.get('returnTo')
+    if (returnTo && returnTo.startsWith('/')) {
+      window.setTimeout(() => navigate(returnTo), 900)
+    }
   }
 
   return (
