@@ -32,6 +32,9 @@ interface StatChipProps {
   icon: ReactNode
   tone?: 'brand' | 'ai' | 'success' | 'warning' | 'danger'
   alert?: boolean
+  /** Phase 5 — when present the chip becomes an interactive button (drills into a
+   *  filtered list). Purely-informational chips omit it and stay inert/unfocusable. */
+  onClick?: () => void
 }
 
 const TONE: Record<NonNullable<StatChipProps['tone']>, string> = {
@@ -42,14 +45,31 @@ const TONE: Record<NonNullable<StatChipProps['tone']>, string> = {
   danger: 'bg-danger-subtle text-danger',
 }
 
-export function StatChip({ label, value, icon, tone = 'brand', alert }: StatChipProps) {
+export function StatChip({ label, value, icon, tone = 'brand', alert, onClick }: StatChipProps) {
   const n = useCountUp(value)
+  const interactive = !!onClick
   return (
     <motion.div
       variants={riseItem}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick!()
+              }
+            }
+          : undefined
+      }
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      whileHover={interactive ? { y: -2 } : undefined}
       className={cn(
         'rounded-2xl bg-surface hairline shadow-e1 p-4 flex items-center gap-3.5',
         alert && value > 0 && 'ring-1 ring-danger/30',
+        interactive &&
+          'cursor-pointer transition-shadow hover:shadow-e2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
       )}
     >
       <span className={cn('grid place-items-center size-11 rounded-xl shrink-0', TONE[tone])}>{icon}</span>

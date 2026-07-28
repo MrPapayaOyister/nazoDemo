@@ -13,6 +13,30 @@ export type RoleId =
   | 'director' // Digitalization Director
   | 'gm' // General Manager
   | 'chair' // Chairperson (reserve, never in a workflow)
+  | 'broadcaster' // Phase 1: read-only + may send broadcasts; NEVER in an approval chain
+  | 'viewer' // Phase 1: read-only recipient; NEVER acts (no create/send/approve/sign)
+
+/** Coarse UI gate (Phase 1). `actor` = the 6 original identities (full workflow
+ *  participation); `broadcaster`/`viewer` = the restricted new identities. Derived
+ *  from role; do NOT use for fine-grained checks (use Capability instead). */
+export type AccessLevel = 'actor' | 'broadcaster' | 'viewer'
+
+/** Capability strings — the single source of truth is the backend
+ *  (app/permissions.py). Mirrored client-side in @/lib/permissions for UI gating;
+ *  server-side enforcement is authoritative. */
+export type Capability =
+  | 'view'
+  | 'correspondence.create'
+  | 'correspondence.send'
+  | 'correspondence.act'
+  | 'attachment.add'
+  | 'document.download'
+  | 'template.author'
+  | 'template.save_personal'
+  | 'org.config'
+  | 'broadcast.create'
+  | 'users.manage'
+  | 'admin.reset'
 
 export type Theme = 'light' | 'dark'
 export type Lang = 'en' | 'ar'
@@ -92,6 +116,13 @@ export interface User {
   signatureId?: string
   /** The user's signature gallery (item 1). Hydrated from bootstrap; may be empty. */
   signatures?: SignatureMeta[]
+  /** Coarse access gate (Phase 1). Absent on offline seed → derived from role. */
+  accessLevel?: AccessLevel
+  /** Department / group label (Phase 1; broadcast targeting). */
+  department?: string
+  /** Capability set from the backend (single source of truth). When absent
+   *  (offline seed) capabilities are derived from `role`. See @/lib/permissions. */
+  capabilities?: Capability[]
 }
 
 export interface Signature {
@@ -131,9 +162,57 @@ export interface WorkflowStep {
   /** ADDITIVE (back-compat). Explicit assignment; defaults to { kind:'role',
    *  ref: role } when absent so existing seeds/templates resolve unchanged. */
   assignment?: WorkflowAssignment
+  /** Phase 4 (ADDITIVE). A SIGNING step marked required=false is OPTIONAL: its
+   *  assignee may SKIP it (the chain advances without stamping that role's token).
+   *  Absent → required (back-compat: every existing signer stays mandatory). */
+  required?: boolean
+  /** Phase 4 (ADDITIVE, flagged, NOT rendered). Optional signature placement for a
+   *  Signing step — page + normalized box + anchor. Serialized through the template
+   *  workflow JSON and the frozen snapshot as forward-contract metadata; the document
+   *  renderer still uses the token sign-block (placement does not affect output yet). */
+  placement?: SignaturePlacement
+}
+
+/** Phase 4 forward-contract: where a signature *could* be placed on the rendered page.
+ *  All fields optional; x/y/w/h are page-normalized fractions (0..1). NOT rendered. */
+export interface SignaturePlacement {
+  page?: number // 1-based page index
+  x?: number // 0..1 from left
+  y?: number // 0..1 from top
+  w?: number // 0..1 width
+  h?: number // 0..1 height
+  anchor?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
 }
 
 export type TemplateCategory = 'Approval' | 'Circular' | 'Announcement'
+
+/** Phase 2a. 'dynamic' = an org template (Phase 3 lets it reference a reusable
+ *  workflow); 'manual' = a personal template (e.g. saved from a correspondence) that
+ *  ALWAYS carries a non-empty inline workflow[]. */
+export type TemplateType = 'dynamic' | 'manual'
+/** 'private' = owner + explicit shares only; 'shared' = owner + shares; 'global' =
+ *  any actor may use. */
+export type TemplateVisibility = 'private' | 'shared' | 'global'
+/** Per-template ACL capabilities carried by a share grant (edit_layout enforced in
+ *  Phase 2b). Distinct from the role-level {@link Capability}. */
+export type TemplateShareCapability =
+  | 'use'
+  | 'edit_content'
+  | 'edit_template'
+  | 'edit_layout'
+  | 'share'
+
+/** A grant sharing a template with a specific user OR a whole role (Phase 2a). */
+export interface TemplateShare {
+  id: string
+  templateId: string
+  granteeKind: 'user' | 'role'
+  /** User.id when granteeKind==='user', RoleId when 'role'. */
+  granteeRef: string
+  capabilities: TemplateShareCapability[]
+  sharedBy: string // User.id
+  createdAt: string
+}
 
 export interface Template {
   id: string // 'tpl_tutoring_en'
@@ -151,6 +230,50 @@ export interface Template {
   twinId?: string
   updatedAt: string
   usageCount: number
+  // --- Phase 2a (additive; absent on offline seed / older backends) --------
+  templateType?: TemplateType
+  visibility?: TemplateVisibility
+  /** owning User.id (absent = system/seed template). */
+  owner?: string
+  /** grant rows — populated lazily (GET /templates/{id}/shares), not from bootstrap. */
+  shares?: TemplateShare[]
+  /** Phase 2b — the layout master owning this template's locked zones (absent = none). */
+  layoutMasterId?: string
+  /** Phase 3 — the reusable workflow-definition VERSION this chain came from (absent = ad-hoc). */
+  workflowVersionId?: string
+}
+
+/** Phase 3 — one immutable version of a reusable workflow (a verbatim WorkflowStep[]). */
+export interface WorkflowDefinitionVersion {
+  id: string
+  definitionId: string
+  version: number
+  steps: WorkflowStep[]
+  createdAt?: string
+}
+
+/** Phase 3 — a named, reusable, versioned approval workflow. Editing appends a version. */
+export interface WorkflowDefinition {
+  id: string
+  name: string
+  owner?: string
+  createdAt?: string
+  updatedAt?: string
+  versions: WorkflowDefinitionVersion[]
+  latestVersion: number
+}
+
+/** Phase 2b — a reusable letterhead/branding master that owns a template's LOCKED
+ *  zones (letterhead + sign-block frame). Empty header/footer fall back to the global
+ *  OrgConfig; `locked` gates whether the frame may be edited without `edit_layout`. */
+export interface LayoutMaster {
+  id: string
+  name: string
+  header: Partial<OrgHeader>
+  footer: Partial<OrgFooter>
+  locked: boolean
+  createdAt?: string
+  updatedAt?: string
 }
 
 // ---------- Global letterhead config (item 2 — editable header + footer) ----------
@@ -190,9 +313,21 @@ export interface HistoryEntry {
   at: string // ISO
 }
 
-export type AttachmentContext = 'create' | 'approve' | 'reject'
+/** Phase 7 — a per-recipient inbox notification (named AppNotification to avoid the DOM
+ *  `Notification` global). Emitted by workflow transitions + template shares. */
+export type NotificationType = 'awaiting' | 'returned' | 'completed' | 'template_shared'
+export interface AppNotification {
+  id: string
+  type: NotificationType
+  correspondenceId?: string | null
+  payload: Record<string, unknown>
+  createdAt: string
+  readAt?: string | null
+}
+
+export type AttachmentContext = 'create' | 'approve' | 'reject' | 'sign'
 /** A file attached to a correspondence at a specific action (metadata; bytes are
- *  fetched via the download endpoint). */
+ *  fetched via the view/download endpoint). */
 export interface Attachment {
   id: string
   correspondenceId: string
@@ -203,6 +338,17 @@ export interface Attachment {
   contentType: string
   sizeBytes: number
   createdAt: string
+  /** Phase 6 — a SIGNED VARIANT (context 'sign') is a NEW immutable row whose
+   *  parentAttachmentId points at the original; the signature is a RECORD (signer +
+   *  time + content hash + placement) overlaid in the in-app viewer, not stamped into
+   *  the bytes. Absent on originals. */
+  parentAttachmentId?: string | null
+  isSigned?: boolean
+  signerId?: string | null
+  signedAt?: string | null
+  contentHash?: string | null
+  signatureAssetRef?: string | null
+  placement?: SignaturePlacement
 }
 
 export interface Correspondence {
@@ -225,6 +371,10 @@ export interface Correspondence {
    *  adds/removes a variable or edits the body at correspondence-creation time. */
   variablesOverride?: TemplateVariable[]
   docHtmlOverride?: string
+  /** Phase 8 — persisted Arabic translation of this correspondence's body (from the
+   *  translate AI action). When present it is the AR-locale source in the viewer + PDF,
+   *  replacing the English-in-RTL fallback for docs without a hand-authored Arabic twin. */
+  docHtmlAr?: string | null
   /** Files attached at create/approve/reject (metadata; bytes fetched on download). */
   attachments?: Attachment[]
   history: HistoryEntry[]
@@ -293,6 +443,11 @@ export interface TemplateDraft {
   variables: TemplateVariable[]
   workflow: WorkflowStep[]
   localePreview: Lang
+  /** Phase 2a — the studio always carries a type + visibility (defaulted). */
+  templateType: TemplateType
+  visibility: TemplateVisibility
+  /** Phase 3 — the reusable workflow-definition version this draft is bound to (if any). */
+  workflowVersionId?: string
 }
 
 /** Canonical SideEffect union (master §3.1 rule 3). Data-only; applied by the
@@ -324,6 +479,14 @@ export interface AiContext {
   prompt?: string
   /** Template-generation length (admin.generateTemplate). Default 'large'. */
   size?: TemplateSize
+  /** Phase 8 — explicit output language for AI generation. Omit (undefined) to let the
+   *  backend auto-detect from the prompt; 'en'/'ar' forces the language. */
+  lang?: 'en' | 'ar'
+  /** Phase 8 — opt IN to PERSISTING the translation onto `corrId`'s Arabic body. Only the
+   *  viewer's "Translate to Arabic" sets it; without it translate is preview-only, so a
+   *  studio/create-draft translate can never overwrite an unrelated correspondence
+   *  (the sidebar forwards the last-opened viewer corrId to every action). */
+  persistAr?: boolean
 }
 
 /** Fully-resolved, concrete step ready for the engine to play. */

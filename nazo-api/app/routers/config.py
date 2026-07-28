@@ -21,6 +21,7 @@ from sqlmodel import Session
 
 from app.deps import get_current_user, get_session
 from app.models import AppUser, OrgConfig
+from app.permissions import MANAGE_ORG_CONFIG, require
 from app.routers.serializers import serialize_org_config
 from app.seed import data as seed_data
 
@@ -67,13 +68,10 @@ def patch_org(
     body: OrgConfigPatch,
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(MANAGE_ORG_CONFIG)),
 ) -> dict:
-    """Merge header/footer edits into the singleton config. Admin-authored, but the
-    demo has no RBAC beyond identity — every seeded user may edit."""
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown user."
-        )
+    """Merge header/footer edits into the singleton letterhead config (admin only —
+    the global letterhead / layout master is protected, Phase 1)."""
     row = _get_or_seed(session)
     if body.header:
         # Reassign (not in-place mutate) so SQLAlchemy flags the JSON column dirty.

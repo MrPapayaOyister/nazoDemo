@@ -17,6 +17,8 @@ const ROLE_LABEL: Record<RoleId, { en: string; ar: string }> = {
   director: { en: 'Approver · 2', ar: 'معتمِد · 2' },
   gm: { en: 'Approver · 3', ar: 'معتمِد · 3' },
   chair: { en: 'Reserve', ar: 'احتياطي' },
+  broadcaster: { en: 'Broadcaster', ar: 'مذيع' },
+  viewer: { en: 'Viewer', ar: 'مشاهد' },
 }
 
 export function AdminUsers() {

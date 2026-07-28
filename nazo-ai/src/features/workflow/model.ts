@@ -8,6 +8,7 @@
 // ============================================================================
 import type {
   RoleId,
+  TemplateVariable,
   User,
   WorkflowAction,
   WorkflowAssignment,
@@ -35,6 +36,8 @@ export const ROLE_LABELS: Record<RoleId, { en: string; ar: string }> = {
   gm: { en: 'General Manager', ar: 'المدير العام' },
   chair: { en: 'Chairperson', ar: 'الرئيس' },
   admin: { en: 'Administrator', ar: 'المسؤول' },
+  broadcaster: { en: 'Broadcaster', ar: 'مذيع' },
+  viewer: { en: 'Viewer', ar: 'مشاهد' },
 }
 
 export const ALL_ACTIONS: WorkflowAction[] = [
@@ -300,4 +303,30 @@ export function validateWorkflowGraph(
   }
 
   return { errors, warnings }
+}
+
+/**
+ * Phase 4 — mirror the backend's signing-wiring rule (server returns 422 at publish):
+ * every SIGNING step needs a Signature variable whose `group` === the step's role, so
+ * the signer's stamp actually lands in the document. Returns BLOCKING errors so Publish
+ * is gated client-side too. Unassigned steps are skipped (they're separately blocked and
+ * carry only a placeholder role).
+ */
+export function signingWiringErrors(
+  steps: WorkflowStep[],
+  variables: TemplateVariable[],
+): WFMsg[] {
+  const sigRoles = new Set(
+    (variables ?? []).filter((v) => v.type === 'Signature').map((v) => v.group),
+  )
+  const missing = new Set<string>()
+  for (const s of steps) {
+    if (isUnassigned(s)) continue
+    const isSigning = s.type === 'Signing' || s.sign
+    if (isSigning && !sigRoles.has(s.role)) missing.add(s.role)
+  }
+  return [...missing].sort().map((role) => ({
+    en: `Signing step for "${role}" has no matching signature field — add a Signature variable for it.`,
+    ar: `خطوة التوقيع للدور "${role}" بلا حقل توقيع مطابق — أضِف متغيّر توقيع له.`,
+  }))
 }

@@ -20,7 +20,6 @@ import { Button } from '@/components/ui/Button'
 import { useStore } from '@/store'
 import { useLocalized } from '@/i18n'
 import { riseItem } from '@/lib/motion'
-import type { HistoryEntry } from '@/types'
 
 export function AdminOverview() {
   const tr = useLocalized()
@@ -40,14 +39,16 @@ export function AdminOverview() {
     [templates, correspondences, users],
   )
 
-  // recent activity: most-recent history entries across all correspondences
-  const recent = useMemo(() => {
-    const rows: HistoryEntry[] = correspondences
-      .flatMap((c) => c.history.map((h) => ({ ...h, id: `${c.id}_${h.id}` })))
-      .sort((a, b) => (a.at < b.at ? 1 : -1))
-      .slice(0, 7)
-    return rows
-  }, [correspondences])
+  // recent activity: most-recent history entries across all correspondences. Each row
+  // carries its correspondence id so the feed can navigate to it (Phase 5).
+  const recent = useMemo(
+    () =>
+      correspondences
+        .flatMap((c) => c.history.map((h) => ({ ...h, id: `${c.id}_${h.id}`, corrId: c.id })))
+        .sort((a, b) => (a.at < b.at ? 1 : -1))
+        .slice(0, 7),
+    [correspondences],
+  )
 
   return (
     <PageTransition>
@@ -64,10 +65,10 @@ export function AdminOverview() {
       />
 
       <motion.div variants={riseItem} className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatChip label={tr('Templates', 'النماذج')} value={kpis.templates} icon={<FileText className="size-5" />} tone="brand" />
-        <StatChip label={tr('In review', 'قيد المراجعة')} value={kpis.active} icon={<Loader2 className="size-5" />} tone="ai" />
-        <StatChip label={tr('Completed', 'مكتملة')} value={kpis.completed} icon={<CheckCircle2 className="size-5" />} tone="success" />
-        <StatChip label={tr('Users', 'المستخدمون')} value={kpis.users} icon={<Users className="size-5" />} tone="warning" />
+        <StatChip label={tr('Templates', 'النماذج')} value={kpis.templates} icon={<FileText className="size-5" />} tone="brand" onClick={() => navigate('/admin/templates')} />
+        <StatChip label={tr('Active', 'نشطة')} value={kpis.active} icon={<Loader2 className="size-5" />} tone="ai" onClick={() => navigate('/tracking?status=InReview')} />
+        <StatChip label={tr('Completed', 'مكتملة')} value={kpis.completed} icon={<CheckCircle2 className="size-5" />} tone="success" onClick={() => navigate('/tracking?status=Completed')} />
+        <StatChip label={tr('Users', 'المستخدمون')} value={kpis.users} icon={<Users className="size-5" />} tone="warning" onClick={() => navigate('/admin/users')} />
       </motion.div>
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -89,7 +90,7 @@ export function AdminOverview() {
         {/* activity feed */}
         <motion.div variants={riseItem} className="lg:col-span-2 rounded-2xl hairline bg-surface shadow-e1 p-5">
           <div className="text-[13px] font-semibold text-ink mb-4">{tr('Recent activity', 'النشاط الأخير')}</div>
-          <HistoryTimeline history={recent} />
+          <HistoryTimeline history={recent} onRowClick={(id) => navigate(`/correspondence/${id}`)} />
         </motion.div>
       </div>
     </PageTransition>

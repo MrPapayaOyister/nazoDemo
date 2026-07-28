@@ -65,6 +65,8 @@ class AiContextBody(BaseModel):
     # Template-generation controls (admin.generateTemplate).
     size: Optional[str] = None  # 'small' | 'medium' | 'large' (default large downstream)
     lang: Optional[str] = None  # 'en' | 'ar' explicit override (else auto-detected)
+    # Phase 8: opt IN to persisting a translation onto corrId's Arabic body (viewer only).
+    persistAr: Optional[bool] = None
 
 
 def _finalize_job(job_id: str, *, status: str, output: Optional[dict] = None, error: Optional[str] = None) -> None:
@@ -119,6 +121,7 @@ def run_ai_action(
         "values": body.values,
         "size": body.size,
         "lang": body.lang,
+        "persistAr": body.persistAr,
     }
 
     # Record the job as running BEFORE streaming (request session is still open).

@@ -4,11 +4,12 @@ import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Image } from '@tiptap/extension-image'
 import { TableKit } from '@tiptap/extension-table'
-import { Bold as BoldIcon, Italic as ItalicIcon, List, Plus, Trash2, X } from 'lucide-react'
+import { Bold as BoldIcon, Italic as ItalicIcon, List, Lock, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { TokenNode, TokenContext } from '@/features/admin/editor/TokenNode'
 import { Letterhead } from '@/components/common/Letterhead'
 import { DocumentFooter } from '@/components/common/DocumentFooter'
 import { Button } from '@/components/ui/Button'
+import { useOrgConfig } from '@/store'
 import { useLocalized, useLang } from '@/i18n'
 import {
   splitDocForEditor,
@@ -23,6 +24,24 @@ import {
 } from '@/features/admin/variableSync'
 import type { TemplateVariable, VariableType } from '@/types'
 import { cn } from '@/lib/cn'
+
+/** A slim corner tag marking an editor zone as LOCKED (letterhead / signatures /
+ *  footer — the layout-master frame the server protects) or EDITABLE (the body).
+ *  Editor-only: the read-only DocumentRenderer never renders these. */
+function ZoneTag({ locked, en, ar }: { locked: boolean; en: string; ar: string }) {
+  const tr = useLocalized()
+  return (
+    <span
+      className={cn(
+        'pointer-events-none absolute top-1.5 end-1.5 z-10 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide',
+        locked ? 'bg-subtle text-ink-muted' : 'bg-brand-subtle text-brand',
+      )}
+    >
+      {locked ? <Lock className="size-2.5" /> : <Pencil className="size-2.5" />}
+      {tr(en, ar)}
+    </span>
+  )
+}
 
 /** Preserve the `class` attribute on paragraphs/headings (e.g. the `meta` reference
  *  line) through the editor round-trip, without replacing StarterKit's nodes. */
@@ -138,6 +157,13 @@ export function InlineDocEditor({ docHtml, variables, lang, onDocChange, onVaria
 
   const selectedVar = selectedName ? variables.find((v) => v.tag === `{{${selectedName}}}`) : undefined
   const sigVars = variables.filter((v) => v.type === 'Signature')
+  // Whether the footer actually renders (mirrors DocumentFooter): only then do we wrap
+  // it in the dashed "Locked" box — otherwise the box would float over empty space.
+  const orgFooter = useOrgConfig().footer
+  const hasFooter =
+    lang === 'ar'
+      ? Boolean(orgFooter.lineAr || orgFooter.contactAr)
+      : Boolean(orgFooter.lineEn || orgFooter.contactEn)
 
   return (
     <div className="space-y-3">
@@ -173,23 +199,43 @@ export function InlineDocEditor({ docHtml, variables, lang, onDocChange, onVaria
 
       {/* the document surface */}
       <div className="nazo-doc rounded-2xl hairline bg-surface shadow-e1 p-6 sm:p-8" dir={lang === 'ar' ? 'rtl' : 'ltr'} lang={lang}>
-        <Letterhead lang={lang} />
-        <TokenContext.Provider value={{ variables, lang, selectedName, onSelect: setSelectedName }}>
-          <EditorContent editor={editor} />
-        </TokenContext.Provider>
+        {/* LOCKED — letterhead frame (server-enforced via the layout master). */}
+        <div className="relative rounded-lg outline-dashed outline-1 outline-line/70 bg-app/20">
+          <ZoneTag locked en="Locked" ar="مقفل" />
+          <Letterhead lang={lang} />
+        </div>
+        {/* EDITABLE — the body. */}
+        <div className="relative mt-1 rounded-lg ring-1 ring-brand/25">
+          <ZoneTag locked={false} en="Editable" ar="قابل للتعديل" />
+          <TokenContext.Provider value={{ variables, lang, selectedName, onSelect: setSelectedName }}>
+            <EditorContent editor={editor} />
+          </TokenContext.Provider>
+        </div>
+        {/* LOCKED — signature block. */}
         {sigVars.length > 0 && (
-          <div className="sign-block mt-8 flex flex-wrap gap-8 opacity-90">
-            {sigVars.map((v) => (
-              <div key={v.tag} className="text-center">
-                <div className="grid place-items-center w-[140px] h-[52px] rounded-lg border border-dashed border-line text-[11px] text-ink-muted">
-                  {tr('Signature', 'التوقيع')}
+          <div className="relative mt-2 rounded-lg outline-dashed outline-1 outline-line/70 bg-app/20 pt-1">
+            <ZoneTag locked en="Locked" ar="مقفل" />
+            <div className="sign-block mt-8 flex flex-wrap gap-8 opacity-90">
+              {sigVars.map((v) => (
+                <div key={v.tag} className="text-center">
+                  <div className="grid place-items-center w-[140px] h-[52px] rounded-lg border border-dashed border-line text-[11px] text-ink-muted">
+                    {tr('Signature', 'التوقيع')}
+                  </div>
+                  <div className="mt-1 text-[11px] font-semibold text-ink-secondary">{tr(v.labelEn, v.labelAr)}</div>
                 </div>
-                <div className="mt-1 text-[11px] font-semibold text-ink-secondary">{tr(v.labelEn, v.labelAr)}</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
-        <DocumentFooter lang={lang} />
+        {/* LOCKED — footer (only wrapped when it actually renders). */}
+        {hasFooter ? (
+          <div className="relative mt-2 rounded-lg outline-dashed outline-1 outline-line/70 bg-app/20">
+            <ZoneTag locked en="Locked" ar="مقفل" />
+            <DocumentFooter lang={lang} />
+          </div>
+        ) : (
+          <DocumentFooter lang={lang} />
+        )}
       </div>
 
       {/* selected-field configurator */}

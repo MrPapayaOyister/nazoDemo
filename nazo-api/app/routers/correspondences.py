@@ -8,6 +8,7 @@ raised by app.services.workflow are mapped to clean 403 / 404 / 409 responses.
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -29,7 +30,26 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.deps import get_current_user, get_session
-from app.models import AppUser, Attachment, Correspondence, CorrespondenceStep
+from app.permissions import (
+    ACT_ON_STEP,
+    ADD_ATTACHMENT,
+    CREATE_CORRESPONDENCE,
+    DOWNLOAD_DOCUMENT,
+    SEND_CORRESPONDENCE,
+    TPL_USE,
+    VIEW,
+    has_template_capability,
+    require,
+)
+from app.models import (
+    AppUser,
+    Attachment,
+    Correspondence,
+    CorrespondenceStep,
+    Signature,
+    Template,
+    TemplateShare,
+)
 from app.routers.serializers import (
     derive_current_step_index,
     order_correspondences,
@@ -80,6 +100,10 @@ class UpdateDraftBody(BaseModel):
 
 class RedirectBody(BaseModel):
     targetUserId: str
+    comment: Optional[str] = None
+
+
+class SkipBody(BaseModel):
     comment: Optional[str] = None
 
 
@@ -213,7 +237,23 @@ def create(
     body: CreateBody,
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(CREATE_CORRESPONDENCE)),
 ) -> dict:
+    # Visibility (Phase 2a): you may only create from a template you can USE — owned,
+    # admin, global, or shared-with. (A missing template falls through to the engine's
+    # 404.) Prevents creating from another user's private template.
+    template = session.get(Template, body.templateId)
+    if template is not None:
+        shares = list(
+            session.exec(
+                select(TemplateShare).where(TemplateShare.template_id == body.templateId)
+            ).all()
+        )
+        if not has_template_capability(current_user, template, shares, TPL_USE):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not permitted to use this template.",
+            )
     with _domain_errors(session):
         corr = workflow.create_correspondence(
             session, current_user, body.templateId, body.values
@@ -265,6 +305,7 @@ def send(
     corr_id: str,
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(SEND_CORRESPONDENCE)),
 ) -> dict:
     corr = _get_or_404(session, corr_id)
     with _domain_errors(session):
@@ -281,6 +322,7 @@ def approve(
     body: ApproveBody = ApproveBody(),
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(ACT_ON_STEP)),
 ) -> dict:
     corr = _get_or_404(session, corr_id)
     with _domain_errors(session):
@@ -305,6 +347,7 @@ def reject(
     body: RejectBody,
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(ACT_ON_STEP)),
 ) -> dict:
     corr = _get_or_404(session, corr_id)
     with _domain_errors(session):
@@ -321,6 +364,7 @@ def revise(
     body: ReviseBody = ReviseBody(),
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(ACT_ON_STEP)),
 ) -> dict:
     corr = _get_or_404(session, corr_id)
     with _domain_errors(session):
@@ -338,6 +382,7 @@ def redirect(
     body: RedirectBody,
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(ACT_ON_STEP)),
 ) -> dict:
     corr = _get_or_404(session, corr_id)
     with _domain_errors(session):
@@ -346,6 +391,28 @@ def redirect(
         )
         session.commit()
         session.refresh(corr)
+    return _serialize(session, corr)
+
+
+@router.post("/{corr_id}/skip")
+def skip(
+    corr_id: str,
+    background_tasks: BackgroundTasks,
+    body: SkipBody = SkipBody(),
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(ACT_ON_STEP)),
+) -> dict:
+    """Skip an OPTIONAL signing step (required=False): advance without stamping.
+    The service enforces assignee-only + signing-and-optional; a required signer, a
+    non-signing step, or a detour step is rejected (409)."""
+    corr = _get_or_404(session, corr_id)
+    with _domain_errors(session):
+        workflow.skip_step(session, current_user, corr, comment=body.comment)
+        session.commit()
+        session.refresh(corr)
+    # Post-commit audit snapshot (a skip can complete the chain) — non-blocking.
+    background_tasks.add_task(snapshot_version_bg, corr.id)
     return _serialize(session, corr)
 
 
@@ -359,6 +426,7 @@ async def upload_attachments(
     files: list[UploadFile] = File(...),
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(ADD_ATTACHMENT)),
 ) -> dict:
     """Store one or more uploaded files against a correspondence, tagged with the
     action (create/approve/reject) and the current chain step. Bytes go in-DB."""
@@ -398,26 +466,189 @@ async def upload_attachments(
     return {"correspondence": _serialize(session, corr), "count": saved}
 
 
+# Only these media types are ever served INLINE (rendered by the browser). Everything
+# else — notably text/html and image/svg+xml, which can carry scripts — is forced to a
+# download so an uploaded file can never execute in the app's same origin (stored XSS).
+_INLINE_SAFE = {
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+}
+
+
+def _disposition(kind: str, name: str) -> str:
+    """RFC 6266 Content-Disposition for `kind` ('inline'|'attachment'). The ASCII
+    fallback drops non-latin-1 chars (Starlette latin-1-encodes headers → 500) AND ASCII
+    control chars (a bare CR/LF in a crafted filename would make an illegal header value
+    → the ASGI server rejects the response); the real name rides filename* (percent-
+    encoded, so control chars there are safe)."""
+    ascii_fallback = (
+        "".join(c for c in name if 32 <= ord(c) < 127 and c != '"') or "attachment"
+    )
+    return f"{kind}; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(name)}"
+
+
 @router.get("/{corr_id}/attachments/{att_id}")
 def download_attachment(
     corr_id: str,
     att_id: str,
     session: Session = Depends(get_session),
     current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(DOWNLOAD_DOCUMENT)),
 ) -> Response:
     att = session.get(Attachment, att_id)
     if att is None or att.correspondence_id != corr_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found."
         )
-    # RFC 6266: a latin-1-safe ASCII fallback plus a UTF-8 encoded filename* so
-    # non-latin-1 names (e.g. Arabic "تقرير.pdf") don't crash Starlette's header
-    # encoder (it latin-1-encodes header values → UnicodeEncodeError → 500).
-    name = att.filename or "attachment"
-    ascii_fallback = name.encode("ascii", "ignore").decode("ascii").replace('"', "") or "attachment"
-    disposition = f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(name)}"
     return Response(
         content=bytes(att.data),
         media_type=att.content_type or "application/octet-stream",
-        headers={"Content-Disposition": disposition},
+        headers={
+            "Content-Disposition": _disposition("attachment", att.filename or "attachment"),
+            "X-Content-Type-Options": "nosniff",
+        },
     )
+
+
+@router.get("/{corr_id}/attachments/{att_id}/view")
+def view_attachment(
+    corr_id: str,
+    att_id: str,
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(VIEW)),
+) -> Response:
+    """In-browser (inline) view of an attachment — gated on VIEW so a view-only identity
+    can preview WITHOUT the download capability (Phase 6).
+
+    Only an allowlisted, non-executable media type is served INLINE; anything else (incl.
+    a crafted text/html or image/svg+xml that could run script in the app origin) is
+    forced to a download with a neutral octet-stream type + nosniff — closing the stored-
+    XSS vector on the attacker-controlled upload content_type."""
+    att = session.get(Attachment, att_id)
+    if att is None or att.correspondence_id != corr_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found."
+        )
+    ctype = (att.content_type or "").lower().split(";")[0].strip()
+    safe = ctype in _INLINE_SAFE
+    return Response(
+        content=bytes(att.data),
+        media_type=ctype if safe else "application/octet-stream",
+        headers={
+            "Content-Disposition": _disposition(
+                "inline" if safe else "attachment", att.filename or "attachment"
+            ),
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+class SignAttachmentBody(BaseModel):
+    signatureId: Optional[str] = None
+    page: Optional[int] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    w: Optional[float] = None
+    h: Optional[float] = None
+
+
+def _clamp01(v: Optional[float]) -> Optional[float]:
+    return None if v is None else max(0.0, min(1.0, v))
+
+
+_SIGNABLE = ("application/pdf",)  # + any image/* (checked separately)
+
+
+@router.post("/{corr_id}/attachments/{att_id}/sign", status_code=status.HTTP_201_CREATED)
+def sign_attachment(
+    corr_id: str,
+    att_id: str,
+    body: SignAttachmentBody = SignAttachmentBody(),
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+    _perm: AppUser = Depends(require(ACT_ON_STEP)),
+) -> dict:
+    """Sign an ORIGINAL attachment (Phase 6, lightweight signed record): create a NEW
+    immutable signed-variant row that copies the parent bytes verbatim and RECORDS the
+    signature (signer + time + SHA-256 content hash + placement). The original is never
+    modified; the signature is overlaid in the in-app viewer. PDF/image attachments only."""
+    corr = _get_or_404(session, corr_id)
+    parent = session.get(Attachment, att_id)
+    if parent is None or parent.correspondence_id != corr_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found."
+        )
+    # Only an ORIGINAL is signable — a signed variant is immutable and never re-signed.
+    if parent.is_signed or parent.parent_attachment_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only an original attachment can be signed.",
+        )
+    ctype = (parent.content_type or "").lower()
+    if ctype not in _SIGNABLE and not ctype.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF or image attachments can be signed.",
+        )
+
+    # Pick WHICH signature to record — an explicit OWNED id, else the actor's default.
+    chosen_sig_id = body.signatureId or current_user.signature_id
+    if not chosen_sig_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have no signature to sign with.",
+        )
+    sig = session.get(Signature, chosen_sig_id)
+    if sig is None or sig.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="That signature does not belong to you.",
+        )
+
+    now = _now_iso()
+    raw = bytes(parent.data)
+    digest = hashlib.sha256(raw).hexdigest()
+    active_order = derive_current_step_index(_steps_for(session, corr_id))
+    base, dot, ext = (parent.filename or "attachment").rpartition(".")
+    signed_name = f"{base} (signed).{ext}" if dot else f"{parent.filename or 'attachment'} (signed)"
+    session.add(
+        Attachment(
+            id=f"att_{uuid.uuid4().hex[:12]}",
+            correspondence_id=corr_id,
+            context="sign",
+            step_order=active_order if active_order >= 0 else None,
+            uploaded_by=current_user.id,
+            filename=signed_name,
+            content_type=parent.content_type,
+            size_bytes=parent.size_bytes,
+            data=raw,  # copied verbatim — bytes are NOT re-stamped (lightweight record)
+            created_at=now,
+            parent_attachment_id=parent.id,
+            is_signed=True,
+            signer_id=current_user.id,
+            signed_at=now,
+            content_hash=digest,
+            signature_asset_ref=chosen_sig_id,
+            sig_page=body.page if (body.page and body.page >= 1) else 1,
+            sig_x=_clamp01(body.x),
+            sig_y=_clamp01(body.y),
+            sig_w=_clamp01(body.w),
+            sig_h=_clamp01(body.h),
+        )
+    )
+    # Surface the signing in Document History.
+    workflow._append_history(
+        corr,
+        current_user.id,
+        "Commented",
+        comment=f"Signed attachment “{parent.filename}”.",
+        comment_ar=f"وقّع المرفق «{parent.filename}».",
+        at=now,
+    )
+    session.add(corr)
+    session.commit()
+    return _serialize(session, corr)

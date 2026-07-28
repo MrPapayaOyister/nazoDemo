@@ -33,7 +33,17 @@ function fmt(iso: string, lang: string): string {
   }
 }
 
-export function HistoryTimeline({ history }: { history: HistoryEntry[] }) {
+/** Rows may optionally carry a `corrId` so a feed (e.g. AdminOverview) can navigate to
+ *  the correspondence; single-correspondence usages (the viewer) omit it + onRowClick. */
+type TimelineRow = HistoryEntry & { corrId?: string }
+
+export function HistoryTimeline({
+  history,
+  onRowClick,
+}: {
+  history: TimelineRow[]
+  onRowClick?: (corrId: string) => void
+}) {
   const tr = useLocalized()
   const lang = useLang()
   return (
@@ -44,8 +54,30 @@ export function HistoryTimeline({ history }: { history: HistoryEntry[] }) {
         const user = USER_BY_ID[h.actorId]
         const last = i === history.length - 1
         const comment = tr(h.comment, h.commentAr ?? h.comment)
+        const clickable = !!onRowClick && !!h.corrId
         return (
-          <motion.li key={h.id} variants={riseItem} className="relative flex gap-3 pb-4">
+          <motion.li
+            key={h.id}
+            variants={riseItem}
+            onClick={clickable ? () => onRowClick!(h.corrId!) : undefined}
+            onKeyDown={
+              clickable
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onRowClick!(h.corrId!)
+                    }
+                  }
+                : undefined
+            }
+            role={clickable ? 'button' : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            className={cn(
+              'relative flex gap-3 pb-4',
+              clickable &&
+                'cursor-pointer rounded-lg -mx-1.5 px-1.5 transition-colors hover:bg-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
+            )}
+          >
             {!last && <span className="absolute start-[15px] top-8 bottom-0 w-px bg-line" />}
             <span className={cn('relative z-10 grid place-items-center size-8 rounded-full bg-surface hairline shrink-0', a.cls)}>
               <Icon className="size-4" />

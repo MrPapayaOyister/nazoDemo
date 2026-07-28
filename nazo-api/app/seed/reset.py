@@ -36,9 +36,12 @@ from app.models import (
     AppUser,
     Correspondence,
     CorrespondenceStep,
+    LayoutMaster,
     OrgConfig,
     Signature,
     Template,
+    WorkflowDefinition,
+    WorkflowDefinitionVersion,
 )
 from app.seed import data as seed_data
 from app.services.rag import ensure_collection
@@ -96,6 +99,8 @@ def _to_user(d: dict) -> AppUser:
         initials=d["initials"],
         color=d["color"],
         signature_id=d.get("signatureId"),
+        access_level=d.get("accessLevel", "actor"),
+        department=d.get("department", ""),
     )
 
 
@@ -124,6 +129,47 @@ def _to_template(d: dict) -> Template:
         twin_id=d.get("twinId"),
         updated_at=d["updatedAt"],
         usage_count=d["usageCount"],
+        # Phase 2a: seed templates are the canonical ORG templates — admin-owned,
+        # globally usable, dynamic. Per-entry seed dicts may override any of these.
+        template_type=d.get("templateType", "dynamic"),
+        owner_id=d.get("ownerId", "u_admin"),
+        visibility=d.get("visibility", "global"),
+        # Phase 2b: seed org templates reference the default LOCKED layout master.
+        layout_master_id=d.get("layoutMasterId", "lm_default"),
+        # Phase 3: optional reusable-workflow-version provenance.
+        workflow_version_id=d.get("workflowVersionId"),
+    )
+
+
+def _to_workflow_definition(d: dict) -> WorkflowDefinition:
+    return WorkflowDefinition(
+        id=d["id"],
+        name=d.get("name", ""),
+        owner_id=d.get("ownerId"),
+        created_at=d.get("createdAt", ""),
+        updated_at=d.get("updatedAt", ""),
+    )
+
+
+def _to_workflow_version(d: dict) -> WorkflowDefinitionVersion:
+    return WorkflowDefinitionVersion(
+        id=d["id"],
+        definition_id=d["definitionId"],
+        version=d["version"],
+        steps=d["steps"],
+        created_at=d.get("createdAt", ""),
+    )
+
+
+def _to_layout_master(d: dict) -> LayoutMaster:
+    return LayoutMaster(
+        id=d["id"],
+        name=d.get("name", ""),
+        header=d.get("header", {}),
+        footer=d.get("footer", {}),
+        locked=d.get("locked", True),
+        created_at=d.get("createdAt", ""),
+        updated_at=d.get("updatedAt", ""),
     )
 
 
@@ -155,11 +201,19 @@ def _upsert_seed(session: Session) -> None:
             updated_at=oc.get("updatedAt", ""),
         )
     )
-    # Insert order respects FKs: signatures -> users -> templates -> correspondences -> steps.
+    # Insert order respects FKs: signatures -> users -> layout_masters -> templates
+    # -> correspondences -> steps.
     for s in seed_data.SIGNATURES:
         session.merge(_to_signature(s))
     for u in seed_data.USERS:
         session.merge(_to_user(u))
+    for lm in seed_data.LAYOUT_MASTERS:
+        session.merge(_to_layout_master(lm))
+    # Workflow definitions + versions before templates (template FK -> version).
+    for wd in seed_data.WORKFLOW_DEFINITIONS:
+        session.merge(_to_workflow_definition(wd))
+    for wv in seed_data.WORKFLOW_DEFINITION_VERSIONS:
+        session.merge(_to_workflow_version(wv))
     for t in seed_data.TEMPLATES:
         session.merge(_to_template(t))
     for c in seed_data.CORRESPONDENCES:

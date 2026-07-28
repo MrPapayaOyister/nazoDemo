@@ -27,16 +27,19 @@ The correspondence never leaves 'InReview' during a detour.
 
 from __future__ import annotations
 
+import copy
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.models import (
     AppUser,
     Correspondence,
     CorrespondenceStep,
+    Notification,
     Signature,
     Template,
     WorkflowEvent,
@@ -139,6 +142,60 @@ def _emit_event(
     )
 
 
+def notify(
+    session: Session,
+    recipient_id: str,
+    type_: str,
+    dedupe_key: str,
+    *,
+    correspondence_id: Optional[str] = None,
+    payload: Optional[dict[str, Any]] = None,
+) -> None:
+    """Phase 7 — insert a Notification IDEMPOTENTLY. A duplicate dedupe_key is a no-op:
+    the insert runs inside a SAVEPOINT so the unique-constraint violation rolls back ONLY
+    the notification, never the surrounding transition. Safe to call more than once."""
+    notif = Notification(
+        id=gen_id("ntf"),
+        recipient_id=recipient_id,
+        type=type_,
+        correspondence_id=correspondence_id,
+        payload=payload or {},
+        dedupe_key=dedupe_key,
+        created_at=now_iso(),
+    )
+    try:
+        with session.begin_nested():
+            session.add(notif)
+    except IntegrityError:
+        pass  # already notified (dedupe hit)
+
+
+def _corr_payload(corr: Correspondence, **extra: Any) -> dict[str, Any]:
+    return {"titleEn": corr.title_en, "titleAr": corr.title_ar, "ref": corr.ref, **extra}
+
+
+def _notify_active_assignee(
+    session: Session, corr: Correspondence, actor_id: str, reason: str
+) -> None:
+    """Notify the assignee of the newly-active step that it is now theirs to act on.
+    Skips self-notification. `reason` distinguishes re-activations (e.g. a detour return)
+    so they aren't deduped away."""
+    session.flush()
+    active = next(
+        (s for s in _locked_steps(session, corr.id) if s.status == "active"), None
+    )
+    if active is None or active.assignee_id == actor_id:
+        return
+    notify(
+        session,
+        active.assignee_id,
+        "awaiting",
+        dedupe_key=f"await:{reason}:{active.id}",
+        correspondence_id=corr.id,
+        payload=_corr_payload(corr, actorId=actor_id, stepRole=active.role),
+    )
+
+
 def _touch(corr: Correspondence) -> None:
     corr.updated_at = now_iso()
 
@@ -183,12 +240,30 @@ def _assert_single_active(session: Session, corr_id: str) -> None:
         )
 
 
-def _signature_tag_for_role(template: Template, role: str) -> Optional[str]:
-    """The Signature variable tag whose group == role (what this role signs)."""
-    for v in template.variables:
+def _signature_tag_for_role(
+    variables: list[dict[str, Any]], role: str
+) -> Optional[str]:
+    """The Signature variable tag whose group == role (what this role signs).
+
+    Pass the EFFECTIVE (override-first) variables the DOCUMENT renders — NOT the live
+    template.variables. The renderer resolves override-first (documents._resolve_doc),
+    so a per-instance/frozen signature-tag rename would otherwise stamp corr.values on a
+    tag the rendered document never contains, silently dropping the signature."""
+    for v in variables or []:
         if v.get("type") == "Signature" and v.get("group") == role:
             return v.get("tag")
     return None
+
+
+def _effective_variables(
+    corr: Correspondence, template: Optional[Template]
+) -> list[dict[str, Any]]:
+    """The variables the DOCUMENT renders — override-first, else the live template's.
+    Mirrors documents._resolve_doc / revise()'s signature-tag resolution so stamping and
+    rendering agree on which {{SIG_*}} tag a role signs."""
+    if corr.variables_override is not None:
+        return corr.variables_override
+    return template.variables if template else []
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +306,7 @@ def _materialize_chain(session: Session, corr: Correspondence) -> None:
                 rejectable=ws.get("rejectable", True),
                 sign=ws.get("sign", True),
                 regenerate=ws.get("regenerate", False),
+                required=ws.get("required", True),
                 status="active" if i == 0 else "pending",
                 position=ws.get("position", {}),
             )
@@ -267,7 +343,11 @@ def create_correspondence(
         requester_id=current_user.id,
         status="Draft",
         values=vals,
-        workflow_snapshot=template.workflow,
+        # Phase 3: DEEP-COPY the template's chain into the frozen snapshot so no shared
+        # list/dict object can ever leak a later template/definition edit into this
+        # already-created correspondence. Resolution source is unchanged (template.workflow,
+        # which is itself a copy of the bound reusable-workflow VERSION, if any).
+        workflow_snapshot=copy.deepcopy(template.workflow or []),
         history=[],
         created_at=now,
         updated_at=now,
@@ -349,6 +429,7 @@ def send(session: Session, current_user: AppUser, corr: Correspondence) -> Corre
     corr.status = "InReview"
     _append_history(corr, current_user.id, "Sent", comment="Routing for approval.")
     _emit_event(session, corr, current_user.id, "sent", to_step_order=0)
+    _notify_active_assignee(session, corr, current_user.id, "send")
     _touch(corr)
     _assert_single_active(session, corr.id)
     return corr
@@ -404,7 +485,9 @@ def approve(
         and step.detour_of_step_id is None
     ):
         template = session.get(Template, corr.template_id)
-        tag = _signature_tag_for_role(template, step.role) if template else None
+        # Stamp on the tag the DOCUMENT actually renders (override-first), so a
+        # per-instance/frozen signature-tag rename can't drop the signature.
+        tag = _signature_tag_for_role(_effective_variables(corr, template), step.role)
         if tag:
             corr.values = {**corr.values, tag: chosen_sig_id}
         step.signed_at = now
@@ -467,6 +550,25 @@ def approve(
                 from_step_order=step.step_order,
             )
 
+    # Notifications (Phase 7): the next actor gets an 'awaiting' cue; a completed chain
+    # notifies the requester. The return reason carries the RETURNING detour step's id so
+    # a second redirect+return to the SAME parent isn't deduped away (each return is a
+    # distinct 'it's back with you' cue).
+    if step.detour_of_step_id is not None:
+        _notify_active_assignee(session, corr, current_user.id, f"return:{step.id}")
+    elif corr.status == "Completed":
+        if corr.requester_id != current_user.id:
+            notify(
+                session,
+                corr.requester_id,
+                "completed",
+                dedupe_key=f"done:{corr.id}",
+                correspondence_id=corr.id,
+                payload=_corr_payload(corr, actorId=current_user.id),
+            )
+    else:
+        _notify_active_assignee(session, corr, current_user.id, "advance")
+
     _emit_event(
         session, corr, current_user.id, "approved", from_step_order=step.step_order
     )
@@ -490,6 +592,92 @@ def _next_chain_step(
     if not candidates:
         return None
     return min(candidates, key=lambda s: s.step_order)
+
+
+def skip_step(
+    session: Session,
+    current_user: AppUser,
+    corr: Correspondence,
+    comment: Optional[str] = None,
+) -> Correspondence:
+    """Skip an OPTIONAL signing step (required=False) WITHOUT stamping, then advance
+    the chain (or Complete).
+
+    Bounded, additive transition (Phase 4): ONLY the active step's assignee may skip,
+    and ONLY a real CHAIN signing step (detour_of_step_id is None, sign=True) that is
+    explicitly optional (required=False). A required signer, a non-signing step, or a
+    detour step cannot be skipped. No signature is stamped; the step is marked done and
+    the chain advances exactly as an approval would (mirrors approve's non-detour branch)."""
+    _lock_correspondence(session, corr)
+    steps = _locked_steps(session, corr.id)
+    step = _active_step(steps)
+    if current_user.id != step.assignee_id:
+        raise ForbiddenError("You are not the assignee of the active step.")
+    if step.detour_of_step_id is not None:
+        raise ConflictError("A detour step cannot be skipped.")
+    if not step.sign:
+        raise ConflictError("Only a signing step can be skipped.")
+    if step.required:
+        raise ConflictError("This signer is required and cannot be skipped.")
+
+    now = now_iso()
+    step.status = "done"
+    step.acted_at = now
+    step.comment = comment
+    _append_history(
+        corr,
+        current_user.id,
+        "Commented",
+        comment=comment or f"{step.role} skipped an optional signature.",
+        comment_ar=f"تخطّى {step.role} توقيعاً اختيارياً.",
+        at=now,
+    )
+
+    # Deactivate BEFORE activating any other step so the partial-unique 'one active'
+    # index never sees a transient two-active state (approve does the same).
+    session.flush()
+
+    nxt = _next_chain_step(steps, step)
+    if nxt is not None:
+        nxt.status = "active"
+        _emit_event(
+            session,
+            corr,
+            current_user.id,
+            "advanced",
+            from_step_order=step.step_order,
+            to_step_order=nxt.step_order,
+        )
+    else:
+        corr.status = "Completed"
+        _append_history(corr, current_user.id, "Completed", at=now)
+        _emit_event(
+            session,
+            corr,
+            current_user.id,
+            "completed",
+            from_step_order=step.step_order,
+        )
+
+    if corr.status == "Completed":
+        if corr.requester_id != current_user.id:
+            notify(
+                session,
+                corr.requester_id,
+                "completed",
+                dedupe_key=f"done:{corr.id}",
+                correspondence_id=corr.id,
+                payload=_corr_payload(corr, actorId=current_user.id),
+            )
+    else:
+        _notify_active_assignee(session, corr, current_user.id, "advance")
+
+    _emit_event(
+        session, corr, current_user.id, "skipped", from_step_order=step.step_order
+    )
+    _touch(corr)
+    _assert_single_active(session, corr.id)
+    return corr
 
 
 def reject(
@@ -556,6 +744,18 @@ def reject(
             from_step_order=step.step_order,
         )
 
+    if step.detour_of_step_id is not None:
+        _notify_active_assignee(session, corr, current_user.id, f"return:{step.id}")
+    elif corr.requester_id != current_user.id:
+        notify(
+            session,
+            corr.requester_id,
+            "returned",
+            dedupe_key=f"returned:{step.id}",
+            correspondence_id=corr.id,
+            payload=_corr_payload(corr, actorId=current_user.id, comment=comment),
+        )
+
     _touch(corr)
     _assert_single_active(session, corr.id)
     return corr
@@ -572,13 +772,28 @@ def revise(
     _lock_correspondence(session, corr)
     if corr.status != "Rejected":
         raise ConflictError(f"Cannot revise from status '{corr.status}'.")
+    # Only the original requester may re-open their own rejected correspondence
+    # (Phase 1 authorization fix — previously any identity could revise any item).
+    if current_user.id != corr.requester_id:
+        raise ForbiddenError("Only the requester can revise this correspondence.")
 
     template = session.get(Template, corr.template_id)
     merged = {**corr.values, **(values or {})}
+    # Clear every STAMPED signature so the re-opened document requires fresh signing.
+    # Derive the signature tags from what the document actually RENDERS — the renderer
+    # (documents._substitute_body) treats a tag as a signature when its inner name starts
+    # with "SIG" OR it is a Signature-typed variable resolved OVERRIDE-FIRST. Reading the
+    # LIVE template.variables alone would miss a stamp whose tag was renamed by a later
+    # template edit (the frozen variables_override still names the old {{SIG_*}}).
+    effective_vars = _effective_variables(corr, template)
+    sig_tags = {v["tag"] for v in effective_vars if v.get("type") == "Signature"}
     if template:
-        for v in template.variables:
-            if v.get("type") == "Signature":
-                merged[v["tag"]] = ""
+        # union the LIVE template's signature tags too (forward-compat)
+        sig_tags |= {v["tag"] for v in template.variables if v.get("type") == "Signature"}
+    # and any already-present {{SIG*}} value (covers a tag renamed away from the vars)
+    sig_tags |= {t for t in merged if t.strip("{} ").strip().startswith("SIG")}
+    for tag in sig_tags:
+        merged[tag] = ""
     corr.values = merged
 
     # Drop the old (rejected/superseded) steps and rebuild a clean chain. NULL the
@@ -599,6 +814,7 @@ def revise(
     corr.status = "InReview"
     _append_history(corr, current_user.id, "Sent", comment="Sent (revision).")
     _emit_event(session, corr, current_user.id, "revised", to_step_order=0)
+    _notify_active_assignee(session, corr, current_user.id, "revise")
     _touch(corr)
     _assert_single_active(session, corr.id)
     return corr
@@ -665,6 +881,7 @@ def redirect(
         to_step_order=step.step_order,
         payload={"target": target_user_id},
     )
+    _notify_active_assignee(session, corr, current_user.id, "redirect")
     _touch(corr)
     _assert_single_active(session, corr.id)
     return corr

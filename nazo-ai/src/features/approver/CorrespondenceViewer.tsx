@@ -7,14 +7,15 @@ import {
   Check,
   X,
   Download,
-  FileDown,
   Share2,
   ArrowLeft,
   PenTool,
   MessageSquare,
   FileText,
+  FilePlus2,
   CheckCircle2,
   Languages,
+  SkipForward,
 } from 'lucide-react'
 import { DocumentRenderer } from '@/components/common/DocumentRenderer'
 import { HistoryTimeline } from '@/components/common/HistoryTimeline'
@@ -24,7 +25,8 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
 import { PageTransition } from '@/components/common/PageTransition'
 import { useStore, useCurrentUser, useSignatureUri, effectiveSignatureId } from '@/store'
-import { downloadPdf, downloadDocx } from '@/api/client'
+import { useCan, SAVE_TEMPLATE } from '@/lib/permissions'
+import { downloadPdf } from '@/api/client'
 import { useAI } from '@/ai/useAI'
 import { useLocalized } from '@/i18n'
 import { TEMPLATE_BY_ID } from '@/data/seed'
@@ -40,6 +42,9 @@ export function CorrespondenceViewer() {
   const corr = useStore((s) => s.correspondences.find((c) => c.id === id))
   const templates = useStore((s) => s.templates)
   const openViewer = useStore((s) => s.openViewer)
+  const saveCorrespondenceAsTemplate = useStore((s) => s.saveCorrespondenceAsTemplate)
+  const refreshCorrespondence = useStore((s) => s.refreshCorrespondence)
+  const canSaveTemplate = useCan(SAVE_TEMPLATE)
   const { run } = useAI()
 
   // Resolve from the STORE (published/new templates included), seed as a fallback.
@@ -65,6 +70,13 @@ export function CorrespondenceViewer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [corr?.id])
 
+  // Phase 8 — when the Arabic view is selected, re-fetch the correspondence so a
+  // persisted translation (docHtmlAr, produced by the translate action) is picked up.
+  useEffect(() => {
+    if (docLang === 'ar' && corr?.id) void refreshCorrespondence(corr.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docLang, corr?.id])
+
   if (!corr || !tpl) {
     return (
       <PageTransition>
@@ -77,10 +89,23 @@ export function CorrespondenceViewer() {
   // applies to unedited correspondences (an override is instance-specific, no twin).
   const overrideDoc = corr.docHtmlOverride
   const overrideVars = corr.variablesOverride
+  // Phase 8 — a PERSISTED Arabic translation is the AR-locale source UNLESS a hand-authored
+  // Arabic twin applies (an unedited twin template keeps its twin — no regression). It only
+  // wins where the twin-swap can't: an edited (override) doc, or a template with no twin.
+  const useArTranslation =
+    docLang === 'ar' && !!corr.docHtmlAr && (!!overrideDoc || !tpl.twinId)
+  // Offer translation only when the Arabic view has no real Arabic source: no stored
+  // translation yet AND no hand-authored twin to swap in.
+  const canTranslateToAr =
+    docLang === 'ar' && !corr.docHtmlAr && (!!overrideDoc || !tpl.twinId)
   const previewTpl =
     !overrideDoc && docLang !== tpl.lang && tpl.twinId ? TEMPLATE_BY_ID[tpl.twinId] ?? tpl : tpl
-  const previewDoc = overrideDoc ?? previewTpl.docHtml
-  const previewVars = overrideVars ?? previewTpl.variables
+  const previewDoc = useArTranslation ? corr.docHtmlAr! : overrideDoc ?? previewTpl.docHtml
+  // Keep the EFFECTIVE variables even for the translated body: it carries the source
+  // document's sign-block, whose {{SIG_*}} tokens must still resolve to real signatures.
+  const previewVars = useArTranslation
+    ? overrideVars ?? tpl.variables
+    : overrideVars ?? previewTpl.variables
   const signed = signedRolesOf(corr.values, overrideVars ?? tpl.variables)
 
   return (
@@ -98,6 +123,17 @@ export function CorrespondenceViewer() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Phase 2a — the correspondence's owner may save it as a personal template. */}
+            {canSaveTemplate && corr.requesterId === user.id && (
+              <button
+                onClick={() => void saveCorrespondenceAsTemplate(corr.id, corr.titleEn)}
+                className="inline-flex items-center gap-1.5 rounded-lg hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-secondary hover:bg-hover transition-colors"
+                title={tr('Save this correspondence as a personal template', 'احفظ هذه المراسلة كنموذج شخصي')}
+              >
+                <FilePlus2 className="size-3.5" />
+                {tr('Save as template', 'حفظ كنموذج')}
+              </button>
+            )}
             <button
               onClick={() => setDocLang((l) => (l === 'en' ? 'ar' : 'en'))}
               className="inline-flex items-center gap-1.5 rounded-lg hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-secondary hover:bg-hover transition-colors"
@@ -105,6 +141,27 @@ export function CorrespondenceViewer() {
               <Languages className="size-3.5" />
               {docLang.toUpperCase()}
             </button>
+            {/* Phase 8 — the ONLY trigger that persists an Arabic translation onto THIS
+                correspondence (persistAr). Offered when the Arabic view has no real
+                Arabic source: no stored translation and no hand-authored twin. */}
+            {canTranslateToAr && (
+              <button
+                onClick={() =>
+                  run({
+                    actionId: 'requester.translate',
+                    role: user.role,
+                    currentUserId: user.id,
+                    corrId: corr.id,
+                    persistAr: true,
+                  })
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ai/10 px-2.5 py-1.5 text-[12px] font-medium text-ai hover:bg-ai/15 transition-colors"
+                title={tr('Generate and save an Arabic translation of this document', 'إنشاء وحفظ ترجمة عربية لهذا المستند')}
+              >
+                <Languages className="size-3.5" />
+                {tr('Translate to Arabic', 'ترجمة إلى العربية')}
+              </button>
+            )}
             <StatusBadge status={corr.status} />
           </div>
         </div>
@@ -129,9 +186,16 @@ export function CorrespondenceViewer() {
             {isMyTurn && (
               <ActionBar
                 corr={corr}
-                onSigned={(tag, completed) => {
+                onSigned={(tag, completed, skipped) => {
                   setStampTag(tag)
-                  if (completed) toast(tr('Fully signed & archived.', 'موقّعة ومؤرشفة بالكامل.'))
+                  if (completed)
+                    toast(
+                      skipped
+                        ? tr('Correspondence completed.', 'اكتملت المراسلة.')
+                        : tr('Fully signed & archived.', 'موقّعة ومؤرشفة بالكامل.'),
+                    )
+                  else if (skipped)
+                    toast(tr('Skipped — routed to the next approver.', 'تم التخطّي — أُرسلت للمعتمِد التالي.'))
                 }}
               />
             )}
@@ -150,13 +214,15 @@ export function CorrespondenceViewer() {
             </div>
 
             <div className="rounded-2xl hairline bg-surface shadow-e1 p-4">
-              <div className="text-[13px] font-semibold text-ink mb-3">{tr('Audit trail', 'سجل التدقيق')}</div>
+              <div className="text-[13px] font-semibold text-ink mb-3">{tr('Document History', 'سجل المستند')}</div>
               <HistoryTimeline history={corr.history} />
             </div>
           </div>
         </div>
 
-        {corr.status === 'Completed' && <CompletionBanner corrId={corr.id} onBack={() => navigate(-1)} />}
+        {corr.status === 'Completed' && (
+          <CompletionBanner corrId={corr.id} signed={hasStampedSignature(corr)} onBack={() => navigate(-1)} />
+        )}
       </div>
     </div>
   )
@@ -208,7 +274,7 @@ function ActionBar({
   onSigned,
 }: {
   corr: import('@/types').Correspondence
-  onSigned: (tag: string | undefined, completed: boolean) => void
+  onSigned: (tag: string | undefined, completed: boolean, skipped?: boolean) => void
 }) {
   const tr = useLocalized()
   const user = useCurrentUser()
@@ -219,6 +285,7 @@ function ActionBar({
   const approveAndSign = useStore((s) => s.approveAndSign)
   const rejectCorrespondence = useStore((s) => s.rejectCorrespondence)
   const redirectCorrespondence = useStore((s) => s.redirectCorrespondence)
+  const skipCorrespondence = useStore((s) => s.skipCorrespondence)
   const users = useStore((s) => s.users)
   const currentUserId = useStore((s) => s.currentUserId)
   const [mode, setMode] = useState<'approve' | 'reject' | 'redirect'>('approve')
@@ -233,6 +300,12 @@ function ActionBar({
   const activeStep = corr.workflow[corr.currentStepIndex]
   const isSigning = activeStep?.type === 'Signing'
   const isReviewing = activeStep?.type === 'Reviewing'
+  // Phase 4 — an OPTIONAL signer (required=false) may SKIP their signing step (advance
+  // without stamping). Absent `required` means required (back-compat: no skip offered).
+  // Gate on role match so a DETOUR consultant (currentStepIndex still points at the
+  // parked parent step) is NOT offered skip — the backend rejects that anyway (409).
+  const isOptionalSigner =
+    isSigning && activeStep?.required === false && activeStep?.role === user.role
 
   const templates = useStore((s) => s.templates)
   const vars =
@@ -291,6 +364,17 @@ function ActionBar({
     setBusy(false)
     onSigned(doSign ? sigVar?.tag : undefined, isLast)
     if (!isLast) toast(tr('Approved — routed to the next approver.', 'تم الاعتماد — أُرسلت للمعتمِد التالي.'))
+  }
+
+  // Phase 4 — skip an OPTIONAL signature: advance without stamping (no signature applied).
+  // onSigned owns the single success toast (skipped=true) so we never double-toast with
+  // the store action, and a skip-completion is NOT labelled "fully signed".
+  const doSkip = async () => {
+    if (busy) return
+    setBusy(true)
+    await skipCorrespondence(corr.id, viewerComment || undefined)
+    setBusy(false)
+    onSigned(undefined, isLast, true)
   }
 
   return (
@@ -394,6 +478,30 @@ function ActionBar({
           </div>
         )}
 
+        {/* optional signer (Phase 4) — may skip instead of signing (advance, no stamp) */}
+        {mode === 'approve' && isOptionalSigner && (
+          <div className="rounded-xl border border-dashed border-line bg-app px-3 py-2.5">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-muted">
+              <SkipForward className="size-3" />
+              {tr('Optional signer', 'موقّع اختياري')}
+            </div>
+            <p className="mt-1 text-[11px] text-ink-muted">
+              {tr(
+                'Your signature is optional here — you can sign above, or skip to the next approver without stamping.',
+                'توقيعك اختياري هنا — يمكنك التوقيع أعلاه أو التخطّي إلى المعتمِد التالي دون ختم.',
+              )}
+            </p>
+            <button
+              onClick={doSkip}
+              disabled={busy}
+              className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg hairline bg-surface px-3 py-2 text-[12px] font-semibold text-ink-secondary hover:bg-hover transition-colors disabled:opacity-50"
+            >
+              <SkipForward className="size-3.5" />
+              {tr('Skip my signature', 'تخطّي توقيعي')}
+            </button>
+          </div>
+        )}
+
         {/* redirect target picker (consultation — returns to you; chain unchanged) */}
         {mode === 'redirect' && (
           <div className="rounded-xl hairline bg-app p-2.5">
@@ -465,7 +573,24 @@ function ActionBar({
   )
 }
 
-function CompletionBanner({ corrId, onBack }: { corrId: string; onBack: () => void }) {
+/** True when at least one signature was actually stamped (any {{SIG*}} value present).
+ *  A chain completed by SKIPPING its only optional signer stamps nothing → false, so the
+ *  banner must not claim "fully signed". */
+function hasStampedSignature(corr: import('@/types').Correspondence): boolean {
+  return Object.entries(corr.values ?? {}).some(
+    ([k, v]) => k.replace(/[{}\s]/g, '').toUpperCase().startsWith('SIG') && !!v,
+  )
+}
+
+function CompletionBanner({
+  corrId,
+  signed,
+  onBack,
+}: {
+  corrId: string
+  signed: boolean
+  onBack: () => void
+}) {
   const tr = useLocalized()
   return (
     <motion.div
@@ -478,18 +603,20 @@ function CompletionBanner({ corrId, onBack }: { corrId: string; onBack: () => vo
         <CheckCircle2 className="size-7" />
       </span>
       <div className="flex-1">
-        <div className="text-[15px] font-bold text-ink">{tr('Fully signed & archived', 'موقّعة ومؤرشفة بالكامل')}</div>
-        <div className="text-[12.5px] text-ink-muted">{tr('All approvers have signed. The document is final.', 'وقّع جميع المعتمِدين. المستند نهائي.')}</div>
+        <div className="text-[15px] font-bold text-ink">
+          {signed
+            ? tr('Fully signed & archived', 'موقّعة ومؤرشفة بالكامل')
+            : tr('Completed & archived', 'مكتملة ومؤرشفة')}
+        </div>
+        <div className="text-[12.5px] text-ink-muted">
+          {signed
+            ? tr('All approvers have signed. The document is final.', 'وقّع جميع المعتمِدين. المستند نهائي.')
+            : tr('All steps are complete. The document is final.', 'اكتملت جميع الخطوات. المستند نهائي.')}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="secondary" onClick={onBack}>{tr('Back', 'رجوع')}</Button>
-        <Button
-          variant="secondary"
-          onClick={() => downloadDocx(corrId).catch(() => toast(tr('Could not download the DOCX.', 'تعذّر تنزيل ملف وورد.')))}
-        >
-          <FileDown className="size-4" />
-          {tr('DOCX', 'وورد')}
-        </Button>
+        {/* Phase 6 — PDF-only: the DOCX download button is removed. */}
         <Button
           variant="primary"
           onClick={() => downloadPdf(corrId).catch(() => toast(tr('Could not download the PDF.', 'تعذّر تنزيل ملف PDF.')))}

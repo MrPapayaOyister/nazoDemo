@@ -21,11 +21,12 @@ import type {
   Theme,
   User,
   ValidationItem,
+  WorkflowDefinition,
   WorkflowStep,
 } from '@/types'
 import { USERS, USER_BY_ID } from '@/data/users'
 import { SIGNATURE_BY_ID } from '@/data/signatures'
-import { makeDefaultStep, validateWorkflowGraph, isUnassigned } from '@/features/workflow/model'
+import { makeDefaultStep, validateWorkflowGraph, signingWiringErrors, isUnassigned } from '@/features/workflow/model'
 import { sortByUpdatedDesc } from '@/lib/sort'
 import { SEED_CORRESPONDENCES, TEMPLATES } from '@/data/seed'
 import { genId } from '@/data/ids'
@@ -119,6 +120,8 @@ interface AppState {
   // domain data
   templates: Template[]
   correspondences: Correspondence[]
+  /** Phase 3 — reusable, versioned workflow definitions (hydrated from bootstrap). */
+  workflowDefinitions: WorkflowDefinition[]
 
   // ephemeral working surfaces (AI side-effect targets)
   studioDraft: TemplateDraft | null
@@ -217,6 +220,8 @@ interface AppState {
    *  doesn't show the success overlay for a revision that didn't actually resend). */
   reviseCorrespondence: (corrId: string, values?: Record<string, string>) => Promise<string>
   redirectCorrespondence: (corrId: string, targetUserId: string, comment?: string) => Promise<void>
+  /** Phase 4 — skip an OPTIONAL signing step (required=false): advance without stamping. */
+  skipCorrespondence: (corrId: string, comment?: string) => Promise<void>
   /** Attach one or more files to a correspondence at an action (create/approve/reject).
    *  Returns the updated correspondence, or null on failure. */
   uploadAttachments: (
@@ -224,6 +229,16 @@ interface AppState {
     context: AttachmentContext,
     files: File[],
   ) => Promise<Correspondence | null>
+  /** Phase 6 — sign an ORIGINAL attachment (immutable signed variant). Returns the
+   *  updated correspondence, or null on failure. */
+  signAttachment: (
+    corrId: string,
+    attId: string,
+    body: api.SignAttachmentBody,
+  ) => Promise<Correspondence | null>
+  /** Phase 8 — re-fetch one correspondence (e.g. to pick up a persisted Arabic
+   *  translation produced by the translate AI action). Silent no-op on failure. */
+  refreshCorrespondence: (corrId: string) => Promise<void>
 
   // global letterhead config (item 2) — GLOBAL header + footer, editable at authoring.
   orgConfig: OrgConfig
@@ -239,6 +254,18 @@ interface AppState {
   /** Update an existing template in place (item 4). Future-only: the server freezes
    *  historical correspondences to the pre-edit body/variables. */
   updateTemplate: (t: Template) => Promise<void>
+  /** Phase 2a — save a correspondence as a personal MANUAL template owned by the
+   *  current identity (its frozen workflow becomes the required inline workflow). */
+  saveCorrespondenceAsTemplate: (corrId: string, titleEn: string) => Promise<boolean>
+  /** Phase 3 — apply a reusable workflow-definition VERSION to the studio draft (loads
+   *  its steps into the canvas + records the binding). */
+  applyWorkflowDefinition: (versionId: string) => void
+  /** Phase 3 — save the studio draft's current workflow as a new reusable definition. */
+  saveWorkflowAsDefinition: (name: string) => Promise<boolean>
+  /** Phase 3 — append the draft's current chain as a NEW version of the bound definition. */
+  appendCurrentWorkflowAsVersion: () => Promise<boolean>
+  /** Phase 3 — drop the reusable-workflow binding (the chain becomes ad-hoc). */
+  unlinkWorkflow: () => void
   resetDemo: () => Promise<void>
 }
 
@@ -327,11 +354,15 @@ function makeHasSignatureAsset(state: AppState): (u: User) => boolean {
  *  same errors/warnings through the AI panel as a ResultCard. */
 function validateCanvasStep(state: AppState): ScenarioStep {
   const steps = state.canvasSteps
-  const { errors, warnings } = validateWorkflowGraph(
-    steps,
-    state.users,
-    makeHasSignatureAsset(state),
-  )
+  const base = validateWorkflowGraph(steps, state.users, makeHasSignatureAsset(state))
+  // Fold in the signing-wiring rule so this AI card matches the Publish gate (which
+  // merges the same errors) and the server 422 — otherwise "Validate" could claim
+  // "ready to publish" while Publish is blocked by an unwired signing step.
+  const errors = [
+    ...base.errors,
+    ...signingWiringErrors(steps, state.studioDraft?.variables ?? []),
+  ]
+  const warnings = base.warnings
   const ok = errors.length === 0
   // An unassigned step is a warning (never blocks editing), but it DOES block
   // publish (same gate as the canvas builder + TemplateStudio), so the card must
@@ -428,6 +459,8 @@ function buildAiBody(ctx: AiContext, state: AppState): api.AiContextBody {
     stage: ctx.stage,
     prompt: ctx.prompt,
     size: ctx.size,
+    lang: ctx.lang,
+    persistAr: ctx.persistAr,
   }
   if (
     ctx.actionId === 'requester.autoFill' ||
@@ -453,6 +486,7 @@ export const useStore = create<AppState>()(
 
       templates: TEMPLATES,
       correspondences: SEED_CORRESPONDENCES,
+      workflowDefinitions: [],
       orgConfig: DEFAULT_ORG_CONFIG,
 
       studioDraft: null,
@@ -477,6 +511,7 @@ export const useStore = create<AppState>()(
             users: data.users.length ? data.users : get().users,
             templates: data.templates.length ? data.templates : get().templates,
             correspondences: visible(data.correspondences),
+            workflowDefinitions: data.workflowDefinitions ?? get().workflowDefinitions,
             orgConfig: data.org ?? get().orgConfig,
           })
         } catch (e) {
@@ -578,6 +613,11 @@ export const useStore = create<AppState>()(
             variables: tpl.variables,
             workflow: tpl.workflow,
             localePreview: tpl.lang,
+            // Phase 2a — round-trip the classification so an edit preserves it.
+            templateType: tpl.templateType ?? 'dynamic',
+            visibility: tpl.visibility ?? 'global',
+            // Phase 3 — round-trip the reusable-workflow binding.
+            workflowVersionId: tpl.workflowVersionId,
           },
           canvasSteps: tpl.workflow,
           editingTemplateId: tpl.id,
@@ -953,6 +993,7 @@ export const useStore = create<AppState>()(
                 studioDraft: {
                   ...(s.studioDraft ?? {
                     titleEn: '', titleAr: '', lang: 'en', category: 'Approval', docHtml: '', variables: [], workflow: [], localePreview: 'en',
+                    templateType: 'dynamic', visibility: 'global',
                   }),
                   ...e.patch,
                 },
@@ -1168,6 +1209,19 @@ export const useStore = create<AppState>()(
         }
       },
 
+      skipCorrespondence: async (corrId, comment) => {
+        const lang = get().ui.lang
+        try {
+          const updated = await api.skipCorr(corrId, { comment })
+          set((s) => ({ correspondences: upsertCorr(s.correspondences, updated) }))
+          // Success toast is owned by the viewer's onSigned (skipped=true) so a skip
+          // never double-toasts; the store only surfaces the failure path.
+        } catch (e) {
+          toast(t2(lang, 'Could not skip this step.', 'تعذّر تخطّي هذه الخطوة.'))
+          console.warn('[nazo] skipCorrespondence failed', e)
+        }
+      },
+
       uploadAttachments: async (corrId, context, files) => {
         const lang = get().ui.lang
         try {
@@ -1185,6 +1239,29 @@ export const useStore = create<AppState>()(
         }
       },
 
+      signAttachment: async (corrId, attId, body) => {
+        const lang = get().ui.lang
+        try {
+          const updated = await api.signAttachment(corrId, attId, body)
+          set((s) => ({ correspondences: upsertCorr(s.correspondences, updated) }))
+          toast(t2(lang, 'Attachment signed.', 'تم توقيع المرفق.'))
+          return updated
+        } catch (e) {
+          toast(t2(lang, 'Could not sign the attachment.', 'تعذّر توقيع المرفق.'))
+          console.warn('[nazo] signAttachment failed', e)
+          return null
+        }
+      },
+
+      refreshCorrespondence: async (corrId) => {
+        try {
+          const updated = await api.getCorrespondence(corrId)
+          set((s) => ({ correspondences: upsertCorr(s.correspondences, updated) }))
+        } catch (e) {
+          console.warn('[nazo] refreshCorrespondence failed', e)
+        }
+      },
+
       publishTemplate: async (t) => {
         const lang = get().ui.lang
         try {
@@ -1196,6 +1273,9 @@ export const useStore = create<AppState>()(
             docHtml: t.docHtml,
             variables: t.variables,
             workflow: t.workflow,
+            templateType: t.templateType,
+            visibility: t.visibility,
+            workflowVersionId: t.workflowVersionId,
           })
           const templates = await api.listTemplates()
           set({ templates: templates.length ? templates : get().templates, studioDraft: null })
@@ -1218,6 +1298,9 @@ export const useStore = create<AppState>()(
             docHtml: t.docHtml,
             variables: t.variables,
             workflow: t.workflow,
+            templateType: t.templateType,
+            visibility: t.visibility,
+            workflowVersionId: t.workflowVersionId,
           })
           const templates = await api.listTemplates()
           set({
@@ -1237,6 +1320,116 @@ export const useStore = create<AppState>()(
           console.warn('[nazo] updateTemplate failed', e)
         }
       },
+
+      saveCorrespondenceAsTemplate: async (corrId, titleEn) => {
+        const lang = get().ui.lang
+        const name = (titleEn || '').trim()
+        if (!name) {
+          toast(t2(lang, 'Enter a template name.', 'أدخل اسم النموذج.'))
+          return false
+        }
+        try {
+          await api.saveTemplateFromCorrespondence({ correspondenceId: corrId, titleEn: name })
+          // Refresh the library so the new personal template appears.
+          const templates = await api.listTemplates()
+          if (templates.length) set({ templates })
+          toast(t2(lang, 'Saved as a template.', 'تم الحفظ كنموذج.'))
+          return true
+        } catch (e) {
+          toast(t2(lang, 'Could not save as a template.', 'تعذّر الحفظ كنموذج.'))
+          console.warn('[nazo] saveCorrespondenceAsTemplate failed', e)
+          return false
+        }
+      },
+
+      applyWorkflowDefinition: (versionId) => {
+        const lang = get().ui.lang
+        const ver = get()
+          .workflowDefinitions.flatMap((d) => d.versions)
+          .find((v) => v.id === versionId)
+        if (!ver) return
+        set((s) =>
+          s.studioDraft
+            ? {
+                studioDraft: { ...s.studioDraft, workflow: ver.steps, workflowVersionId: versionId },
+                canvasSteps: ver.steps,
+              }
+            : { canvasSteps: ver.steps },
+        )
+        toast(t2(lang, 'Reusable workflow applied.', 'تم تطبيق مسار قابل لإعادة الاستخدام.'))
+      },
+
+      saveWorkflowAsDefinition: async (name) => {
+        const lang = get().ui.lang
+        const draft = get().studioDraft
+        const steps = draft?.workflow ?? get().canvasSteps
+        const nm = (name || '').trim()
+        if (!nm) {
+          toast(t2(lang, 'Enter a workflow name.', 'أدخل اسم المسار.'))
+          return false
+        }
+        if (!steps.length) {
+          toast(t2(lang, 'Add at least one step first.', 'أضف خطوة واحدة أولاً.'))
+          return false
+        }
+        try {
+          const created = await api.createWorkflowDefinition(nm, steps)
+          const defs = await api.listWorkflowDefinitions()
+          const v1 = created.versions[0]
+          set((s) => ({
+            workflowDefinitions: defs.length ? defs : get().workflowDefinitions,
+            studioDraft:
+              s.studioDraft && v1 ? { ...s.studioDraft, workflowVersionId: v1.id } : s.studioDraft,
+          }))
+          toast(t2(lang, 'Saved as a reusable workflow.', 'حُفظ كمسار قابل لإعادة الاستخدام.'))
+          return true
+        } catch (e) {
+          toast(t2(lang, 'Could not save the workflow.', 'تعذّر حفظ المسار.'))
+          console.warn('[nazo] saveWorkflowAsDefinition failed', e)
+          return false
+        }
+      },
+
+      appendCurrentWorkflowAsVersion: async () => {
+        const lang = get().ui.lang
+        const draft = get().studioDraft
+        const versionId = draft?.workflowVersionId
+        if (!draft || !versionId) return false
+        const def = get().workflowDefinitions.find((d) =>
+          d.versions.some((v) => v.id === versionId),
+        )
+        if (!def) return false
+        if (!draft.workflow.length) {
+          toast(t2(lang, 'Add at least one step first.', 'أضف خطوة واحدة أولاً.'))
+          return false
+        }
+        try {
+          const updated = await api.addWorkflowVersion(def.id, draft.workflow)
+          const defs = await api.listWorkflowDefinitions()
+          const latest = updated.versions[updated.versions.length - 1]
+          set((s) => ({
+            workflowDefinitions: defs.length ? defs : get().workflowDefinitions,
+            studioDraft:
+              s.studioDraft && latest
+                ? { ...s.studioDraft, workflowVersionId: latest.id }
+                : s.studioDraft,
+          }))
+          toast(
+            t2(lang, `Saved as version ${updated.latestVersion}.`, `حُفظ كإصدار ${updated.latestVersion}.`),
+          )
+          return true
+        } catch (e) {
+          toast(t2(lang, 'Could not save the version.', 'تعذّر حفظ الإصدار.'))
+          console.warn('[nazo] appendCurrentWorkflowAsVersion failed', e)
+          return false
+        }
+      },
+
+      unlinkWorkflow: () =>
+        set((s) =>
+          // '' (not undefined) is the explicit UNBIND marker the server clears on.
+          s.studioDraft ? { studioDraft: { ...s.studioDraft, workflowVersionId: '' } } : {},
+        ),
 
       updateOrgConfig: async (patch) => {
         const lang = get().ui.lang
@@ -1340,6 +1533,11 @@ export function useCurrentUser(): User {
 /** The global letterhead config (item 2) — header + footer, hydrated from bootstrap. */
 export function useOrgConfig(): OrgConfig {
   return useStore((s) => s.orgConfig)
+}
+
+/** Phase 3 — the reusable, versioned workflow definitions (hydrated from bootstrap). */
+export function useWorkflowDefinitions(): WorkflowDefinition[] {
+  return useStore((s) => s.workflowDefinitions)
 }
 
 /** Tasks awaiting the given user (by id). Uses the server's detour-aware

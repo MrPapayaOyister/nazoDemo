@@ -12,8 +12,12 @@ from app.models import (
     Attachment,
     Correspondence,
     CorrespondenceStep,
+    LayoutMaster,
     OrgConfig,
     Template,
+    TemplateShare,
+    WorkflowDefinition,
+    WorkflowDefinitionVersion,
 )
 from app.seed import data as seed_data
 
@@ -36,6 +40,9 @@ def order_correspondences(rows: list[Correspondence]) -> list[Correspondence]:
 
 
 def serialize_user(u: AppUser, signatures: list[dict] | None = None) -> dict:
+    # Local import avoids a router→permissions→router cycle at module load.
+    from app.permissions import access_level_for, capabilities_for
+
     out = {
         "id": u.id,
         "role": u.role,
@@ -48,6 +55,11 @@ def serialize_user(u: AppUser, signatures: list[dict] | None = None) -> dict:
         "email": u.email,
         "initials": u.initials,
         "color": u.color,
+        # Permission model (Phase 1): the frontend reads these; it does not re-declare
+        # the capability map. accessLevel = actor | broadcaster | viewer.
+        "accessLevel": (u.access_level or access_level_for(u.role)),
+        "department": u.department or "",
+        "capabilities": capabilities_for(u),
     }
     # signatureId is the DEFAULT signature pointer; optional (approvers only).
     if u.signature_id:
@@ -60,7 +72,7 @@ def serialize_user(u: AppUser, signatures: list[dict] | None = None) -> dict:
     return out
 
 
-def serialize_template(t: Template) -> dict:
+def serialize_template(t: Template, shares: list[TemplateShare] | None = None) -> dict:
     out = {
         "id": t.id,
         "nameEn": t.name_en,
@@ -74,10 +86,77 @@ def serialize_template(t: Template) -> dict:
         "workflow": t.workflow,
         "updatedAt": t.updated_at,
         "usageCount": t.usage_count,
+        # Phase 2a: classification + visibility always present (defaults on the row).
+        "templateType": t.template_type,
+        "visibility": t.visibility,
     }
     # twinId is optional (the holiday template has no twin).
     if t.twin_id:
         out["twinId"] = t.twin_id
+    # owner is optional (NULL on pre-2a / system templates).
+    if t.owner_id:
+        out["owner"] = t.owner_id
+    # layoutMasterId is optional (NULL = no bound master / freely editable).
+    if t.layout_master_id:
+        out["layoutMasterId"] = t.layout_master_id
+    # workflowVersionId is optional (NULL = ad-hoc inline workflow; Phase 3).
+    if t.workflow_version_id:
+        out["workflowVersionId"] = t.workflow_version_id
+    # shares are only attached when the caller resolved them (e.g. the shares list
+    # endpoint / template detail); omitted from bulk list + bootstrap for byte-stability.
+    if shares is not None:
+        out["shares"] = [serialize_template_share(s) for s in shares]
+    return out
+
+
+def serialize_template_share(s: TemplateShare) -> dict:
+    return {
+        "id": s.id,
+        "templateId": s.template_id,
+        "granteeKind": s.grantee_kind,
+        "granteeRef": s.grantee_ref,
+        "capabilities": s.capabilities,
+        "sharedBy": s.shared_by,
+        "createdAt": s.created_at,
+    }
+
+
+def serialize_layout_master(m: LayoutMaster) -> dict:
+    return {
+        "id": m.id,
+        "name": m.name,
+        "header": m.header or {},
+        "footer": m.footer or {},
+        "locked": m.locked,
+        "createdAt": m.created_at,
+        "updatedAt": m.updated_at,
+    }
+
+
+def serialize_workflow_version(v: WorkflowDefinitionVersion) -> dict:
+    return {
+        "id": v.id,
+        "definitionId": v.definition_id,
+        "version": v.version,
+        "steps": v.steps,
+        "createdAt": v.created_at,
+    }
+
+
+def serialize_workflow_definition(
+    d: WorkflowDefinition, versions: list[WorkflowDefinitionVersion]
+) -> dict:
+    ordered = sorted(versions, key=lambda v: v.version)
+    out = {
+        "id": d.id,
+        "name": d.name,
+        "createdAt": d.created_at,
+        "updatedAt": d.updated_at,
+        "versions": [serialize_workflow_version(v) for v in ordered],
+        "latestVersion": ordered[-1].version if ordered else 0,
+    }
+    if d.owner_id:
+        out["owner"] = d.owner_id
     return out
 
 
@@ -110,8 +189,9 @@ def serialize_org_config(oc: OrgConfig) -> dict:
 
 
 def serialize_attachment(a: Attachment) -> dict:
-    """Attachment METADATA (no bytes) — the bytes are fetched via the download route."""
-    return {
+    """Attachment METADATA (no bytes) — the bytes are fetched via the view/download route.
+    Phase 6 adds the signed-variant record (parent link + signer + hash + placement)."""
+    out = {
         "id": a.id,
         "correspondenceId": a.correspondence_id,
         "context": a.context,
@@ -121,7 +201,23 @@ def serialize_attachment(a: Attachment) -> dict:
         "contentType": a.content_type,
         "sizeBytes": a.size_bytes,
         "createdAt": a.created_at,
+        # Phase 6 signed-variant record.
+        "parentAttachmentId": a.parent_attachment_id,
+        "isSigned": a.is_signed,
+        "signerId": a.signer_id,
+        "signedAt": a.signed_at,
+        "contentHash": a.content_hash,
+        "signatureAssetRef": a.signature_asset_ref,
     }
+    if a.sig_page is not None or a.sig_x is not None:
+        out["placement"] = {
+            "page": a.sig_page,
+            "x": a.sig_x,
+            "y": a.sig_y,
+            "w": a.sig_w,
+            "h": a.sig_h,
+        }
+    return out
 
 
 def serialize_correspondence(
@@ -153,4 +249,6 @@ def serialize_correspondence(
         out["variablesOverride"] = c.variables_override
     if c.doc_html_override is not None:
         out["docHtmlOverride"] = c.doc_html_override
+    if c.doc_html_ar is not None:
+        out["docHtmlAr"] = c.doc_html_ar  # Phase 8 — persisted Arabic translation
     return out

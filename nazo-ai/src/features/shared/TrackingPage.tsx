@@ -1,25 +1,45 @@
-import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Radar } from 'lucide-react'
+import { Radar, X } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { ChainStepper, signedRolesOf } from '@/components/common/ChainStepper'
+import { CorrespondenceCard } from '@/components/common/CorrespondenceCard'
+import { CorrespondenceTable } from '@/components/common/CorrespondenceTable'
+import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
 import { EmptyState } from '@/components/common/EmptyState'
 import { useStore } from '@/store'
-import { TEMPLATE_BY_ID } from '@/data/seed'
 import { useLocalized } from '@/i18n'
-import { riseItem, staggerContainer } from '@/lib/motion'
+import { staggerContainer } from '@/lib/motion'
 import { sortByUpdatedDesc } from '@/lib/sort'
+import type { CorrespondenceStatus } from '@/types'
+
+const STATUS_VALUES: CorrespondenceStatus[] = ['Draft', 'InReview', 'Completed', 'Rejected']
 
 export function TrackingPage() {
   const tr = useLocalized()
-  const navigate = useNavigate()
   const all = useStore((s) => s.correspondences)
-  const templates = useStore((s) => s.templates)
-  // Most-recently-updated first, consistent with every other correspondence list.
-  const rows = useMemo(() => sortByUpdatedDesc(all), [all])
+  const [params, setParams] = useSearchParams()
+  const [view, setView] = useState<ViewMode>('table')
+
+  // Optional status filter (Phase 5) — AdminOverview KPI chips deep-link here via
+  // `?status=InReview|Completed`. An unknown value is ignored (shows everything).
+  const statusParam = params.get('status')
+  const statusFilter = STATUS_VALUES.includes(statusParam as CorrespondenceStatus)
+    ? (statusParam as CorrespondenceStatus)
+    : null
+
+  const rows = useMemo(() => {
+    const scoped = statusFilter ? all.filter((c) => c.status === statusFilter) : all
+    return sortByUpdatedDesc(scoped)
+  }, [all, statusFilter])
+
+  const clearFilter = () => {
+    const next = new URLSearchParams(params)
+    next.delete('status')
+    setParams(next, { replace: true })
+  }
 
   return (
     <PageTransition>
@@ -27,37 +47,42 @@ export function TrackingPage() {
         title={tr('Tracking', 'التتبّع')}
         subtitle={tr('Live status of every correspondence.', 'حالة كل مراسلة لحظياً.')}
         icon={<Radar className="size-5" />}
+        actions={rows.length > 0 ? <ViewToggle mode={view} onChange={setView} /> : undefined}
       />
 
+      {statusFilter && (
+        <div className="mt-4 flex items-center gap-2">
+          <span className="text-[12px] text-ink-muted">{tr('Filtered by', 'مُرشَّح حسب')}</span>
+          <StatusBadge status={statusFilter} />
+          <button
+            onClick={clearFilter}
+            className="inline-flex items-center gap-1 rounded-lg hairline bg-surface px-2 py-1 text-[11.5px] font-medium text-ink-secondary hover:bg-hover transition-colors"
+          >
+            <X className="size-3" />
+            {tr('Clear', 'مسح')}
+          </button>
+        </div>
+      )}
+
       {rows.length === 0 ? (
-        <EmptyState icon={<Radar className="size-7" />} title={tr('Nothing to track yet', 'لا شيء للتتبّع بعد')} />
+        <div className="mt-6">
+          <EmptyState
+            icon={<Radar className="size-7" />}
+            title={statusFilter ? tr('Nothing matches this filter', 'لا شيء يطابق هذا المرشّح') : tr('Nothing to track yet', 'لا شيء للتتبّع بعد')}
+          />
+        </div>
+      ) : view === 'table' ? (
+        <CorrespondenceTable rows={rows} />
       ) : (
-        <motion.div variants={staggerContainer(0.04, 0.05)} initial="initial" animate="animate" className="mt-6 space-y-2">
-          {rows.map((c) => {
-            const vars =
-              c.variablesOverride ??
-              templates.find((t) => t.id === c.templateId)?.variables ??
-              TEMPLATE_BY_ID[c.templateId]?.variables ??
-              []
-            const signed = signedRolesOf(c.values, vars)
-            return (
-              <motion.button
-                key={c.id}
-                variants={riseItem}
-                onClick={() => navigate(`/correspondence/${c.id}`)}
-                className="w-full flex items-center gap-4 rounded-2xl hairline bg-surface shadow-e1 px-4 py-3 hover:shadow-e2 hover:-translate-y-0.5 transition-all text-start"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13.5px] font-semibold text-ink truncate">{tr(c.titleEn, c.titleAr)}</div>
-                  <div className="text-[11px] text-ink-muted font-mono">{c.ref}</div>
-                </div>
-                <div className="hidden md:block">
-                  <ChainStepper steps={c.workflow} currentIndex={c.currentStepIndex} status={c.status} signedRoles={signed} variant="mini" />
-                </div>
-                <StatusBadge status={c.status} />
-              </motion.button>
-            )
-          })}
+        <motion.div
+          variants={staggerContainer(0.04, 0.05)}
+          initial="initial"
+          animate="animate"
+          className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+        >
+          {rows.map((c) => (
+            <CorrespondenceCard key={c.id} corr={c} />
+          ))}
         </motion.div>
       )}
     </PageTransition>

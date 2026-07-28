@@ -20,9 +20,8 @@ from app.services import documents
 router = APIRouter(prefix="/api/correspondences", tags=["documents"])
 
 _PDF_MEDIA = "application/pdf"
-_DOCX_MEDIA = (
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-)
+# Phase 6: DOCX is no longer a user-facing download (PDF-only). The internal
+# render_docx + snapshot DOCX bytes remain (never reachable via the public API).
 
 
 def _get_or_404(session: Session, corr_id: str) -> Correspondence:
@@ -67,28 +66,8 @@ def get_pdf(
     )
 
 
-@router.get("/{corr_id}/docx")
-def get_docx(
-    corr_id: str,
-    lang: Optional[str] = None,
-    session: Session = Depends(get_session),
-    current_user: AppUser = Depends(get_current_user),
-) -> Response:
-    """Fresh best-effort DOCX from the correspondence's CURRENT state (attachment)."""
-    corr = _get_or_404(session, corr_id)
-    try:
-        docx = documents.render_docx(session, corr, lang=lang)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"DOCX generation failed: {exc}",
-        )
-    filename = f"{_safe_ref(corr)}.docx"
-    return Response(
-        content=docx,
-        media_type=_DOCX_MEDIA,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+# Phase 6 — the public GET /{corr_id}/docx route is REMOVED (PDF-only downloads). A
+# request to it now falls through to 404. render_docx stays internal for snapshots.
 
 
 @router.get("/{corr_id}/versions")

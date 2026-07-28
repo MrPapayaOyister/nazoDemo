@@ -12,6 +12,7 @@ each correspondence's snapshot + explicit per-step statuses.
 
 from __future__ import annotations
 
+import copy
 from urllib.parse import quote
 
 from app.models import normalize_step_type
@@ -45,6 +46,24 @@ ORG_CONFIG: dict = {
     },
     "updatedAt": "2026-07-10T09:12:00Z",
 }
+
+# ===========================================================================
+# Layout masters (Phase 2b). The seeded 'default' master owns the LOCKED zones
+# (letterhead + sign-block frame) of the org templates. Its header/footer are left
+# EMPTY so the renderer falls back to the global OrgConfig above (the master
+# contributes the LOCK, not duplicate branding). A custom master may carry its own.
+# ===========================================================================
+LAYOUT_MASTERS: list[dict] = [
+    {
+        "id": "lm_default",
+        "name": "EHCD Official Letterhead",
+        "header": {},
+        "footer": {},
+        "locked": True,
+        "createdAt": "2026-07-10T09:12:00Z",
+        "updatedAt": "2026-07-10T09:12:00Z",
+    },
+]
 
 # ===========================================================================
 # Users (6). Approver order = chain order. Chair is reserve (never in a chain).
@@ -130,6 +149,99 @@ USERS: list[dict] = [
         "email": "chairperson@fahr.ae",
         "initials": "AN",
         "color": "#d64550",
+    },
+    # --- 6 additional restricted identities (Phase 1): 2 Broadcasters + 4 Viewers.
+    # They can view + receive broadcasts; Broadcasters may send broadcasts; NONE can
+    # create/send/approve/sign/edit — enforced server-side (app/permissions.py).
+    {
+        "id": "u_bcast_comms",
+        "role": "broadcaster",
+        "nameEn": "Fatima Al Blooshi",
+        "nameAr": "فاطمة البلوشي",
+        "titleEn": "Corporate Communications Lead",
+        "titleAr": "رئيس الاتصال المؤسسي",
+        "unitEn": "Corporate Communications",
+        "unitAr": "الاتصال المؤسسي",
+        "email": "comms.lead@ehcd.gov.ae",
+        "initials": "FB",
+        "color": "#0891b2",
+        "accessLevel": "broadcaster",
+        "department": "Corporate Communications",
+    },
+    {
+        "id": "u_bcast_exec",
+        "role": "broadcaster",
+        "nameEn": "Yousef Al Rashid",
+        "nameAr": "يوسف الراشد",
+        "titleEn": "Executive Office Broadcaster",
+        "titleAr": "مذيع المكتب التنفيذي",
+        "unitEn": "Executive Office",
+        "unitAr": "المكتب التنفيذي",
+        "email": "exec.broadcast@ehcd.gov.ae",
+        "initials": "YR",
+        "color": "#7c3aed",
+        "accessLevel": "broadcaster",
+        "department": "Executive Office",
+    },
+    {
+        "id": "u_view_fin",
+        "role": "viewer",
+        "nameEn": "Maryam Al Ali",
+        "nameAr": "مريم العلي",
+        "titleEn": "Finance Observer",
+        "titleAr": "مراقب الشؤون المالية",
+        "unitEn": "Finance",
+        "unitAr": "الشؤون المالية",
+        "email": "finance.view@ehcd.gov.ae",
+        "initials": "MA",
+        "color": "#059669",
+        "accessLevel": "viewer",
+        "department": "Finance",
+    },
+    {
+        "id": "u_view_legal",
+        "role": "viewer",
+        "nameEn": "Omar Al Habsi",
+        "nameAr": "عمر الحبسي",
+        "titleEn": "Legal Observer",
+        "titleAr": "مراقب الشؤون القانونية",
+        "unitEn": "Legal Affairs",
+        "unitAr": "الشؤون القانونية",
+        "email": "legal.view@ehcd.gov.ae",
+        "initials": "OH",
+        "color": "#b45309",
+        "accessLevel": "viewer",
+        "department": "Legal Affairs",
+    },
+    {
+        "id": "u_view_hr",
+        "role": "viewer",
+        "nameEn": "Hessa Al Mheiri",
+        "nameAr": "حصة المهيري",
+        "titleEn": "HR Observer",
+        "titleAr": "مراقب الموارد البشرية",
+        "unitEn": "Human Resources",
+        "unitAr": "الموارد البشرية",
+        "email": "hr.view@ehcd.gov.ae",
+        "initials": "HM",
+        "color": "#be185d",
+        "accessLevel": "viewer",
+        "department": "Human Resources",
+    },
+    {
+        "id": "u_view_strategy",
+        "role": "viewer",
+        "nameEn": "Saeed Al Dhaheri",
+        "nameAr": "سعيد الظاهري",
+        "titleEn": "Strategy Observer",
+        "titleAr": "مراقب الاستراتيجية",
+        "unitEn": "Strategy & Planning",
+        "unitAr": "الاستراتيجية والتخطيط",
+        "email": "strategy.view@ehcd.gov.ae",
+        "initials": "SD",
+        "color": "#475569",
+        "accessLevel": "viewer",
+        "department": "Strategy & Planning",
     },
 ]
 
@@ -271,6 +383,88 @@ HOLIDAY_CHAIN: list[dict] = [
     },
 ]
 
+# Phase 4 — a MULTI-SIGNATURE chain: DT reviews, then BOTH the Director and the GM sign
+# (two Signing steps, each stamping its own {{SIG_*}} token). `required` marks the GM as
+# a required signer and the Director as optional (skippable).
+DUAL_SIGN_CHAIN: list[dict] = [
+    {
+        "id": "ws_dt",
+        "role": "dtManager",
+        "unitEn": "Digital Transformation",
+        "unitAr": "التحول الرقمي",
+        "type": "Reviewing",
+        "rejectable": True,
+        "sign": False,
+        "regenerate": True,
+        "required": True,
+        "position": {"x": 120, "y": 160},
+    },
+    {
+        "id": "ws_dir",
+        "role": "director",
+        "unitEn": "Digitalization Sector",
+        "unitAr": "قطاع الرقمنة",
+        "type": "Signing",
+        "rejectable": True,
+        "sign": True,
+        "regenerate": True,
+        "required": False,
+        "position": {"x": 340, "y": 160},
+    },
+    {
+        "id": "ws_gm",
+        "role": "gm",
+        "unitEn": "Executive Office",
+        "unitAr": "المكتب التنفيذي",
+        "type": "Signing",
+        "rejectable": True,
+        "sign": True,
+        "regenerate": True,
+        "required": True,
+        "position": {"x": 560, "y": 160},
+    },
+]
+
+# ===========================================================================
+# Reusable workflow definitions (Phase 3). Seeded from the standard/circular chains so
+# templates can bind to a versioned, shareable definition. Version 1 mirrors the inline
+# chain exactly, so binding a seed template changes nothing at correspondence-create.
+# ===========================================================================
+WORKFLOW_DEFINITIONS: list[dict] = [
+    {
+        "id": "wfd_standard",
+        "name": "Standard Approval Chain",
+        "ownerId": "u_admin",
+        "createdAt": "2026-07-10T09:12:00Z",
+        "updatedAt": "2026-07-10T09:12:00Z",
+    },
+    {
+        "id": "wfd_circular",
+        "name": "Circular Approval Chain",
+        "ownerId": "u_admin",
+        "createdAt": "2026-07-10T09:12:00Z",
+        "updatedAt": "2026-07-10T09:12:00Z",
+    },
+]
+WORKFLOW_DEFINITION_VERSIONS: list[dict] = [
+    {
+        "id": "wfv_standard_v1",
+        "definitionId": "wfd_standard",
+        "version": 1,
+        # deep-copy so a version's steps are an INDEPENDENT object, never aliased to the
+        # shared chain constant (which templates/correspondences also reference).
+        "steps": copy.deepcopy(STANDARD_CHAIN),
+        "createdAt": "2026-07-10T09:12:00Z",
+    },
+    {
+        "id": "wfv_circular_v1",
+        "definitionId": "wfd_circular",
+        "version": 1,
+        "steps": copy.deepcopy(CIRCULAR_CHAIN),
+        "createdAt": "2026-07-10T09:12:00Z",
+    },
+]
+
 # ===========================================================================
 # Template document bodies (docHtml) — verbatim, incl. leading/trailing newline.
 # ===========================================================================
@@ -328,6 +522,19 @@ HOLIDAY_EN_BODY = """
 <div class="sign-block">{{SIG_GM}}</div>
 """
 
+# Phase 4 — a dual-signature memo: the sign-block carries BOTH signature tokens so the
+# Director and the GM each stamp their own signature.
+DUAL_EN_BODY = """
+{{LETTERHEAD}}
+<h1>Subject: Executive Endorsement — {{SUBJECT}}</h1>
+<p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
+<p>Dear Sir/Madam,</p>
+<p>Following review by the Digital Transformation department, this memorandum is submitted for the joint endorsement of the Digitalization Director and the General Manager.</p>
+<p>Upon signature by both authorities below, the initiative is formally approved for execution.</p>
+<p>Respectfully,</p>
+<div class="sign-block">{{SIG_DIR}} {{SIG_GM}}</div>
+"""
+
 # ---------------------------------------------------------------------------
 # Template variables (TemplateVariable[] verbatim).
 # ---------------------------------------------------------------------------
@@ -357,8 +564,17 @@ HOLIDAY_VARS: list[dict] = [
     {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
 ]
 
+# Phase 4 — dual-signature vars: a Signature variable for BOTH the Director and the GM.
+DUAL_VARS: list[dict] = [
+    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "EHCD/EXE/2026/__", "required": True},
+    {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
+    {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{SIG_DIR}}", "labelEn": "Director Signature", "labelAr": "توقيع المدير", "type": "Signature", "group": "director"},
+    {"tag": "{{SIG_GM}}", "labelEn": "General Manager Signature", "labelAr": "توقيع المدير العام", "type": "Signature", "group": "gm"},
+]
+
 # ===========================================================================
-# Templates (5 language-variant entries).
+# Templates (6 entries — 5 language variants + 1 dual-signature).
 # ===========================================================================
 TEMPLATES: list[dict] = [
     {
@@ -372,6 +588,7 @@ TEMPLATES: list[dict] = [
         "docHtml": TUTORING_EN_BODY,
         "variables": TUTORING_VARS,
         "workflow": STANDARD_CHAIN,
+        "workflowVersionId": "wfv_standard_v1",
         "twinId": "tpl_tutoring_ar",
         "updatedAt": "2026-06-28T09:12:00Z",
         "usageCount": 14,
@@ -387,6 +604,7 @@ TEMPLATES: list[dict] = [
         "docHtml": TUTORING_AR_BODY,
         "variables": TUTORING_VARS,
         "workflow": STANDARD_CHAIN,
+        "workflowVersionId": "wfv_standard_v1",
         "twinId": "tpl_tutoring_en",
         "updatedAt": "2026-06-28T09:15:00Z",
         "usageCount": 9,
@@ -434,6 +652,20 @@ TEMPLATES: list[dict] = [
         "workflow": HOLIDAY_CHAIN,
         "updatedAt": "2026-07-05T08:05:00Z",
         "usageCount": 33,
+    },
+    {
+        "id": "tpl_executive_en",
+        "nameEn": "Executive Dual-Signature Endorsement",
+        "nameAr": "اعتماد تنفيذي بتوقيعين",
+        "lang": "en",
+        "category": "Approval",
+        "descEn": "A memo jointly signed by the Digitalization Director and the General Manager.",
+        "descAr": "مذكرة موقّعة من مدير الرقمنة والمدير العام معاً.",
+        "docHtml": DUAL_EN_BODY,
+        "variables": DUAL_VARS,
+        "workflow": DUAL_SIGN_CHAIN,
+        "updatedAt": "2026-07-06T08:05:00Z",
+        "usageCount": 4,
     },
 ]
 

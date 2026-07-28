@@ -37,6 +37,7 @@ from sqlmodel import Session
 from app.llm.openai_provider import get_provider
 from app.models import AppUser, Correspondence, Template
 from app.services import generation, workflow_parse
+from app.services.layout import split_doc
 from app.services.amounts import deterministic_amount, group_number
 from app.sse import SSEError
 
@@ -526,6 +527,38 @@ async def _translate(session: Session, user: AppUser, ctx: dict[str, Any], provi
     data = await _ask_json(provider, prompt, max_tokens=700)
     translation = str(data.get("translation") or "").strip()
     paragraphs = _as_str_list([p for p in translation.split("\n") if p.strip()], 6)
+
+    # Phase 8 — PERSIST a real Arabic translation on the correspondence (additive). When
+    # present it becomes the AR-locale body for the viewer + PDF (see documents._resolve_doc
+    # and the viewer), replacing the old "English-text-in-RTL" degradation for docs that
+    # have no hand-authored Arabic twin. The twin path is untouched (no corr → no persist).
+    # Persisting REPLACES this correspondence's Arabic body, so it requires an EXPLICIT
+    # opt-in from the caller (ctx.persistAr, set only by the viewer's "Translate to
+    # Arabic") and never fires on the studio surface. The AI sidebar forwards the last
+    # opened viewer's corrId to EVERY chip, so persisting on a bare corrId would let a
+    # studio/create-draft translate silently overwrite an unrelated correspondence.
+    if (
+        corr is not None
+        and not studio
+        and bool(ctx.get("persistAr"))
+        and tgt_lang == "ar"
+        and paragraphs
+    ):
+        # Lead with the letterhead token so BOTH the viewer's DocumentRenderer and the
+        # backend PDF render the EHCD header identically, and CARRY OVER the source
+        # document's locked sign-block (its {{SIG_*}} tokens) so the translated view/PDF
+        # still stamps the approvers' signatures instead of appearing unsigned.
+        src_doc = (
+            corr.doc_html_override
+            if corr.doc_html_override is not None
+            else (tpl.doc_html if tpl is not None else "")
+        )
+        sign_block = split_doc(src_doc or "").suffix_raw
+        ar_body = "\n".join(f"<p>{_html.escape(p)}</p>" for p in paragraphs)
+        parts = ["{{LETTERHEAD}}", ar_body] + ([sign_block] if sign_block else [])
+        corr.doc_html_ar = "\n".join(parts)
+        session.add(corr)
+        session.commit()
 
     doc_id = DRAFT if studio else (ctx.get("docId") or ctx.get("targetId") or CREATE)
     if tgt_lang == "ar":

@@ -70,7 +70,7 @@ export function TaskCard({ corr }: { corr: Correspondence }) {
             navigate(`/correspondence/${corr.id}`)
           }}
         >
-          {tr('Review', 'مراجعة')}
+          {tr('Open', 'فتح')}
           <ArrowRight className="size-3.5 rtl:rotate-180" />
         </Button>
       </div>

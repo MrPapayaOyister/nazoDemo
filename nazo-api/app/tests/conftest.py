@@ -16,7 +16,14 @@ import pytest
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.models import AppUser, Signature, Template
+from app.models import (
+    AppUser,
+    LayoutMaster,
+    Signature,
+    Template,
+    WorkflowDefinition,
+    WorkflowDefinitionVersion,
+)
 from app.seed import data as seed_data
 
 
@@ -34,6 +41,8 @@ def _to_user(d: dict) -> AppUser:
         initials=d["initials"],
         color=d["color"],
         signature_id=d.get("signatureId"),
+        access_level=d.get("accessLevel", "actor"),
+        department=d.get("department", ""),
     )
 
 
@@ -56,6 +65,44 @@ def _to_template(d: dict) -> Template:
         twin_id=d.get("twinId"),
         updated_at=d["updatedAt"],
         usage_count=d["usageCount"],
+        # Phase 2a: mirror reset.py — seed templates are admin-owned, global, dynamic.
+        template_type=d.get("templateType", "dynamic"),
+        owner_id=d.get("ownerId", "u_admin"),
+        visibility=d.get("visibility", "global"),
+        layout_master_id=d.get("layoutMasterId", "lm_default"),
+        workflow_version_id=d.get("workflowVersionId"),
+    )
+
+
+def _to_workflow_definition(d: dict) -> WorkflowDefinition:
+    return WorkflowDefinition(
+        id=d["id"],
+        name=d.get("name", ""),
+        owner_id=d.get("ownerId"),
+        created_at=d.get("createdAt", ""),
+        updated_at=d.get("updatedAt", ""),
+    )
+
+
+def _to_workflow_version(d: dict) -> WorkflowDefinitionVersion:
+    return WorkflowDefinitionVersion(
+        id=d["id"],
+        definition_id=d["definitionId"],
+        version=d["version"],
+        steps=d["steps"],
+        created_at=d.get("createdAt", ""),
+    )
+
+
+def _to_layout_master(d: dict) -> LayoutMaster:
+    return LayoutMaster(
+        id=d["id"],
+        name=d.get("name", ""),
+        header=d.get("header", {}),
+        footer=d.get("footer", {}),
+        locked=d.get("locked", True),
+        created_at=d.get("createdAt", ""),
+        updated_at=d.get("updatedAt", ""),
     )
 
 
@@ -68,11 +115,18 @@ def session() -> Session:
     )
     SQLModel.metadata.create_all(engine)
     with Session(engine) as sess:
-        # Signatures before users (users FK -> signature).
+        # Signatures before users (users FK -> signature); layout masters before
+        # templates (template FK -> layout_master).
         for s in seed_data.SIGNATURES:
             sess.add(_to_signature(s))
         for u in seed_data.USERS:
             sess.add(_to_user(u))
+        for lm in seed_data.LAYOUT_MASTERS:
+            sess.add(_to_layout_master(lm))
+        for wd in seed_data.WORKFLOW_DEFINITIONS:
+            sess.add(_to_workflow_definition(wd))
+        for wv in seed_data.WORKFLOW_DEFINITION_VERSIONS:
+            sess.add(_to_workflow_version(wv))
         for t in seed_data.TEMPLATES:
             sess.add(_to_template(t))
         sess.commit()

@@ -6,9 +6,17 @@ import {
   Navigate,
   useLocation,
 } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { pageVariants } from '@/lib/motion'
 import { useCurrentUser, useStore } from '@/store'
 import { DEFAULT_ROUTE_BY_ROLE } from '@/app/routes'
+import {
+  AUTHOR_TEMPLATE,
+  CREATE_CORRESPONDENCE,
+  MANAGE_USERS,
+  hasCapability,
+} from '@/lib/permissions'
+import type { Capability } from '@/types'
 import { TopBar } from '@/app/TopBar'
 import { LeftNav } from '@/app/LeftNav'
 import { AiSidebar } from '@/features/ai/AiSidebar'
@@ -31,6 +39,20 @@ function RootRedirect() {
 }
 
 /**
+ * Route guard (Phase 1). Renders children only if the active identity holds `cap`;
+ * otherwise bounces to that identity's home. This is a UX guard — the backend
+ * enforces the same capabilities server-side (a viewer/broadcaster hitting an
+ * admin/create endpoint 403s regardless of the URL they typed).
+ */
+function RequireCapability({ cap, children }: { cap: Capability; children: ReactNode }) {
+  const user = useCurrentUser()
+  if (!hasCapability(user, cap)) {
+    return <Navigate to={DEFAULT_ROUTE_BY_ROLE[user.role]} replace />
+  }
+  return <>{children}</>
+}
+
+/**
  * Route transition. A `motion` element keyed by pathname: React remounts it on
  * every route change, so the incoming page plays its cinematic enter (fade +
  * rise + blur-in). This deliberately avoids AnimatePresence exit-completion,
@@ -50,15 +72,58 @@ function AnimatedRoutes() {
       <Routes location={location}>
         <Route path="/" element={<RootRedirect />} />
 
-        {/* Admin */}
-        <Route path="/admin" element={<AdminOverview />} />
-        <Route path="/admin/templates" element={<TemplateStudio />} />
-        <Route path="/admin/workflows" element={<WorkflowEditor />} />
-        <Route path="/admin/users" element={<AdminUsers />} />
+        {/* Admin — authoring/config is admin-only (server-enforced too). */}
+        <Route
+          path="/admin"
+          element={
+            <RequireCapability cap={AUTHOR_TEMPLATE}>
+              <AdminOverview />
+            </RequireCapability>
+          }
+        />
+        <Route
+          path="/admin/templates"
+          element={
+            <RequireCapability cap={AUTHOR_TEMPLATE}>
+              <TemplateStudio />
+            </RequireCapability>
+          }
+        />
+        <Route
+          path="/admin/workflows"
+          element={
+            <RequireCapability cap={AUTHOR_TEMPLATE}>
+              <WorkflowEditor />
+            </RequireCapability>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <RequireCapability cap={MANAGE_USERS}>
+              <AdminUsers />
+            </RequireCapability>
+          }
+        />
 
-        {/* Requester */}
-        <Route path="/requester" element={<RequesterDashboard />} />
-        <Route path="/requester/new" element={<CreateWizard />} />
+        {/* Requester / create — every ACTOR may create (item-11 parity); viewers
+            and broadcasters cannot (no CREATE_CORRESPONDENCE capability). */}
+        <Route
+          path="/requester"
+          element={
+            <RequireCapability cap={CREATE_CORRESPONDENCE}>
+              <RequesterDashboard />
+            </RequireCapability>
+          }
+        />
+        <Route
+          path="/requester/new"
+          element={
+            <RequireCapability cap={CREATE_CORRESPONDENCE}>
+              <CreateWizard />
+            </RequireCapability>
+          }
+        />
 
         {/* Approvers */}
         <Route path="/inbox" element={<ApproverInbox />} />

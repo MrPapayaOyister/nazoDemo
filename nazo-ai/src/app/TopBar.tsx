@@ -1,4 +1,4 @@
-import { Bell, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { useStore } from '@/store'
 import { useLocalized } from '@/i18n'
 import { APP_NAME } from '@/lib/constants'
@@ -6,6 +6,7 @@ import { Logo } from '@/components/common/Logo'
 import { GlobalSearch } from '@/app/GlobalSearch'
 import { LangToggle } from '@/app/LangToggle'
 import { ThemeToggle } from '@/app/ThemeToggle'
+import { NotificationBell } from '@/app/NotificationBell'
 import { UserSwitcher } from '@/app/UserSwitcher'
 
 export function TopBar() {
@@ -40,13 +41,7 @@ export function TopBar() {
           )}
           <LangToggle />
           <ThemeToggle />
-          <button
-            aria-label="Notifications"
-            className="relative grid place-items-center size-9 rounded-lg text-ink-secondary hover:bg-hover hover:text-ink transition-colors"
-          >
-            <Bell className="size-[18px]" />
-            <span className="absolute top-2 end-2 size-1.5 rounded-full bg-danger" />
-          </button>
+          <NotificationBell />
           <div className="w-px h-6 bg-line mx-1" />
           <UserSwitcher />
         </div>

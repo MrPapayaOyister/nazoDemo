@@ -8,7 +8,7 @@ const MAP: Record<
   { en: string; ar: string; cls: string; icon: typeof Clock }
 > = {
   Draft: { en: 'Draft', ar: 'مسودة', cls: 'bg-subtle text-ink-secondary', icon: FileEdit },
-  InReview: { en: 'In Review', ar: 'قيد المراجعة', cls: 'bg-info-subtle text-info', icon: Loader2 },
+  InReview: { en: 'Active', ar: 'نشطة', cls: 'bg-info-subtle text-info', icon: Loader2 },
   Approved: { en: 'Approved', ar: 'معتمد', cls: 'bg-info-subtle text-info', icon: CheckCircle2 },
   Rejected: { en: 'Returned', ar: 'مُعاد', cls: 'bg-danger-subtle text-danger', icon: XCircle },
   Completed: { en: 'Signed & Complete', ar: 'موقّع ومكتمل', cls: 'bg-success-subtle text-success', icon: CheckCircle2 },

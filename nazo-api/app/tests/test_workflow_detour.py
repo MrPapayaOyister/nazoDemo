@@ -6,6 +6,7 @@ Run:  pytest app/tests/test_workflow_detour.py
 
 from __future__ import annotations
 
+import pytest
 from sqlmodel import Session, select
 
 from app.models import AppUser, CorrespondenceStep, WorkflowEvent
@@ -203,8 +204,10 @@ def test_single_active_invariant_across_transitions(session: Session):
     assert _current_index(session, corr.id) == 0
     _assert_single_active(session, corr.id)
 
-    # Signatures were cleared on revise.
-    assert corr.values["{{SIG_DT}}"] == ""
+    # Signatures were cleared on revise — assert on ALL signature values (seed-agnostic;
+    # the STANDARD chain now signs only at the GM step, so {{SIG_GM}} is the token).
+    sig_vals = {k: v for k, v in corr.values.items() if k.startswith("{{SIG")}
+    assert sig_vals and all(v == "" for v in sig_vals.values())
 
     # Redirect then return keeps the invariant.
     dt = _user(session, "u_dt")
@@ -215,6 +218,24 @@ def test_single_active_invariant_across_transitions(session: Session):
     workflow.approve(session, _user(session, "u_chair"), corr)
     session.commit()
     _assert_single_active(session, corr.id)
+
+
+# ---------------------------------------------------------------------------
+# (6) Authorization (Phase 1): only the requester may revise a rejected item.
+# ---------------------------------------------------------------------------
+def test_revise_requires_the_requester(session: Session):
+    corr = _fresh_inreview(session)
+    workflow.reject(session, _user(session, "u_dt"), corr, comment="Rework.")
+    session.commit()
+
+    # A non-requester (e.g. the DT approver) cannot re-open someone else's item.
+    with pytest.raises(workflow.ForbiddenError):
+        workflow.revise(session, _user(session, "u_dt"), corr, values={"{{AMOUNT}}": "5,000"})
+
+    # The original requester can.
+    workflow.revise(session, _user(session, "u_req"), corr, values={"{{AMOUNT}}": "5,000"})
+    session.commit()
+    assert corr.status == "InReview"
 
 
 # ---------------------------------------------------------------------------

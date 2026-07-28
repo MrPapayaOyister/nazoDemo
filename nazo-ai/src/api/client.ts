@@ -6,15 +6,22 @@
 // ============================================================================
 
 import type {
+  AppNotification,
   AttachmentContext,
   Correspondence,
+  LayoutMaster,
   OrgConfig,
   ResultCard,
   SideEffect,
   SignatureMeta,
   Template,
+  TemplateShare,
+  TemplateShareCapability,
   TemplateVariable,
+  TemplateVisibility,
   User,
+  WorkflowDefinition,
+  WorkflowStep,
 } from '@/types'
 
 const ENV_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? ''
@@ -93,6 +100,39 @@ export interface BootstrapPayload {
   correspondences: Correspondence[]
   /** Global letterhead config (item 2); optional so an older backend still boots. */
   org?: OrgConfig
+  /** Phase 2b — layout masters (optional; absent on an older backend). */
+  layoutMasters?: LayoutMaster[]
+  /** Phase 3 — reusable workflow definitions (optional; absent on an older backend). */
+  workflowDefinitions?: WorkflowDefinition[]
+}
+
+/** GET /api/layout-masters — reusable letterhead/branding masters (Phase 2b). */
+export function listLayoutMasters(): Promise<LayoutMaster[]> {
+  return request<LayoutMaster[]>('/layout-masters')
+}
+
+// --- Phase 3: reusable, versioned workflow definitions ---------------------
+export function listWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
+  return request<WorkflowDefinition[]>('/workflow-definitions')
+}
+
+/** Create a reusable workflow definition + its version 1 from the given steps. */
+export function createWorkflowDefinition(
+  name: string,
+  steps: WorkflowStep[],
+): Promise<WorkflowDefinition> {
+  return request<WorkflowDefinition>('/workflow-definitions', {
+    method: 'POST',
+    json: { name, steps },
+  })
+}
+
+/** Append a NEW immutable version to an existing definition. */
+export function addWorkflowVersion(id: string, steps: WorkflowStep[]): Promise<WorkflowDefinition> {
+  return request<WorkflowDefinition>(`/workflow-definitions/${encodeURIComponent(id)}/versions`, {
+    method: 'POST',
+    json: { steps },
+  })
 }
 
 export function bootstrap(): Promise<BootstrapPayload> {
@@ -125,8 +165,10 @@ export function getGraph(id: string): Promise<unknown> {
   return request<unknown>(`/correspondences/${encodeURIComponent(id)}/graph`)
 }
 
-export function listTemplates(): Promise<Template[]> {
-  return request<Template[]>('/templates')
+export type TemplateScope = 'all' | 'mine' | 'shared' | 'global'
+
+export function listTemplates(scope: TemplateScope = 'all'): Promise<Template[]> {
+  return request<Template[]>(`/templates?scope=${encodeURIComponent(scope)}`)
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +257,15 @@ export function redirectCorr(
   })
 }
 
+/** Phase 4 — skip an OPTIONAL signing step (required=false): advance without stamping.
+ *  Server enforces assignee-only + signing-and-optional (409 otherwise). */
+export function skipCorr(id: string, body?: { comment?: string }): Promise<Correspondence> {
+  return request<Correspondence>(`/correspondences/${encodeURIComponent(id)}/skip`, {
+    method: 'POST',
+    json: { comment: body?.comment ?? null },
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Templates.
 // ---------------------------------------------------------------------------
@@ -226,36 +277,85 @@ export interface TemplateDraftBody {
   docHtml: string
   variables?: unknown[]
   workflow?: unknown[]
+  // Phase 2a. Sent only when defined: on update, an undefined visibility must NOT
+  // reset the server's value; templateType is preserved server-side on update.
+  templateType?: string
+  visibility?: string
+  // Phase 3. Sent only when defined; None on update preserves the current binding.
+  workflowVersionId?: string
+}
+
+function _templateJson(body: TemplateDraftBody): Record<string, unknown> {
+  return {
+    titleEn: body.titleEn,
+    titleAr: body.titleAr ?? '',
+    lang: body.lang ?? 'en',
+    category: body.category ?? 'Approval',
+    docHtml: body.docHtml,
+    variables: body.variables ?? [],
+    workflow: body.workflow ?? [],
+    ...(body.templateType !== undefined ? { templateType: body.templateType } : {}),
+    ...(body.visibility !== undefined ? { visibility: body.visibility } : {}),
+    ...(body.workflowVersionId !== undefined ? { workflowVersionId: body.workflowVersionId } : {}),
+  }
 }
 
 export function saveTemplate(body: TemplateDraftBody): Promise<Template> {
-  return request<Template>('/templates', {
-    method: 'POST',
-    json: {
-      titleEn: body.titleEn,
-      titleAr: body.titleAr ?? '',
-      lang: body.lang ?? 'en',
-      category: body.category ?? 'Approval',
-      docHtml: body.docHtml,
-      variables: body.variables ?? [],
-      workflow: body.workflow ?? [],
-    },
-  })
+  return request<Template>('/templates', { method: 'POST', json: _templateJson(body) })
 }
 
 /** PUT /templates/{id} — update an existing template in place (item 4). The server
- *  freezes existing correspondences to the pre-edit body/variables (future-only). */
+ *  freezes existing correspondences to the pre-edit body/variables (future-only), and
+ *  gates on ownership / admin / an edit_template grant (Phase 2a). */
 export function updateTemplate(id: string, body: TemplateDraftBody): Promise<Template> {
   return request<Template>(`/templates/${encodeURIComponent(id)}`, {
     method: 'PUT',
+    json: _templateJson(body),
+  })
+}
+
+// --- Phase 2a: sharing grants + save-as-template ---------------------------
+export function listTemplateShares(id: string): Promise<TemplateShare[]> {
+  return request<TemplateShare[]>(`/templates/${encodeURIComponent(id)}/shares`)
+}
+
+export function shareTemplate(
+  id: string,
+  body: { granteeKind: 'user' | 'role'; granteeRef: string; capabilities: TemplateShareCapability[] },
+): Promise<TemplateShare> {
+  return request<TemplateShare>(`/templates/${encodeURIComponent(id)}/shares`, {
+    method: 'POST',
+    json: body,
+  })
+}
+
+export function unshareTemplate(id: string, shareId: string): Promise<void> {
+  return request<void>(
+    `/templates/${encodeURIComponent(id)}/shares/${encodeURIComponent(shareId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+/** POST /templates/from-correspondence — save a correspondence as a personal MANUAL
+ *  template owned by the caller (the correspondence's frozen workflow becomes the
+ *  required inline workflow[]). */
+export function saveTemplateFromCorrespondence(body: {
+  correspondenceId: string
+  titleEn: string
+  titleAr?: string
+  lang?: string
+  category?: string
+  visibility?: TemplateVisibility
+}): Promise<Template> {
+  return request<Template>('/templates/from-correspondence', {
+    method: 'POST',
     json: {
+      correspondenceId: body.correspondenceId,
       titleEn: body.titleEn,
       titleAr: body.titleAr ?? '',
       lang: body.lang ?? 'en',
       category: body.category ?? 'Approval',
-      docHtml: body.docHtml,
-      variables: body.variables ?? [],
-      workflow: body.workflow ?? [],
+      visibility: body.visibility ?? 'private',
     },
   })
 }
@@ -298,9 +398,7 @@ export function downloadPdf(id: string): Promise<void> {
   return download(`/correspondences/${encodeURIComponent(id)}/pdf`, `${id}.pdf`)
 }
 
-export function downloadDocx(id: string): Promise<void> {
-  return download(`/correspondences/${encodeURIComponent(id)}/docx`, `${id}.docx`)
-}
+// Phase 6 — DOCX download removed (PDF-only). The backend /docx route is gone too.
 
 // ---------------------------------------------------------------------------
 // Attachments — multipart upload (one or more files) + blob download.
@@ -337,6 +435,66 @@ export function downloadAttachment(corrId: string, attId: string, filename?: str
   )
 }
 
+/** Phase 6 — fetch an attachment's bytes (inline `/view`, permission-gated on VIEW)
+ *  with the identity header and return an object URL for in-browser preview. The caller
+ *  MUST revoke it (URL.revokeObjectURL) when the viewer closes. */
+export async function fetchAttachmentObjectUrl(corrId: string, attId: string): Promise<string> {
+  let res: Response
+  try {
+    res = await fetch(
+      `${API_BASE}/correspondences/${encodeURIComponent(corrId)}/attachments/${encodeURIComponent(attId)}/view`,
+      { headers: headers() },
+    )
+  } catch (e) {
+    throw new ApiError(e instanceof Error ? e.message : 'Network error')
+  }
+  if (!res.ok) throw new ApiError(await readError(res), res.status)
+  return URL.createObjectURL(await res.blob())
+}
+
+export interface SignAttachmentBody {
+  signatureId?: string
+  page?: number
+  x?: number
+  y?: number
+  w?: number
+  h?: number
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (Phase 7) — read + mark-read only (the client never authors one).
+// ---------------------------------------------------------------------------
+export function listNotifications(limit = 30): Promise<AppNotification[]> {
+  return request<AppNotification[]>(`/notifications?limit=${limit}`)
+}
+
+export function unreadNotificationCount(): Promise<number> {
+  return request<{ count: number }>(`/notifications/unread-count`).then((r) => r.count)
+}
+
+export function markNotificationRead(id: string): Promise<AppNotification> {
+  return request<AppNotification>(`/notifications/${encodeURIComponent(id)}/read`, {
+    method: 'POST',
+  })
+}
+
+export function markAllNotificationsRead(): Promise<{ updated: number }> {
+  return request<{ updated: number }>(`/notifications/read-all`, { method: 'POST' })
+}
+
+/** Phase 6 — sign an ORIGINAL attachment: creates an immutable signed variant and
+ *  returns the freshly serialized correspondence (with the new variant + history). */
+export function signAttachment(
+  corrId: string,
+  attId: string,
+  body: SignAttachmentBody,
+): Promise<Correspondence> {
+  return request<Correspondence>(
+    `/correspondences/${encodeURIComponent(corrId)}/attachments/${encodeURIComponent(attId)}/sign`,
+    { method: 'POST', json: body as unknown as Record<string, unknown> },
+  )
+}
+
 // ---------------------------------------------------------------------------
 // AI actions — POST /api/ai/{actionId} returning a text/event-stream. We
 // hand-roll SSE parsing off the response body reader and dispatch the 5-event
@@ -355,6 +513,10 @@ export interface AiContextBody {
   values?: Record<string, string>
   /** Template-generation length (admin.generateTemplate). */
   size?: 'small' | 'medium' | 'large'
+  /** Phase 8 — explicit output language (else backend auto-detects from the prompt). */
+  lang?: 'en' | 'ar'
+  /** Phase 8 — opt in to persisting the translation onto corrId's Arabic body. */
+  persistAr?: boolean
 }
 
 export interface AiResultPayload {

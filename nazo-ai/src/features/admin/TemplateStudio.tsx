@@ -12,11 +12,13 @@ import {
   AlertTriangle,
   Building2,
   Pencil,
+  Workflow,
+  Save,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Button } from '@/components/ui/Button'
-import { useStore } from '@/store'
+import { useStore, useWorkflowDefinitions } from '@/store'
 import { useAI } from '@/ai/useAI'
 import { useLocalized, useT } from '@/i18n'
 import { riseItem, aiReveal } from '@/lib/motion'
@@ -24,14 +26,24 @@ import { genId } from '@/data/ids'
 import { CATEGORY_AR } from '@/lib/labels'
 import { validateWorkflowGraph, isUnassigned } from '@/features/workflow/model'
 import { LetterheadFooterEditor, SyncBanner } from '@/features/admin/TemplateEditing'
+import { TemplateSharePanel } from '@/features/admin/TemplateSharePanel'
 import { InlineDocEditor } from '@/features/admin/editor/InlineDocEditor'
 import { cn } from '@/lib/cn'
-import type { Template, TemplateSize } from '@/types'
+import type { Template, TemplateSize, TemplateVisibility } from '@/types'
 
 const SIZE_OPTS: { value: TemplateSize; en: string; ar: string }[] = [
   { value: 'small', en: 'Small', ar: 'صغير' },
   { value: 'medium', en: 'Medium', ar: 'متوسط' },
   { value: 'large', en: 'Large', ar: 'كبير' },
+]
+
+// Phase 8 — output language for AI generation. 'auto' lets the backend detect it from
+// the prompt (Arabic prompt → Arabic memo); 'en'/'ar' forces it.
+type GenLang = 'auto' | 'en' | 'ar'
+const LANG_OPTS: { value: GenLang; en: string; ar: string }[] = [
+  { value: 'auto', en: 'Auto', ar: 'تلقائي' },
+  { value: 'en', en: 'EN', ar: 'إنجليزي' },
+  { value: 'ar', en: 'AR', ar: 'عربي' },
 ]
 
 const PLACEHOLDERS: { en: string; ar: string }[] = [
@@ -56,6 +68,7 @@ export function TemplateStudio() {
   const [prompt, setPrompt] = useState('')
   const [phIdx, setPhIdx] = useState(0)
   const [size, setSize] = useState<TemplateSize>('large')
+  const [genLang, setGenLang] = useState<GenLang>('auto')
 
   const generating = isRunning && runningAction === 'admin.generateTemplate'
 
@@ -67,7 +80,14 @@ export function TemplateStudio() {
 
   const onGenerate = () => {
     if (isRunning) return
-    run({ actionId: 'admin.generateTemplate', role: 'admin', docId: 'draft', prompt, size })
+    run({
+      actionId: 'admin.generateTemplate',
+      role: 'admin',
+      docId: 'draft',
+      prompt,
+      size,
+      lang: genLang === 'auto' ? undefined : genLang,
+    })
   }
 
   const onSave = () => {
@@ -88,6 +108,11 @@ export function TemplateStudio() {
       twinId: source?.twinId,
       updatedAt: '2026-07-10T09:12:00Z',
       usageCount: source?.usageCount ?? 0,
+      // Phase 2a — carry the studio's type + visibility through to the API.
+      templateType: draft.templateType,
+      visibility: draft.visibility,
+      // Phase 3 — carry the reusable-workflow binding.
+      workflowVersionId: draft.workflowVersionId,
     }
     if (editingTemplateId) void updateTemplate(tpl)
     else void publishTemplate(tpl)
@@ -141,6 +166,22 @@ export function TemplateStudio() {
                         className={cn(
                           'rounded-md px-2 py-1 text-[11.5px] font-semibold transition-colors',
                           size === o.value ? 'bg-brand text-white' : 'text-ink-secondary hover:bg-hover',
+                        )}
+                      >
+                        {tr(o.en, o.ar)}
+                      </button>
+                    ))}
+                  </div>
+                  {/* output language (Phase 8) */}
+                  <div className="flex items-center gap-0.5 rounded-lg hairline bg-app p-0.5" title={tr('Output language', 'لغة المخرجات')}>
+                    {LANG_OPTS.map((o) => (
+                      <button
+                        key={o.value}
+                        onClick={() => setGenLang(o.value)}
+                        disabled={generating}
+                        className={cn(
+                          'rounded-md px-2 py-1 text-[11.5px] font-semibold transition-colors',
+                          genLang === o.value ? 'bg-brand text-white' : 'text-ink-secondary hover:bg-hover',
                         )}
                       >
                         {tr(o.en, o.ar)}
@@ -241,8 +282,15 @@ function DraftReveal({
   const editingTemplateId = useStore((s) => s.editingTemplateId)
   const updateStudioDoc = useStore((s) => s.updateStudioDoc)
   const setStudioVariables = useStore((s) => s.setStudioVariables)
+  const setStudioDraft = useStore((s) => s.setStudioDraft)
+  const workflowDefs = useWorkflowDefinitions()
+  const applyWorkflowDefinition = useStore((s) => s.applyWorkflowDefinition)
+  const saveWorkflowAsDefinition = useStore((s) => s.saveWorkflowAsDefinition)
+  const appendCurrentWorkflowAsVersion = useStore((s) => s.appendCurrentWorkflowAsVersion)
+  const unlinkWorkflow = useStore((s) => s.unlinkWorkflow)
   const [saved, setSaved] = useState(false)
   const [showLetterhead, setShowLetterhead] = useState(false)
+  const [wfName, setWfName] = useState('')
 
   // Block Publish while the attached workflow has blocking errors (deterministic,
   // shared with the canvas builder). Warnings never block — EXCEPT an unassigned
@@ -251,7 +299,14 @@ function DraftReveal({
   // chose, so both publish paths must block on it identically.
   const wfErrors = validateWorkflowGraph(draft.workflow, users).errors
   const unassignedCount = draft.workflow.filter(isUnassigned).length
-  const publishBlocked = wfErrors.length > 0 || unassignedCount > 0
+  // Phase 2a — a MANUAL template must carry a workflow (the backend 422s otherwise).
+  const manualNeedsWorkflow = draft.templateType === 'manual' && draft.workflow.length === 0
+  const publishBlocked = wfErrors.length > 0 || unassignedCount > 0 || manualNeedsWorkflow
+  // Phase 3 — the reusable definition this draft came from ('' or undefined = unbound).
+  const boundDef = draft.workflowVersionId
+    ? workflowDefs.find((d) => d.versions.some((v) => v.id === draft.workflowVersionId))
+    : undefined
+  const boundVer = boundDef?.versions.find((v) => v.id === draft.workflowVersionId)
 
   return (
     <motion.div variants={aiReveal} initial="initial" animate="animate" className="mt-6">
@@ -263,6 +318,43 @@ function DraftReveal({
             : tr('Draft ready — everything is editable', 'المسودة جاهزة — كل شيء قابل للتعديل')}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Phase 2a — template type (Dynamic|Manual) is fixed at CREATE (the backend
+              never converts on update); in edit mode it is a read-only badge. */}
+          {editingTemplateId ? (
+            <span className="inline-flex items-center rounded-lg hairline bg-subtle px-2.5 py-1.5 text-[12px] font-semibold text-ink-secondary">
+              {draft.templateType === 'manual' ? tr('Manual', 'يدوي') : tr('Dynamic', 'ديناميكي')}
+            </span>
+          ) : (
+            <div className="inline-flex rounded-lg hairline overflow-hidden text-[12px] font-semibold">
+              {(['dynamic', 'manual'] as const).map((tt) => (
+                <button
+                  key={tt}
+                  type="button"
+                  onClick={() => setStudioDraft({ ...draft, templateType: tt })}
+                  className={cn(
+                    'px-2.5 py-1.5 transition-colors',
+                    draft.templateType === tt
+                      ? 'bg-brand text-white'
+                      : 'bg-surface text-ink-secondary hover:bg-hover',
+                  )}
+                >
+                  {tt === 'dynamic' ? tr('Dynamic', 'ديناميكي') : tr('Manual', 'يدوي')}
+                </button>
+              ))}
+            </div>
+          )}
+          <select
+            value={draft.visibility}
+            onChange={(e) =>
+              setStudioDraft({ ...draft, visibility: e.target.value as TemplateVisibility })
+            }
+            className="rounded-lg hairline bg-surface text-ink text-[12px] font-semibold px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            title={tr('Who can use this template', 'من يمكنه استخدام هذا النموذج')}
+          >
+            <option value="global">{tr('Everyone', 'الجميع')}</option>
+            <option value="shared">{tr('Shared', 'مشترك')}</option>
+            <option value="private">{tr('Private', 'خاص')}</option>
+          </select>
           <Button variant="ghost" onClick={() => setShowLetterhead((v) => !v)}>
             <Building2 className="size-4" />
             {tr('Letterhead', 'الترويسة')}
@@ -290,7 +382,12 @@ function DraftReveal({
                       `${unassignedCount} step(s) still unassigned — open the canvas to assign them.`,
                       `${unassignedCount} خطوة غير مُسنَدة — افتح اللوحة لإسنادها.`,
                     )
-                  : undefined
+                  : manualNeedsWorkflow
+                    ? tr(
+                        'A manual template needs a workflow — add at least one step in the canvas.',
+                        'يحتاج النموذج اليدوي إلى مسار — أضف خطوة واحدة على الأقل في اللوحة.',
+                      )
+                    : undefined
             }
           >
             {saved ? <Check className="size-4" /> : null}
@@ -302,6 +399,76 @@ function DraftReveal({
           </Button>
         </div>
       </div>
+
+      {/* Phase 3 — reusable, versioned workflow: apply a saved one or save this chain. */}
+      <div className="mb-4 rounded-2xl hairline bg-surface shadow-e1 p-4 space-y-2.5">
+        <div className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-ink">
+          <Workflow className="size-4 text-brand" />
+          {tr('Reusable workflow', 'مسار قابل لإعادة الاستخدام')}
+          {boundDef && (
+            <span className="ms-1 inline-flex items-center gap-1 rounded-full bg-brand-subtle text-brand px-2 py-0.5 text-[10px] font-semibold">
+              {tr('based on', 'مبني على')} {tr(boundDef.name, boundDef.name)} · v{boundVer?.version}
+            </span>
+          )}
+        </div>
+        {boundDef && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => void appendCurrentWorkflowAsVersion()}
+              disabled={draft.workflow.length === 0}
+              title={tr('Save the current chain as a new version of this workflow', 'احفظ المسار الحالي كإصدار جديد')}
+            >
+              <Save className="size-3.5" />
+              {tr('Save as new version', 'حفظ كإصدار جديد')}
+            </Button>
+            <button
+              onClick={() => unlinkWorkflow()}
+              className="text-[12px] text-ink-muted hover:text-danger transition-colors"
+            >
+              {tr('Unlink', 'إلغاء الربط')}
+            </button>
+          </div>
+        )}
+        {workflowDefs.length > 0 && (
+          <label className="flex flex-wrap items-center gap-2 text-[12px]">
+            <span className="text-ink-secondary">{tr('Apply a saved workflow', 'طبّق مساراً محفوظاً')}</span>
+            <select
+              value={draft.workflowVersionId ?? ''}
+              onChange={(e) => e.target.value && applyWorkflowDefinition(e.target.value)}
+              className="rounded-lg hairline bg-app text-ink text-[12px] px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+            >
+              <option value="">{tr('Choose…', 'اختر…')}</option>
+              {workflowDefs.flatMap((d) =>
+                d.versions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {d.name} · v{v.version}
+                  </option>
+                )),
+              )}
+            </select>
+          </label>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={wfName}
+            onChange={(e) => setWfName(e.target.value)}
+            placeholder={tr('Name this workflow to reuse it…', 'سمِّ هذا المسار لإعادة استخدامه…')}
+            className="min-w-0 w-56 rounded-lg hairline bg-app px-2.5 py-1.5 text-[12px] text-ink placeholder:text-ink-muted outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+          />
+          <Button
+            variant="secondary"
+            onClick={() => void saveWorkflowAsDefinition(wfName).then((ok) => ok && setWfName(''))}
+            disabled={!wfName.trim() || draft.workflow.length === 0}
+          >
+            <Save className="size-3.5" />
+            {tr('Save as reusable', 'حفظ كقابل لإعادة الاستخدام')}
+          </Button>
+        </div>
+      </div>
+
+      {/* Sharing is only meaningful for a SAVED template (needs an id). */}
+      {editingTemplateId && <TemplateSharePanel templateId={editingTemplateId} />}
 
       {wfErrors.length > 0 && (
         <div className="mb-4 flex items-start gap-2 rounded-xl bg-danger-subtle px-3 py-2 text-[12px] text-danger">

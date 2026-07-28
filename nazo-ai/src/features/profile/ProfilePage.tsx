@@ -50,6 +50,8 @@ const ROLE_LABEL: Record<RoleId, { en: string; ar: string }> = {
   director: { en: 'Approver · Digitalization', ar: 'معتمِد · الرقمنة' },
   gm: { en: 'Approver · General Manager', ar: 'معتمِد · المدير العام' },
   chair: { en: 'Chairperson', ar: 'الرئيس' },
+  broadcaster: { en: 'Broadcaster', ar: 'مذيع' },
+  viewer: { en: 'Viewer', ar: 'مشاهد' },
 }
 
 type Mode = 'draw' | 'upload'

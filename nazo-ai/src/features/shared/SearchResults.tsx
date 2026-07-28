@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Search, SearchX } from 'lucide-react'
@@ -5,6 +6,8 @@ import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
 import { EmptyState } from '@/components/common/EmptyState'
 import { CorrespondenceCard } from '@/components/common/CorrespondenceCard'
+import { CorrespondenceTable } from '@/components/common/CorrespondenceTable'
+import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
 import { useSearchCorrespondences } from '@/store'
 import { useLocalized } from '@/i18n'
 import { staggerContainer } from '@/lib/motion'
@@ -17,6 +20,7 @@ export function SearchResults() {
   const [params] = useSearchParams()
   const q = (params.get('q') ?? '').trim()
   const results = useSearchCorrespondences(q)
+  const [view, setView] = useState<ViewMode>('card')
 
   return (
     <PageTransition>
@@ -28,6 +32,7 @@ export function SearchResults() {
             : tr('Search correspondences by title, reference, sender or content.', 'ابحث في المراسلات بالعنوان أو المرجع أو المُرسِل أو المحتوى.')
         }
         icon={<Search className="size-5" />}
+        actions={q && results.length > 0 ? <ViewToggle mode={view} onChange={setView} /> : undefined}
       />
 
       {!q ? (
@@ -44,6 +49,8 @@ export function SearchResults() {
             title={tr('No matching correspondences', 'لا توجد مراسلات مطابقة')}
           />
         </div>
+      ) : view === 'table' ? (
+        <CorrespondenceTable rows={results} />
       ) : (
         <motion.div
           variants={staggerContainer(0.05, 0.05)}

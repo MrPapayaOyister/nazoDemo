@@ -6,6 +6,8 @@ import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
 import { StatChip } from '@/components/common/StatChip'
 import { CorrespondenceCard } from '@/components/common/CorrespondenceCard'
+import { CorrespondenceTable } from '@/components/common/CorrespondenceTable'
+import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
 import { EmptyState } from '@/components/common/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { useStore, useCurrentUser } from '@/store'
@@ -30,6 +32,7 @@ export function RequesterDashboard() {
   const user = useCurrentUser()
   const all = useStore((s) => s.correspondences)
   const [filter, setFilter] = useState<Filter>('all')
+  const [view, setView] = useState<ViewMode>('card')
 
   const mine = useMemo(() => sortByUpdatedDesc(all.filter((c) => c.requesterId === user.id)), [all, user.id])
   const kpis = useMemo(
@@ -64,27 +67,30 @@ export function RequesterDashboard() {
       />
 
       <motion.div variants={riseItem} className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatChip label={tr('Total sent', 'إجمالي المُرسل')} value={kpis.total} icon={<Send className="size-5" />} tone="brand" />
-        <StatChip label={tr('In review', 'قيد المراجعة')} value={kpis.review} icon={<Loader2 className="size-5" />} tone="ai" />
-        <StatChip label={tr('Completed', 'مكتملة')} value={kpis.done} icon={<CheckCircle2 className="size-5" />} tone="success" />
-        <StatChip label={tr('Needs attention', 'تحتاج انتباهاً')} value={kpis.attention} icon={<AlertTriangle className="size-5" />} tone="danger" alert />
+        <StatChip label={tr('Total sent', 'إجمالي المُرسل')} value={kpis.total} icon={<Send className="size-5" />} tone="brand" onClick={() => setFilter('all')} />
+        <StatChip label={tr('Active', 'نشطة')} value={kpis.review} icon={<Loader2 className="size-5" />} tone="ai" onClick={() => setFilter('active')} />
+        <StatChip label={tr('Completed', 'مكتملة')} value={kpis.done} icon={<CheckCircle2 className="size-5" />} tone="success" onClick={() => setFilter('completed')} />
+        <StatChip label={tr('Needs attention', 'تحتاج انتباهاً')} value={kpis.attention} icon={<AlertTriangle className="size-5" />} tone="danger" alert onClick={() => setFilter('rejected')} />
       </motion.div>
 
-      <motion.div variants={riseItem} className="mt-7 flex items-center justify-between gap-3">
+      <motion.div variants={riseItem} className="mt-7 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-ink">{tr('My correspondences', 'مراسلاتي')}</h2>
-        <div className="inline-flex items-center rounded-xl bg-subtle p-0.5 text-[12px] font-semibold">
-          {filters.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg transition-colors',
-                filter === f.id ? 'bg-surface text-brand shadow-e1' : 'text-ink-muted hover:text-ink',
-              )}
-            >
-              {tr(f.en, f.ar)}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center rounded-xl bg-subtle p-0.5 text-[12px] font-semibold">
+            {filters.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg transition-colors',
+                  filter === f.id ? 'bg-surface text-brand shadow-e1' : 'text-ink-muted hover:text-ink',
+                )}
+              >
+                {tr(f.en, f.ar)}
+              </button>
+            ))}
+          </div>
+          {shown.length > 0 && <ViewToggle mode={view} onChange={setView} />}
         </div>
       </motion.div>
 
@@ -102,6 +108,8 @@ export function RequesterDashboard() {
             }
           />
         </motion.div>
+      ) : view === 'table' ? (
+        <CorrespondenceTable rows={shown} />
       ) : (
         <motion.div
           variants={staggerContainer(0.05, 0.05)}

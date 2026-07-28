@@ -47,6 +47,7 @@ import {
   isUnassigned,
   legacyFlagsFromActions,
   resolveAssignee,
+  signingWiringErrors,
   typeFromActions,
   validateWorkflowGraph,
   type WFValidation,
@@ -59,6 +60,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/cn'
 import type {
   RoleId,
+  SignaturePlacement,
   Template,
   User,
   WorkflowAction,
@@ -129,9 +131,22 @@ function EditorInner() {
     [customSignatures],
   )
 
-  const validation: WFValidation = useMemo(
+  const baseValidation: WFValidation = useMemo(
     () => validateWorkflowGraph(canvasSteps, users, hasSignatureAsset),
     [canvasSteps, users, hasSignatureAsset],
+  )
+  // Phase 4 — fold in the signing-wiring rule (every Signing step needs its role's
+  // Signature variable) so Publish is blocked client-side too, matching the server 422.
+  const wiringErrors = useMemo(
+    () => signingWiringErrors(canvasSteps, studioDraft?.variables ?? []),
+    [canvasSteps, studioDraft],
+  )
+  const validation: WFValidation = useMemo(
+    () => ({
+      errors: [...baseValidation.errors, ...wiringErrors],
+      warnings: baseValidation.warnings,
+    }),
+    [baseValidation, wiringErrors],
   )
   const hasErrors = validation.errors.length > 0
   // Unassigned nodes are a soft warning while editing, but Publish requires every
@@ -219,6 +234,11 @@ function EditorInner() {
         twinId: source?.twinId,
         updatedAt: '2026-07-10T09:12:00Z',
         usageCount: source?.usageCount ?? 0,
+        // Phase 2a — carry the studio's classification through this second publish path.
+        templateType: studioDraft.templateType,
+        visibility: studioDraft.visibility,
+        // Phase 3 — carry the reusable-workflow binding.
+        workflowVersionId: studioDraft.workflowVersionId,
       }
       if (editingTemplateId) {
         void updateTemplate(tpl)
@@ -681,6 +701,117 @@ function StepConfig({
           </p>
         )}
       </div>
+
+      {/* SIGNER (Phase 4) — required-vs-optional + optional placement, Signing steps only */}
+      {step.sign && (
+        <div>
+          <SectionLabel>{tr('Signer', 'الموقّع')}</SectionLabel>
+          <Toggle
+            label={tr('Required signer', 'موقّع إلزامي')}
+            on={step.required !== false}
+            onClick={() => onPatch({ required: !(step.required !== false) })}
+          />
+          <p className="mt-1.5 text-[10.5px] text-ink-muted">
+            {step.required === false
+              ? tr(
+                  'Optional — this signer may skip (the chain advances without stamping).',
+                  'اختياري — يمكن لهذا الموقّع التخطّي (يتقدّم المسار دون ختم).',
+                )
+              : tr(
+                  'Required — this signature must be applied to continue.',
+                  'إلزامي — يجب تطبيق هذا التوقيع للمتابعة.',
+                )}
+          </p>
+          <PlacementFields step={step} onPatch={onPatch} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+const PLACEMENT_ANCHORS: NonNullable<SignaturePlacement['anchor']>[] = [
+  'bottom-right',
+  'bottom-left',
+  'top-right',
+  'top-left',
+  'center',
+]
+
+/** Phase 4 — optional, flagged signature-placement editor. Forward-contract metadata:
+ *  serialized through the template workflow JSON, NOT rendered (the document still uses
+ *  the token sign-block). Off by default so existing templates are byte-unchanged. */
+function PlacementFields({
+  step,
+  onPatch,
+}: {
+  step: WorkflowStep
+  onPatch: (patch: Partial<WorkflowStep>) => void
+}) {
+  const tr = useLocalized()
+  const p = step.placement
+  const on = !!p
+  const patchP = (patch: Partial<SignaturePlacement>) =>
+    onPatch({ placement: { ...(step.placement ?? {}), ...patch } })
+  const num = (v: string): number | undefined =>
+    v === '' ? undefined : Math.min(1, Math.max(0, Number(v) || 0))
+  return (
+    <div className="mt-3">
+      <Toggle
+        label={tr('Custom placement (advanced)', 'موضع مخصّص (متقدّم)')}
+        on={on}
+        onClick={() => onPatch({ placement: on ? undefined : { page: 1, anchor: 'bottom-right' } })}
+      />
+      {on && (
+        <div className="mt-2 space-y-2.5 rounded-lg hairline bg-app p-2.5">
+          <p className="text-[10px] leading-snug text-ink-muted">
+            {tr(
+              'Forward-contract only — the document still uses the sign-block; placement is not rendered yet.',
+              'عقد مستقبلي فقط — لا يزال المستند يستخدم كتلة التوقيع؛ لا يُعرض الموضع بعد.',
+            )}
+          </p>
+          <label className="flex items-center justify-between gap-2 text-[11px] text-ink-secondary">
+            {tr('Page', 'الصفحة')}
+            <input
+              type="number"
+              min={1}
+              value={p?.page ?? 1}
+              onChange={(e) => patchP({ page: Math.max(1, Number(e.target.value) || 1) })}
+              className="w-16 rounded-md hairline bg-surface px-2 py-1 text-[11px] text-ink"
+            />
+          </label>
+          <label className="flex items-center justify-between gap-2 text-[11px] text-ink-secondary">
+            {tr('Anchor', 'المرجع')}
+            <select
+              value={p?.anchor ?? 'bottom-right'}
+              onChange={(e) => patchP({ anchor: e.target.value as SignaturePlacement['anchor'] })}
+              className="rounded-md hairline bg-surface px-2 py-1 text-[11px] text-ink"
+            >
+              {PLACEMENT_ANCHORS.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="grid grid-cols-4 gap-1.5">
+            {(['x', 'y', 'w', 'h'] as const).map((k) => (
+              <label key={k} className="text-[10px] text-ink-muted">
+                {k.toUpperCase()}
+                <input
+                  type="number"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={p?.[k] ?? ''}
+                  placeholder="0–1"
+                  onChange={(e) => patchP({ [k]: num(e.target.value) })}
+                  className="mt-0.5 w-full rounded-md hairline bg-surface px-1.5 py-1 text-[11px] text-ink"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

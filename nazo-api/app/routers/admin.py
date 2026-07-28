@@ -14,9 +14,14 @@ from __future__ import annotations
 import logging
 
 import anyio
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import JSONResponse
+from sqlmodel import Session
 
+from app.db import engine
+from app.deps import DEFAULT_USER_ID
+from app.models import AppUser
+from app.permissions import RESET_DEMO, has_capability
 from app.seed.reset import reset_all
 
 logger = logging.getLogger("nazo.admin")
@@ -25,14 +30,30 @@ router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.post("/reset")
-async def reset_demo() -> JSONResponse:
-    """Run the guarded reset_all() off the event loop and re-seed the demo.
+async def reset_demo(
+    x_demo_user: str | None = Header(default=None, alias="X-Demo-User"),
+) -> JSONResponse:
+    """Run the guarded reset_all() off the event loop and re-seed the demo. Admin only.
 
-    NOTE: intentionally takes NO get_current_user/get_session dependency. Holding
-    an open request-scoped session keeps an ACCESS SHARE lock on app_user for the
-    whole request, which would deadlock reset_all()'s drop_all (ACCESS EXCLUSIVE)
-    running in the worker thread. Reset is a global demo op — no user needed.
+    NOTE: intentionally does NOT use get_current_user/get_session as request-scoped
+    dependencies — holding an open request session keeps an ACCESS SHARE lock on
+    app_user for the whole request, which would deadlock reset_all()'s drop_all
+    (ACCESS EXCLUSIVE) in the worker thread. Instead we authorize with a SHORT-LIVED
+    session that CLOSES (releasing the lock) before the reset runs.
     """
+    user_id = x_demo_user or DEFAULT_USER_ID
+    with Session(engine) as auth_session:
+        actor = auth_session.get(AppUser, user_id)
+    if actor is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Unknown demo user '{user_id}'",
+        )
+    if not has_capability(actor, RESET_DEMO):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only an administrator may reset the demo.",
+        )
     try:
         await anyio.to_thread.run_sync(reset_all)
     except Exception as exc:  # noqa: BLE001 - report gracefully, never crash the app

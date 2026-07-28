@@ -25,8 +25,11 @@ from app.routers import (
     correspondences,
     documents,
     health,
+    layout_masters,
+    notifications,
     templates,
     users,
+    workflow_definitions,
 )
 from app.services.rag import ensure_collection
 
@@ -81,10 +84,13 @@ app.include_router(health.router)
 app.include_router(users.router)
 app.include_router(bootstrap.router)
 app.include_router(templates.router)
+app.include_router(layout_masters.router)
+app.include_router(workflow_definitions.router)
 app.include_router(config.router)
 app.include_router(admin.router)
 app.include_router(correspondences.router)
 app.include_router(documents.router)
+app.include_router(notifications.router)
 app.include_router(ai.router)
 
 # Mount the SPA last so /api/* routes take precedence. SPA fallback: any unknown

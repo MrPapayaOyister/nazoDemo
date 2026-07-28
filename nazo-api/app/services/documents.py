@@ -389,7 +389,17 @@ def render_letter_html(
     resolved = _resolve_lang(template, lang)
     header, footer = _load_org_config(session)
     doc_html, variables = _resolve_doc(corr, template)
-    if not doc_html:
+    if resolved == "ar" and corr.doc_html_ar:
+        # Phase 8 — render the PERSISTED Arabic translation (additive). It already leads
+        # with {{LETTERHEAD}} and is final text (no other variables). This replaces the old
+        # English-text-in-RTL PDF for any AR-rendered translated correspondence (the PDF
+        # path never twin-swapped, so this is a strict improvement, no regression).
+        # Pass the EFFECTIVE variables (not []) so the sign-block carried into the
+        # translated body still resolves its {{SIG_*}} tokens to real signatures.
+        body = _substitute_body(
+            session, corr.doc_html_ar, variables, dict(corr.values or {}), resolved, header, for_docx=False
+        )
+    elif not doc_html:
         # Degrade rather than 500: emit a minimal but valid document.
         body = _letterhead_html(header, resolved) + "<p>Template not found.</p>"
     else:

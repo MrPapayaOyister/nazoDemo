@@ -85,6 +85,12 @@ class AppUser(SQLModel, table=True):
     initials: str
     color: str
     signature_id: Optional[str] = Field(default=None, foreign_key="signature.id")
+    # Permission model (Phase 1): coarse access level (actor | broadcaster | viewer);
+    # fine-grained capabilities are derived from `role` (app/permissions.py). The 6
+    # original users are 'actor'; the 6 new users are broadcaster/viewer. `department`
+    # groups viewers/broadcasters (broadcast targeting).
+    access_level: str = Field(default="actor")
+    department: str = Field(default="")
 
 
 class Signature(SQLModel, table=True):
@@ -122,6 +128,114 @@ class Template(SQLModel, table=True):
     twin_id: Optional[str] = Field(default=None)
     updated_at: str  # ISO string, stored verbatim for byte-exact round-trip
     usage_count: int = 0
+    # --- Phase 2a: classification / ownership / sharing (additive) -----------
+    # template_type: 'dynamic' (org template; Phase 3 lets it reference a reusable
+    # workflow definition) | 'manual' (a personal template, e.g. saved from a
+    # correspondence — ALWAYS carries a non-empty inline workflow[]).
+    template_type: str = Field(default="dynamic")
+    # owner_id: the AppUser who authored/owns this template. NULL = system/seed
+    # (managed by admin). Nullable so pre-2a rows and byte-exact bootstrap round-trip
+    # are unaffected; the seed mapper stamps u_admin for the canonical org templates.
+    owner_id: Optional[str] = Field(default=None, foreign_key="app_user.id", index=True)
+    # visibility: 'private' (owner + explicit shares only) | 'shared' (owner + shares) |
+    # 'global' (any actor may use). Model default is 'private'; seed = 'global'.
+    visibility: str = Field(default="private")
+    # Phase 2b: the layout master owning this template's LOCKED zones (letterhead +
+    # sign-block frame). NULL = no master (freely editable). Additive/nullable.
+    layout_master_id: Optional[str] = Field(
+        default=None, foreign_key="layout_master.id", index=True
+    )
+    # Phase 3: the reusable workflow-definition VERSION this template's chain came from
+    # (provenance). NULL = an ad-hoc inline workflow. The template still keeps its own
+    # workflow[] copy (what the canvas shows + what a correspondence snapshots at create);
+    # binding a version copies the version's steps into workflow[]. Editing a definition
+    # mints a NEW version, so a template pinned to an old version keeps its steps.
+    workflow_version_id: Optional[str] = Field(
+        default=None, foreign_key="workflow_definition_version.id", index=True
+    )
+
+
+class WorkflowDefinition(SQLModel, table=True):
+    """A named, REUSABLE approval workflow (Phase 3). Its steps live in immutable
+    WorkflowDefinitionVersion rows — editing the workflow appends a new version rather
+    than mutating the old one, so templates/correspondences pinned to a version are
+    never retroactively changed."""
+
+    __tablename__ = "workflow_definition"
+
+    id: str = Field(primary_key=True)
+    name: str = ""
+    owner_id: Optional[str] = Field(default=None, foreign_key="app_user.id", index=True)
+    created_at: str = Field(default="")
+    updated_at: str = Field(default="")
+
+
+class WorkflowDefinitionVersion(SQLModel, table=True):
+    """One immutable version of a WorkflowDefinition — a verbatim WorkflowStep[] list
+    (same shape as Template.workflow). Never edited in place; a new version is appended."""
+
+    __tablename__ = "workflow_definition_version"
+    __table_args__ = (
+        UniqueConstraint("definition_id", "version", name="uq_workflow_def_version"),
+    )
+
+    id: str = Field(primary_key=True)
+    definition_id: str = Field(foreign_key="workflow_definition.id", index=True)
+    version: int = 1
+    steps: list[dict[str, Any]] = Field(default_factory=list, sa_column=_json_column())
+    created_at: str = Field(default="")
+
+
+class LayoutMaster(SQLModel, table=True):
+    """A reusable letterhead/branding master that owns a template's LOCKED zones
+    (Phase 2b). When a template references a LOCKED master, its structural frame — the
+    leading {{LETTERHEAD}} token and the trailing <div class="sign-block"> — may only
+    be altered by a caller holding the per-template `edit_layout` capability (owner /
+    admin). The editable body is unaffected.
+
+    `header`/`footer` are the SAME camelCase JSON shape as OrgConfig and are a FORWARD
+    CONTRACT: they are stored + serialized for a future per-brand-master rendering path,
+    but the document renderer currently uses the global OrgConfig for ALL templates (so
+    the on-screen preview and the generated PDF/DOCX never disagree). For now a
+    LayoutMaster contributes only the LOCK (and its name); branding stays in OrgConfig.
+    """
+
+    __tablename__ = "layout_master"
+
+    id: str = Field(primary_key=True)
+    name: str = ""
+    header: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
+    footer: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
+    locked: bool = Field(default=True)
+    created_at: str = Field(default="")
+    updated_at: str = Field(default="")
+
+
+class TemplateShare(SQLModel, table=True):
+    """A grant sharing a template with a specific user OR a whole role (Phase 2a).
+
+    Kept as its own table (not a JSON column on Template) so grants are added/revoked
+    individually and a (template, grantee) pair is unique. `capabilities` is a JSON
+    list drawn from the template-capability vocabulary — use / edit_content /
+    edit_template / edit_layout / share (edit_layout is enforced in Phase 2b). Server
+    is authoritative: routers resolve effective template capabilities from owner +
+    admin (AUTHOR_TEMPLATE) + these grants (see app.permissions.template_capabilities_for).
+    """
+
+    __tablename__ = "template_share"
+    __table_args__ = (
+        UniqueConstraint(
+            "template_id", "grantee_kind", "grantee_ref", name="uq_template_share_grantee"
+        ),
+    )
+
+    id: str = Field(primary_key=True)
+    template_id: str = Field(foreign_key="template.id", index=True)
+    grantee_kind: str  # 'user' | 'role'
+    grantee_ref: str  # AppUser.id when kind=='user', RoleId when kind=='role'
+    capabilities: list[str] = Field(default_factory=list, sa_column=_json_column())
+    shared_by: str = Field(foreign_key="app_user.id")
+    created_at: str = Field(default="")
 
 
 class Correspondence(SQLModel, table=True):
@@ -153,6 +267,13 @@ class Correspondence(SQLModel, table=True):
         default=None, sa_column=_json_column()
     )
     doc_html_override: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    # Phase 8 — a persisted Arabic translation of THIS correspondence's body (produced by
+    # the translate AI action). Additive: when present it is the AR-locale source for the
+    # viewer + PDF; when absent the viewer falls back to the hand-authored Arabic twin
+    # template (unchanged behaviour). Never overwrites the twin.
+    doc_html_ar: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
 
@@ -193,6 +314,9 @@ class CorrespondenceStep(SQLModel, table=True):
     rejectable: bool = True
     sign: bool = True
     regenerate: bool = False
+    # Phase 4: an OPTIONAL signer (required=False) may SKIP their signing step (advance
+    # without stamping). Defaults True so every existing step is a required signer.
+    required: bool = Field(default=True)
     status: str = STEP_STATUS_PENDING  # pending | active | done | rejected | waiting | superseded
     position: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
     # Audit trail written by the workflow engine (all ISO 'Z' strings).
@@ -236,7 +360,7 @@ class Attachment(SQLModel, table=True):
 
     id: str = Field(primary_key=True)
     correspondence_id: str = Field(foreign_key="correspondence.id", index=True)
-    # Which action this file was attached at: 'create' | 'approve' | 'reject'.
+    # Which action this file was attached at: 'create' | 'approve' | 'reject' | 'sign'.
     context: str
     # The chain step_order at attach time (approver actions); NULL for 'create'.
     step_order: Optional[int] = Field(default=None)
@@ -246,6 +370,27 @@ class Attachment(SQLModel, table=True):
     size_bytes: int = 0
     data: bytes = Field(sa_column=Column(LargeBinary))
     created_at: str  # ISO string
+
+    # ---- Phase 6: signed variants (lightweight signed record) -------------------
+    # A SIGNED VARIANT is a NEW immutable row whose parent_attachment_id points at the
+    # ORIGINAL (which is never modified). The signature is a RECORD (signer + time +
+    # content hash + placement) overlaid in the in-app viewer — the bytes are copied
+    # verbatim from the parent, NOT re-stamped (no PDF-manipulation dependency).
+    parent_attachment_id: Optional[str] = Field(
+        default=None, foreign_key="attachment.id", index=True
+    )
+    is_signed: bool = Field(default=False)
+    signer_id: Optional[str] = Field(default=None, foreign_key="app_user.id")
+    signed_at: Optional[str] = Field(default=None)
+    # SHA-256 of the signed bytes (== the parent's bytes) — proves what was signed.
+    content_hash: Optional[str] = Field(default=None)
+    signature_asset_ref: Optional[str] = Field(default=None)
+    # Normalized placement of the overlaid signature (0..1 fractions); page is 1-based.
+    sig_page: Optional[int] = Field(default=None)
+    sig_x: Optional[float] = Field(default=None)
+    sig_y: Optional[float] = Field(default=None)
+    sig_w: Optional[float] = Field(default=None)
+    sig_h: Optional[float] = Field(default=None)
 
 
 # ===========================================================================
@@ -267,6 +412,32 @@ class WorkflowEvent(SQLModel, table=True):
     to_step_order: Optional[int] = Field(default=None)
     payload: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
     at: str  # ISO string
+
+
+class Notification(SQLModel, table=True):
+    """Phase 7 — a per-recipient inbox notification. Emitted from workflow transitions
+    (a step becomes yours to act on, your item was returned/completed) and template
+    shares. `dedupe_key` is UNIQUE so a re-emission (retry, refresh, re-run) is a no-op
+    rather than a duplicate — the emitter INSERTs and swallows the IntegrityError."""
+
+    __tablename__ = "notification"
+    __table_args__ = (
+        UniqueConstraint("dedupe_key", name="uq_notification_dedupe"),
+    )
+
+    id: str = Field(primary_key=True)
+    recipient_id: str = Field(foreign_key="app_user.id", index=True)
+    # 'awaiting' | 'returned' | 'completed' | 'template_shared'
+    type: str
+    correspondence_id: Optional[str] = Field(
+        default=None, foreign_key="correspondence.id", index=True
+    )
+    # Denormalized display payload (titleEn/titleAr/ref/actor/…) so the client renders
+    # without extra fetches; kept small.
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=_json_column())
+    dedupe_key: str = Field(index=True)
+    created_at: str  # ISO string
+    read_at: Optional[str] = Field(default=None)
 
 
 class CorrespondenceVersion(SQLModel, table=True):

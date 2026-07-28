@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Send } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
 import { EmptyState } from '@/components/common/EmptyState'
 import { CorrespondenceCard } from '@/components/common/CorrespondenceCard'
+import { CorrespondenceTable } from '@/components/common/CorrespondenceTable'
+import { ViewToggle, type ViewMode } from '@/components/common/ViewToggle'
 import { useSentByMe } from '@/store'
 import { useLocalized } from '@/i18n'
 import { staggerContainer } from '@/lib/motion'
@@ -15,6 +18,7 @@ import { staggerContainer } from '@/lib/motion'
 export function SentByMe() {
   const tr = useLocalized()
   const mine = useSentByMe()
+  const [view, setView] = useState<ViewMode>('card')
 
   return (
     <PageTransition>
@@ -25,6 +29,7 @@ export function SentByMe() {
           'كل مراسلة أنشأتها — أينما كانت في المسار.',
         )}
         icon={<Send className="size-5" />}
+        actions={mine.length > 0 ? <ViewToggle mode={view} onChange={setView} /> : undefined}
       />
 
       {mine.length === 0 ? (
@@ -34,6 +39,8 @@ export function SentByMe() {
             title={tr("You haven't sent anything yet", 'لم ترسل شيئاً بعد')}
           />
         </div>
+      ) : view === 'table' ? (
+        <CorrespondenceTable rows={mine} />
       ) : (
         <motion.div
           variants={staggerContainer(0.05, 0.05)}

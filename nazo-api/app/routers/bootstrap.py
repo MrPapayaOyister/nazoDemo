@@ -8,24 +8,31 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
-from app.deps import get_session
+from app.deps import get_current_user, get_session
 from app.models import (
     AppUser,
     Attachment,
     Correspondence,
     CorrespondenceStep,
+    LayoutMaster,
     OrgConfig,
     Signature,
     Template,
+    TemplateShare,
+    WorkflowDefinition,
+    WorkflowDefinitionVersion,
 )
+from app.permissions import can_view_template
 from app.routers.serializers import (
     order_correspondences,
     order_templates,
     order_users,
     serialize_correspondence,
+    serialize_layout_master,
     serialize_org_config,
     serialize_template,
     serialize_user,
+    serialize_workflow_definition,
 )
 from app.seed import data as seed_data
 
@@ -42,9 +49,25 @@ def _signatures_by_owner(session: Session) -> dict[str, list[dict]]:
 
 
 @router.get("/bootstrap")
-def bootstrap(session: Session = Depends(get_session)) -> dict:
+def bootstrap(
+    session: Session = Depends(get_session),
+    current_user: AppUser = Depends(get_current_user),
+) -> dict:
     users = order_users(list(session.exec(select(AppUser)).all()))
-    templates = order_templates(list(session.exec(select(Template)).all()))
+    # Visibility (Phase 2a): hydrate only templates the current identity may SEE —
+    # owned, admin, global, or shared-with. Other users' PRIVATE templates are withheld
+    # (their letter body would otherwise leak). Seed templates are global, so every
+    # existing flow is unaffected.
+    shares_by_tpl: dict[str, list[TemplateShare]] = {}
+    for g in session.exec(select(TemplateShare)).all():
+        shares_by_tpl.setdefault(g.template_id, []).append(g)
+    templates = order_templates(
+        [
+            t
+            for t in session.exec(select(Template)).all()
+            if can_view_template(current_user, t, shares_by_tpl.get(t.id, []))
+        ]
+    )
     sigs_by_owner = _signatures_by_owner(session)
     correspondences = order_correspondences(list(session.exec(select(Correspondence)).all()))
 
@@ -93,9 +116,22 @@ def bootstrap(session: Session = Depends(get_session)) -> dict:
             for r in rows
         ]
 
+    layout_masters = list(session.exec(select(LayoutMaster)).all())
+    layout_masters.sort(key=lambda m: (m.created_at, m.id))
+
+    wf_defs = list(session.exec(select(WorkflowDefinition)).all())
+    wf_defs.sort(key=lambda d: (d.created_at, d.id))
+    wf_versions_by_def: dict[str, list[WorkflowDefinitionVersion]] = {}
+    for v in session.exec(select(WorkflowDefinitionVersion)).all():
+        wf_versions_by_def.setdefault(v.definition_id, []).append(v)
+
     return {
         "users": [serialize_user(u, _user_sigs(u)) for u in users],
         "templates": [serialize_template(t) for t in templates],
+        "layoutMasters": [serialize_layout_master(m) for m in layout_masters],
+        "workflowDefinitions": [
+            serialize_workflow_definition(d, wf_versions_by_def.get(d.id, [])) for d in wf_defs
+        ],
         "correspondences": [
             serialize_correspondence(
                 c, steps_by_corr.get(c.id, []), attach_by_corr.get(c.id, [])
