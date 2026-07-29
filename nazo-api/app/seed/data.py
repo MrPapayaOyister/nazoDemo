@@ -312,9 +312,28 @@ def _initials(letters: str) -> str:
     return "data:image/svg+xml;utf8," + _encode_uri_component(svg)
 
 
-# Full signatures (Signing steps) + INITIALS (Reviewing steps). Every actor gets an
-# initials mark so any of them can be placed on a review step; the three chain
-# approvers additionally carry their hand-drawn signature.
+def _script_sig(name_en: str) -> str:
+    """A full-width handwritten SIGNATURE rendered from a name.
+
+    The three chain approvers have bespoke hand-drawn paths below; this generates an
+    equivalent mark for everyone else so no identity can be assigned a Signing step
+    with an empty picker. Same ink and underline flourish as the hand-drawn ones,
+    just derived from the name instead of authored curves."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 80">'
+        f'<text x="10" y="52" font-family="Georgia,serif" font-style="italic" '
+        f'font-size="30" fill="{_INK}">{name_en}</text>'
+        f'<path d="M12 64 C 90 57, 170 57, 228 62" fill="none" stroke="{_INK}" '
+        'stroke-width="1.8" stroke-linecap="round" opacity="0.75"/></svg>'
+    )
+    return "data:image/svg+xml;utf8," + _encode_uri_component(svg)
+
+
+# Full signatures (Signing steps) + INITIALS (Reviewing steps). EVERY identity gets
+# both marks: with all 12 users able to create correspondence and be assigned steps,
+# an identity holding only one kind would open an empty picker at the other kind of
+# step. The three chain approvers keep their bespoke hand-drawn signatures below;
+# the rest are generated from their name/initials at the end of this list.
 SIGNATURES: list[dict] = [
     {"id": "sig_dt", "ownerId": "u_dt", "style": "cursive", "label": "Formal", "kind": "signature", "dataUri": _sig(_DT_PATHS, "cursive")},
     {"id": "sig_dir", "ownerId": "u_dir", "style": "cursive", "label": "Formal", "kind": "signature", "dataUri": _sig(_DIR_PATHS, "cursive")},
@@ -328,6 +347,44 @@ SIGNATURES: list[dict] = [
     {"id": "init_gm", "ownerId": "u_gm", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("M.H.")},
     {"id": "init_chair", "ownerId": "u_chair", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("A.N.")},
 ]
+
+# Fill the gaps so every identity owns one of each kind. Driven off USERS, so a new
+# seed user automatically gets marks instead of silently shipping an empty picker.
+_have = {(s["ownerId"], s["kind"]) for s in SIGNATURES}
+for _u in USERS:
+    if (_u["id"], "signature") not in _have:
+        SIGNATURES.append(
+            {
+                "id": f"sig_{_u['id'][2:]}",
+                "ownerId": _u["id"],
+                "style": "cursive",
+                "label": "Formal",
+                "kind": "signature",
+                "dataUri": _script_sig(_u["nameEn"]),
+            }
+        )
+    if (_u["id"], "initials") not in _have:
+        SIGNATURES.append(
+            {
+                "id": f"init_{_u['id'][2:]}",
+                "ownerId": _u["id"],
+                "style": "cursive",
+                "label": "Initials",
+                "kind": "initials",
+                "dataUri": _initials(".".join(_u["initials"]) + "."),
+            }
+        )
+
+# Point every identity at a DEFAULT signature. approve_and_sign falls back to
+# current_user.signature_id when the caller names no explicit asset, so an identity
+# without one would be marked signed while stamping nothing.
+_first_sig = {}
+for _s in SIGNATURES:
+    if _s["kind"] == "signature":
+        _first_sig.setdefault(_s["ownerId"], _s["id"])
+for _u in USERS:
+    if not _u.get("signatureId"):
+        _u["signatureId"] = _first_sig.get(_u["id"])
 
 # ===========================================================================
 # Workflow chains (WorkflowStep[] verbatim).
