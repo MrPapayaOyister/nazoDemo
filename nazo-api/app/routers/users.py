@@ -151,10 +151,17 @@ async def add_user_signature(
     )
     session.add(sig)
     session.flush()  # INSERT before pointing the user FK at it (no ORM relationship)
-    # First signature becomes the default.
-    if not user.signature_id:
-        user.signature_id = sig.id
-        session.add(user)
+    # A user's OWN signature becomes the default. Originally this fired only when the
+    # pointer was empty, which was fine while signature-less identities existed. Now
+    # every seeded identity ships with a generated default, so that test never passed
+    # and an uploaded signature was never the one approve() stamps. A seeded
+    # (is_custom=False) default counts as "no real default yet". Uploading an INITIALS
+    # mark must not repoint the signature default -- they are different artefacts.
+    if sig.kind == "signature":
+        current = session.get(Signature, user.signature_id) if user.signature_id else None
+        if current is None or not current.is_custom:
+            user.signature_id = sig.id
+            session.add(user)
     session.commit()
     return {
         "signatureId": sig.id,

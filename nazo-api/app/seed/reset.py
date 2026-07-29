@@ -307,6 +307,10 @@ def _backup_custom_signatures(session: Session) -> list[dict]:
     # columns explicitly is migration-safe; the new fields are read only when present.
     has_label = "label" in cols
     has_created = "created_at" in cols
+    # `kind` distinguishes an initials mark from a full signature. Dropping it here made
+    # a preserved custom INITIALS mark come back as a signature, so it vanished from the
+    # Reviewing-step picker (which filters kind=='initials') after every reset.
+    has_kind = "kind" in cols
     sel_cols = [
         Signature.id,
         Signature.owner_id,
@@ -318,6 +322,8 @@ def _backup_custom_signatures(session: Session) -> list[dict]:
         sel_cols.append(Signature.label)
     if has_created:
         sel_cols.append(Signature.created_at)
+    if has_kind:
+        sel_cols.append(Signature.kind)
     rows = list(session.exec(select(*sel_cols).where(Signature.is_custom == True)).all())  # noqa: E712
     # Which signature is each owner's DEFAULT. Select ONLY app_user.id/signature_id —
     # NOT session.get(AppUser, ...), which loads EVERY model column and therefore breaks
@@ -342,6 +348,7 @@ def _backup_custom_signatures(session: Session) -> list[dict]:
             "style": r.style,
             "label": getattr(r, "label", "") if has_label else "",
             "created_at": getattr(r, "created_at", "") if has_created else "",
+            "kind": (getattr(r, "kind", None) or "signature") if has_kind else "signature",
             "is_default": default_sig_by_owner.get(r.owner_id) == r.id,
         }
         for r in rows
@@ -364,6 +371,7 @@ def _restore_custom_signatures(session: Session, backup: list[dict]) -> None:
                 data_uri=b["data_uri"],
                 style=b["style"],
                 label=b.get("label", ""),
+                kind=b.get("kind", "signature"),
                 is_custom=True,
                 created_at=b.get("created_at", ""),
             )
