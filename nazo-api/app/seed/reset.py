@@ -37,6 +37,7 @@ from app.models import (
     AppUser,
     Correspondence,
     CorrespondenceStep,
+    WorkflowEvent,
     LayoutMaster,
     OrgConfig,
     Signature,
@@ -218,10 +219,34 @@ def _upsert_seed(session: Session) -> None:
         session.merge(_to_workflow_version(wv))
     for t in seed_data.TEMPLATES:
         session.merge(_to_template(t))
+    # Map the human history entries onto machine audit events so the admin Activity
+    # Log is populated on a fresh demo (a reset drops workflow_event with the rest of
+    # the allowlist, and the engine only writes events for LIVE transitions).
+    _HISTORY_TO_EVENT = {
+        "Created": "created",
+        "Sent": "sent",
+        "Approved": "approved",
+        "Signed": "signed",
+        "Rejected": "rejected",
+        "Completed": "completed",
+        "Regenerated": "revised",
+        "Commented": "commented",
+    }
     for c in seed_data.CORRESPONDENCES:
         session.merge(_to_correspondence(c))
         for step in seed_data.derive_steps(c):
             session.merge(CorrespondenceStep(**step))
+        for h in c.get("history", []):
+            session.merge(
+                WorkflowEvent(
+                    id=f"evt_{c['id']}_{h['id']}",
+                    correspondence_id=c["id"],
+                    actor_id=h["actorId"],
+                    event_type=_HISTORY_TO_EVENT.get(h["action"], "commented"),
+                    payload={"comment": h.get("comment", "")},
+                    at=h["at"],
+                )
+            )
     session.commit()
     logger.info(
         "Seeded %d signatures, %d users, %d templates, %d correspondences",

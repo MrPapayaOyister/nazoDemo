@@ -110,6 +110,9 @@ def bootstrap(
                 "label": r.label or "",
                 "style": r.style,
                 "dataUri": r.data_uri,
+                # 'signature' vs 'initials' — the viewer filters the sign-time picker on
+                # this, so omitting it leaves a reviewer with nothing to pick.
+                "kind": r.kind or "signature",
                 "isDefault": r.id == u.signature_id,
                 "isCustom": r.is_custom,
             }
