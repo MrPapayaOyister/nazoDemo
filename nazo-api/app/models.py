@@ -102,6 +102,10 @@ class Signature(SQLModel, table=True):
     owner_id: str = Field(index=True)
     data_uri: str = Field(sa_column=Column(Text))
     style: str  # 'cursive' | 'block' | 'custom'
+    # What this mark IS: a full 'signature' (applied at a Signing step) or the shorter
+    # 'initials' a reviewer applies at a Reviewing step. They are deliberately distinct
+    # assets so a review and an approval never look alike on the document.
+    kind: str = Field(default="signature")
     # Human label to tell a user's signatures apart in the sign-time picker
     # (e.g. 'Formal', 'Initials'). Empty on the seed ink.
     label: str = Field(default="")

@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Users, Check } from 'lucide-react'
+import { toast } from 'sonner'
+import { Users, Check, ShieldCheck, ShieldOff } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Avatar } from '@/components/common/Avatar'
-import { useStore } from '@/store'
+import { useStore, useCurrentUser } from '@/store'
+import { setUserRole } from '@/api/client'
 import { SIGNATURE_BY_ID } from '@/data/signatures'
 import { useLocalized } from '@/i18n'
 import { riseItem, staggerContainer } from '@/lib/motion'
@@ -24,6 +27,23 @@ const ROLE_LABEL: Record<RoleId, { en: string; ar: string }> = {
 export function AdminUsers() {
   const tr = useLocalized()
   const users = useStore((s) => s.users)
+  const me = useCurrentUser()
+  const hydrate = useStore((s) => s.hydrate)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  /** Promote to admin, or hand the identity back its original working role. */
+  const toggleAdmin = async (id: string, isAdmin: boolean, fallback: RoleId) => {
+    setBusy(id)
+    try {
+      await setUserRole(id, isAdmin ? fallback : 'admin')
+      await hydrate() // capabilities are derived from role — refresh the whole payload
+      toast(isAdmin ? tr('Admin access revoked.', 'تم سحب صلاحية المشرف.') : tr('Admin access granted.', 'تم منح صلاحية المشرف.'))
+    } catch {
+      toast(tr('Could not change that role.', 'تعذّر تغيير الدور.'))
+    } finally {
+      setBusy(null)
+    }
+  }
 
   return (
     <PageTransition>
@@ -40,11 +60,12 @@ export function AdminUsers() {
         className="mt-6 rounded-2xl hairline bg-surface shadow-e1 overflow-hidden"
       >
         {/* header row */}
-        <div className="hidden md:grid grid-cols-[2fr_1.3fr_1.5fr_1fr] gap-4 px-5 py-3 border-b border-line text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
+        <div className="hidden md:grid grid-cols-[1.8fr_1.1fr_1.3fr_0.9fr_1fr] gap-4 px-5 py-3 border-b border-line text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
           <span>{tr('Name', 'الاسم')}</span>
           <span>{tr('Role', 'الدور')}</span>
           <span>{tr('Unit', 'الوحدة')}</span>
           <span>{tr('Signature', 'التوقيع')}</span>
+          <span>{tr('Admin access', 'صلاحية المشرف')}</span>
         </div>
 
         {users.map((u) => {
@@ -53,7 +74,7 @@ export function AdminUsers() {
             <motion.div
               key={u.id}
               variants={riseItem}
-              className="grid grid-cols-1 md:grid-cols-[2fr_1.3fr_1.5fr_1fr] gap-2 md:gap-4 px-5 py-3.5 border-b border-line last:border-0 items-center hover:bg-hover transition-colors"
+              className="grid grid-cols-1 md:grid-cols-[1.8fr_1.1fr_1.3fr_0.9fr_1fr] gap-2 md:gap-4 px-5 py-3.5 border-b border-line last:border-0 items-center hover:bg-hover transition-colors"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <Avatar initials={u.initials} color={u.color} size={38} />
@@ -81,6 +102,32 @@ export function AdminUsers() {
                   </span>
                 ) : (
                   <span className="text-[11.5px] text-ink-muted">{tr('—', '—')}</span>
+                )}
+              </div>
+              {/* Grant / revoke ADMIN. Capabilities derive from role, so this takes
+                  effect immediately. You cannot change your own role (server-enforced). */}
+              <div>
+                {u.id === me.id ? (
+                  <span className="text-[11.5px] text-ink-muted">{tr('You', 'أنت')}</span>
+                ) : (
+                  <button
+                    onClick={() => void toggleAdmin(u.id, u.role === 'admin', 'requester')}
+                    disabled={busy === u.id}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-semibold transition-colors disabled:opacity-50',
+                      u.role === 'admin'
+                        ? 'bg-brand-subtle text-brand hover:bg-brand/15'
+                        : 'hairline bg-app text-ink-secondary hover:bg-hover',
+                    )}
+                    title={
+                      u.role === 'admin'
+                        ? tr('Revoke admin access', 'سحب صلاحية المشرف')
+                        : tr('Grant admin access', 'منح صلاحية المشرف')
+                    }
+                  >
+                    {u.role === 'admin' ? <ShieldCheck className="size-3.5" /> : <ShieldOff className="size-3.5" />}
+                    {u.role === 'admin' ? tr('Admin', 'مشرف') : tr('Make admin', 'تعيين مشرفاً')}
+                  </button>
                 )}
               </div>
             </motion.div>

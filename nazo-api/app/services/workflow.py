@@ -255,6 +255,32 @@ def _signature_tag_for_role(
     return None
 
 
+def _initials_for(
+    session: Session, user: AppUser, explicit_id: Optional[str] = None
+) -> Optional[Signature]:
+    """The INITIALS mark to apply for `user` at a Reviewing step.
+
+    An explicit id must be OWNED by the actor and be of kind 'initials' (a full
+    signature is never accepted as a review mark). Otherwise the actor's first
+    initials asset is used; None when they have none."""
+    if explicit_id:
+        chosen = session.get(Signature, explicit_id)
+        if chosen is None or chosen.owner_id != user.id:
+            raise ForbiddenError("That signature does not belong to you.")
+        if chosen.kind != "initials":
+            raise ConflictError("A review must be marked with initials, not a signature.")
+        return chosen
+    rows = list(
+        session.exec(
+            select(Signature).where(
+                Signature.owner_id == user.id, Signature.kind == "initials"
+            )
+        ).all()
+    )
+    rows.sort(key=lambda s: s.id)
+    return rows[0] if rows else None
+
+
 def _effective_variables(
     corr: Correspondence, template: Optional[Template]
 ) -> list[dict[str, Any]]:
@@ -496,6 +522,33 @@ def approve(
         _emit_event(
             session, corr, current_user.id, "signed", from_step_order=step.step_order
         )
+    elif (
+        step.type == "reviewing"
+        and apply_signature
+        and step.detour_of_step_id is None
+    ):
+        # A REVIEW is marked with the reviewer's INITIALS — a deliberately different
+        # artefact from a signature, so a reviewed step never reads as a signed one.
+        # (Previously a Reviewing step recorded no mark at all.)
+        initials = _initials_for(session, current_user, signature_id)
+        if initials is not None:
+            step.signed_at = now
+            step.signature_asset_ref = initials.id
+            _append_history(
+                corr,
+                current_user.id,
+                "Commented",
+                comment=f"Reviewed and initialled by {current_user.name_en}.",
+                comment_ar=f"روجعت ووُضعت عليها الأحرف الأولى بواسطة {current_user.name_ar}.",
+                at=now,
+            )
+            _emit_event(
+                session,
+                corr,
+                current_user.id,
+                "initialled",
+                from_step_order=step.step_order,
+            )
 
     # Persist this step's deactivation BEFORE activating any other step, so the
     # partial-unique 'one active' index never sees a transient two-active state

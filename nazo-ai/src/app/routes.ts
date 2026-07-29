@@ -45,16 +45,26 @@ const approverNav: NavSection[] = [
 const participantNav: NavSection[] = approverNav
 
 export const NAV_BY_ROLE: Record<RoleId, NavSection[]> = {
+  // The admin is a participant too: they get the SAME workspace as everyone else
+  // (inbox / create / sent / tracking) on top of the management section.
   admin: [
+    {
+      titleKey: 'section.workspace',
+      items: [
+        { to: '/inbox', labelKey: 'nav.inbox', icon: 'Inbox' },
+        newDocItem,
+        sentByMeItem,
+        { to: '/tracking', labelKey: 'nav.tracking', icon: 'Radar' },
+      ],
+    },
     {
       titleKey: 'section.manage',
       items: [
         { to: '/admin', labelKey: 'nav.overview', icon: 'LayoutDashboard' },
+        { to: '/admin/log', labelKey: 'nav.activityLog', icon: 'ScrollText' },
         { to: '/admin/templates', labelKey: 'nav.templates', icon: 'FileText' },
         { to: '/admin/workflows', labelKey: 'nav.workflows', icon: 'Workflow' },
         { to: '/admin/users', labelKey: 'nav.users', icon: 'Users' },
-        newDocItem,
-        sentByMeItem,
       ],
     },
   ],

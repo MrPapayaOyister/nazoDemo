@@ -112,6 +112,7 @@ def _to_signature(d: dict) -> Signature:
         data_uri=d["dataUri"],
         style=d["style"],
         label=d.get("label", ""),
+        kind=d.get("kind", "signature"),
     )
 
 

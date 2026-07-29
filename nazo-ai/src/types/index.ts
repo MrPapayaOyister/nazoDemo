@@ -93,6 +93,9 @@ export interface SignatureMeta {
   id: string
   label: string
   style?: string
+  /** 'signature' = the full mark applied at a Signing step; 'initials' = the shorter
+   *  mark a reviewer applies at a Reviewing step. Absent → treat as 'signature'. */
+  kind?: 'signature' | 'initials'
   /** canonical PNG data-URI (resolved by the backend so the picker/gallery has ink). */
   dataUri: string
   /** the user's DEFAULT signature (stamped when none is explicitly picked). */

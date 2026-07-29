@@ -16,8 +16,8 @@ export const STANDARD_CHAIN: WorkflowStep[] = [
   {
     id: 'ws_dt',
     role: 'dtManager',
-    unitEn: 'Digital Transformation',
-    unitAr: 'التحول الرقمي',
+    unitEn: 'Industrial Property Department',
+    unitAr: 'إدارة الملكية الصناعية',
     type: 'Reviewing',
     rejectable: true,
     // Reviewing/Approving steps do NOT sign (item 2) — only the Signing step does.
@@ -28,7 +28,7 @@ export const STANDARD_CHAIN: WorkflowStep[] = [
   {
     id: 'ws_dir',
     role: 'director',
-    unitEn: 'Digitalization Directorate',
+    unitEn: 'Commercial Affairs Sector',
     unitAr: 'إدارة الرقمنة',
     type: 'Approving',
     rejectable: true,
@@ -39,8 +39,8 @@ export const STANDARD_CHAIN: WorkflowStep[] = [
   {
     id: 'ws_gm',
     role: 'gm',
-    unitEn: 'Executive Office',
-    unitAr: 'المكتب التنفيذي',
+    unitEn: 'Ministry Undersecretariat',
+    unitAr: 'وكالة الوزارة',
     type: 'Signing',
     rejectable: true,
     sign: true,
@@ -53,7 +53,7 @@ export const CIRCULAR_CHAIN: WorkflowStep[] = [
   {
     id: 'ws_dir',
     role: 'director',
-    unitEn: 'Digitalization Directorate',
+    unitEn: 'Commercial Affairs Sector',
     unitAr: 'إدارة الرقمنة',
     type: 'Approving',
     rejectable: true,
@@ -64,8 +64,8 @@ export const CIRCULAR_CHAIN: WorkflowStep[] = [
   {
     id: 'ws_gm',
     role: 'gm',
-    unitEn: 'Executive Office',
-    unitAr: 'المكتب التنفيذي',
+    unitEn: 'Ministry Undersecretariat',
+    unitAr: 'وكالة الوزارة',
     type: 'Signing',
     rejectable: true,
     sign: true,
@@ -78,8 +78,8 @@ export const HOLIDAY_CHAIN: WorkflowStep[] = [
   {
     id: 'ws_gm',
     role: 'gm',
-    unitEn: 'Executive Office',
-    unitAr: 'المكتب التنفيذي',
+    unitEn: 'Ministry Undersecretariat',
+    unitAr: 'وكالة الوزارة',
     type: 'Signing',
     rejectable: true,
     sign: true,

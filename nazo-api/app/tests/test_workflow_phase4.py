@@ -321,3 +321,41 @@ def test_snapshot_preserves_required_flags(session):
     assert rows["dtManager"].required is True
     assert rows["director"].required is False
     assert rows["gm"].required is True
+
+
+# ---------------------------------------------------------------------------
+# Review marks: INITIALS, not a signature.
+# ---------------------------------------------------------------------------
+def test_reviewing_step_stamps_initials_not_a_signature(session):
+    """A Reviewing step records the reviewer's INITIALS asset (it previously recorded
+    nothing), and never the role's document signature."""
+    req, dt = _user(session, "u_req"), _user(session, "u_dt")
+    corr = _route(session, req)  # step 0 = dtManager Reviewing
+    workflow.approve(session, dt, corr, comment="Reviewed.")
+    session.commit()
+
+    rev = next(s for s in _steps(session, corr.id) if s.role == "dtManager")
+    assert rev.signature_asset_ref == "init_dt"  # the initials asset, not sig_dt
+    assert rev.signed_at is not None
+    # the document itself carries no signature for a mere review
+    assert not corr.values.get("{{SIG_DIR}}")
+    assert not corr.values.get("{{SIG_GM}}")
+
+
+def test_review_rejects_a_full_signature_as_the_mark(session):
+    """Passing a SIGNATURE id to a Reviewing step is refused — a review is initialled."""
+    req, dt = _user(session, "u_req"), _user(session, "u_dt")
+    corr = _route(session, req)
+    with pytest.raises(workflow.ConflictError):
+        workflow.approve(session, dt, corr, signature_id="sig_dt")
+
+
+def test_signing_step_still_stamps_the_full_signature(session):
+    """Regression: the Signing path is unchanged by the initials work."""
+    req, dt, dir_ = _user(session, "u_req"), _user(session, "u_dt"), _user(session, "u_dir")
+    corr = _route(session, req)
+    workflow.approve(session, dt, corr)
+    session.commit()
+    workflow.approve(session, dir_, corr)  # director Signing
+    session.commit()
+    assert corr.values.get("{{SIG_DIR}}") == "sig_dir"

@@ -296,11 +296,37 @@ _GM_INITIALS_PATHS = (
     '<path d="M26 72 C 70 66, 120 66, 150 70" stroke-width="1.6" opacity="0.7"/>'
 )
 
+def _initials(letters: str) -> str:
+    """A compact handwritten-style INITIALS mark (e.g. 'K.M.').
+
+    Deliberately different ink from a full signature: smaller viewBox, a single
+    underline flourish, drawn as text so every identity gets one without bespoke paths.
+    Reviewers apply this at a Reviewing step; signers apply their full signature."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 70">'
+        f'<text x="8" y="46" font-family="Georgia,serif" font-style="italic" '
+        f'font-size="34" fill="{_INK}">{letters}</text>'
+        f'<path d="M8 56 C 50 50, 100 50, 138 54" fill="none" stroke="{_INK}" '
+        'stroke-width="1.8" stroke-linecap="round" opacity="0.75"/></svg>'
+    )
+    return "data:image/svg+xml;utf8," + _encode_uri_component(svg)
+
+
+# Full signatures (Signing steps) + INITIALS (Reviewing steps). Every actor gets an
+# initials mark so any of them can be placed on a review step; the three chain
+# approvers additionally carry their hand-drawn signature.
 SIGNATURES: list[dict] = [
-    {"id": "sig_dt", "ownerId": "u_dt", "style": "cursive", "label": "Formal", "dataUri": _sig(_DT_PATHS, "cursive")},
-    {"id": "sig_dir", "ownerId": "u_dir", "style": "cursive", "label": "Formal", "dataUri": _sig(_DIR_PATHS, "cursive")},
-    {"id": "sig_gm", "ownerId": "u_gm", "style": "block", "label": "Formal", "dataUri": _sig(_GM_PATHS, "block")},
-    {"id": "sig_gm_alt", "ownerId": "u_gm", "style": "cursive", "label": "Initials", "dataUri": _sig(_GM_INITIALS_PATHS, "cursive")},
+    {"id": "sig_dt", "ownerId": "u_dt", "style": "cursive", "label": "Formal", "kind": "signature", "dataUri": _sig(_DT_PATHS, "cursive")},
+    {"id": "sig_dir", "ownerId": "u_dir", "style": "cursive", "label": "Formal", "kind": "signature", "dataUri": _sig(_DIR_PATHS, "cursive")},
+    {"id": "sig_gm", "ownerId": "u_gm", "style": "block", "label": "Formal", "kind": "signature", "dataUri": _sig(_GM_PATHS, "block")},
+    {"id": "sig_gm_alt", "ownerId": "u_gm", "style": "cursive", "label": "Alternate", "kind": "signature", "dataUri": _sig(_GM_INITIALS_PATHS, "cursive")},
+    # --- initials, one per actor identity ---
+    {"id": "init_admin", "ownerId": "u_admin", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("L.M.")},
+    {"id": "init_req", "ownerId": "u_req", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("N.S.")},
+    {"id": "init_dt", "ownerId": "u_dt", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("K.M.")},
+    {"id": "init_dir", "ownerId": "u_dir", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("A.Z.")},
+    {"id": "init_gm", "ownerId": "u_gm", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("M.H.")},
+    {"id": "init_chair", "ownerId": "u_chair", "style": "cursive", "label": "Initials", "kind": "initials", "dataUri": _initials("A.N.")},
 ]
 
 # ===========================================================================
@@ -310,8 +336,8 @@ STANDARD_CHAIN: list[dict] = [
     {
         "id": "ws_dt",
         "role": "dtManager",
-        "unitEn": "Digital Transformation",
-        "unitAr": "التحول الرقمي",
+        "unitEn": "Industrial Property Department",
+        "unitAr": "إدارة الملكية الصناعية",
         "type": "Reviewing",
         "rejectable": True,
         # Reviewing/Approving steps do NOT sign (item 2) — only the Signing step does.
@@ -322,7 +348,7 @@ STANDARD_CHAIN: list[dict] = [
     {
         "id": "ws_dir",
         "role": "director",
-        "unitEn": "Digitalization Directorate",
+        "unitEn": "Commercial Affairs Sector",
         "unitAr": "إدارة الرقمنة",
         "type": "Approving",
         "rejectable": True,
@@ -333,8 +359,8 @@ STANDARD_CHAIN: list[dict] = [
     {
         "id": "ws_gm",
         "role": "gm",
-        "unitEn": "Executive Office",
-        "unitAr": "المكتب التنفيذي",
+        "unitEn": "Ministry Undersecretariat",
+        "unitAr": "وكالة الوزارة",
         "type": "Signing",
         "rejectable": True,
         "sign": True,
@@ -347,7 +373,7 @@ CIRCULAR_CHAIN: list[dict] = [
     {
         "id": "ws_dir",
         "role": "director",
-        "unitEn": "Digitalization Directorate",
+        "unitEn": "Commercial Affairs Sector",
         "unitAr": "إدارة الرقمنة",
         "type": "Approving",
         "rejectable": True,
@@ -359,8 +385,8 @@ CIRCULAR_CHAIN: list[dict] = [
     {
         "id": "ws_gm",
         "role": "gm",
-        "unitEn": "Executive Office",
-        "unitAr": "المكتب التنفيذي",
+        "unitEn": "Ministry Undersecretariat",
+        "unitAr": "وكالة الوزارة",
         "type": "Signing",
         "rejectable": True,
         "sign": True,
@@ -373,8 +399,8 @@ HOLIDAY_CHAIN: list[dict] = [
     {
         "id": "ws_gm",
         "role": "gm",
-        "unitEn": "Executive Office",
-        "unitAr": "المكتب التنفيذي",
+        "unitEn": "Ministry Undersecretariat",
+        "unitAr": "وكالة الوزارة",
         "type": "Signing",
         "rejectable": True,
         "sign": True,
@@ -390,8 +416,8 @@ DUAL_SIGN_CHAIN: list[dict] = [
     {
         "id": "ws_dt",
         "role": "dtManager",
-        "unitEn": "Digital Transformation",
-        "unitAr": "التحول الرقمي",
+        "unitEn": "Industrial Property Department",
+        "unitAr": "إدارة الملكية الصناعية",
         "type": "Reviewing",
         "rejectable": True,
         "sign": False,
@@ -402,8 +428,8 @@ DUAL_SIGN_CHAIN: list[dict] = [
     {
         "id": "ws_dir",
         "role": "director",
-        "unitEn": "Digitalization Sector",
-        "unitAr": "قطاع الرقمنة",
+        "unitEn": "Commercial Affairs Sector",
+        "unitAr": "قطاع الشؤون التجارية",
         "type": "Signing",
         "rejectable": True,
         "sign": True,
@@ -414,8 +440,8 @@ DUAL_SIGN_CHAIN: list[dict] = [
     {
         "id": "ws_gm",
         "role": "gm",
-        "unitEn": "Executive Office",
-        "unitAr": "المكتب التنفيذي",
+        "unitEn": "Ministry Undersecretariat",
+        "unitAr": "وكالة الوزارة",
         "type": "Signing",
         "rejectable": True,
         "sign": True,

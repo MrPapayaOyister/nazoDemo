@@ -46,6 +46,8 @@ def _signatures_for(session: Session, user: AppUser) -> list[dict]:
             "id": r.id,
             "label": r.label or "",
             "style": r.style,
+            # 'signature' (Signing steps) vs 'initials' (Reviewing steps).
+            "kind": r.kind or "signature",
             "dataUri": r.data_uri,
             "isDefault": r.id == user.signature_id,
             "isCustom": r.is_custom,
@@ -95,6 +97,7 @@ async def add_user_signature(
 
     raw: object = None
     label = ""
+    kind = "signature"
     style = "custom"
     content_type = request.headers.get("content-type", "")
     if content_type.startswith("multipart/form-data"):
@@ -107,6 +110,7 @@ async def add_user_signature(
             )
         raw = await upload.read()
         label = str(form.get("label") or "")
+        kind = str(form.get("kind") or "signature")
         style = str(form.get("style") or "custom")
     else:
         try:
@@ -124,6 +128,7 @@ async def add_user_signature(
             )
         raw = data_uri
         label = str((body or {}).get("label") or "")
+        kind = str((body or {}).get("kind") or "signature")
         style = str((body or {}).get("style") or "custom")
 
     try:
@@ -140,6 +145,7 @@ async def add_user_signature(
         data_uri=canonical,
         style=style or "custom",
         label=label,
+        kind=kind if kind in ("signature", "initials") else "signature",
         is_custom=True,
         created_at=_now_iso(),
     )

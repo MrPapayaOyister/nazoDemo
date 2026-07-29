@@ -18,8 +18,7 @@ import {
   SkipForward,
 } from 'lucide-react'
 import { DocumentRenderer } from '@/components/common/DocumentRenderer'
-import { HistoryTimeline } from '@/components/common/HistoryTimeline'
-import { ChainStepper, signedRolesOf } from '@/components/common/ChainStepper'
+import { DocumentHistory } from '@/components/common/DocumentHistory'
 import { AttachmentsCard, AttachmentUploader } from '@/features/shared/Attachments'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -106,7 +105,6 @@ export function CorrespondenceViewer() {
   const previewVars = useArTranslation
     ? overrideVars ?? tpl.variables
     : overrideVars ?? previewTpl.variables
-  const signed = signedRolesOf(corr.values, overrideVars ?? tpl.variables)
 
   return (
     <div className="h-full overflow-y-auto">
@@ -205,17 +203,15 @@ export function CorrespondenceViewer() {
               </div>
             )}
 
+            {/* ONE record of the document: what happened + what is still to come.
+                (The separate "Approval route" stepper is folded in here — the future
+                path renders as grey/dashed rows at the bottom.) */}
             <div className="rounded-2xl hairline bg-surface shadow-e1 p-4">
               <div className="flex items-center gap-2 mb-3">
                 <FileText className="size-4 text-ink-muted" />
-                <span className="text-[13px] font-semibold text-ink">{tr('Approval route', 'مسار الاعتماد')}</span>
+                <span className="text-[13px] font-semibold text-ink">{tr('Document History', 'سجل المستند')}</span>
               </div>
-              <ChainStepper steps={corr.workflow} currentIndex={corr.currentStepIndex} status={corr.status} signedRoles={signed} variant="full" />
-            </div>
-
-            <div className="rounded-2xl hairline bg-surface shadow-e1 p-4">
-              <div className="text-[13px] font-semibold text-ink mb-3">{tr('Document History', 'سجل المستند')}</div>
-              <HistoryTimeline history={corr.history} />
+              <DocumentHistory corr={corr} />
             </div>
           </div>
         </div>
@@ -318,12 +314,19 @@ function ActionBar({
   // The signer's signature gallery (item 1): live users carry `signatures` from
   // bootstrap; fall back to the single resolved seed/custom ink when offline.
   const fallbackUri = useSignatureUri(effectiveSignatureId(user))
-  const sigs: SignatureMeta[] =
+  const allMarks: SignatureMeta[] =
     user.signatures && user.signatures.length
       ? user.signatures
       : fallbackUri
         ? [{ id: effectiveSignatureId(user), label: '', dataUri: fallbackUri, isDefault: true }]
         : []
+  // A REVIEW is marked with INITIALS; a SIGNING step with the full signature. The two
+  // are distinct assets, so the picker only ever offers the right kind for this step
+  // (the backend rejects a signature used as a review mark, and vice-versa).
+  const needsInitials = isReviewing
+  const sigs: SignatureMeta[] = needsInitials
+    ? allMarks.filter((s) => s.kind === 'initials')
+    : allMarks.filter((s) => s.kind !== 'initials')
   const defaultSigId = (sigs.find((s) => s.isDefault) ?? sigs[0])?.id
   const activeSigId = selectedSigId ?? defaultSigId
   const selectedSig = sigs.find((s) => s.id === activeSigId)
@@ -359,10 +362,12 @@ function ActionBar({
     }
     setBusy(true)
     // Stamp ONLY on a Signing step (item 2), with the chosen signature (item 1).
-    const doSign = isSigning && applySig
-    await approveAndSign(corr.id, viewerComment, doSign, doSign ? activeSigId : undefined)
+    // Signing → stamp the signature; Reviewing → record the initials. Both travel on
+    // the same call; the engine picks the right artefact from the step type.
+    const doMark = (isSigning || needsInitials) && applySig
+    await approveAndSign(corr.id, viewerComment, doMark, doMark ? activeSigId : undefined)
     setBusy(false)
-    onSigned(doSign ? sigVar?.tag : undefined, isLast)
+    onSigned(doMark && isSigning ? sigVar?.tag : undefined, isLast)
     if (!isLast) toast(tr('Approved — routed to the next approver.', 'تم الاعتماد — أُرسلت للمعتمِد التالي.'))
   }
 
@@ -435,13 +440,13 @@ function ActionBar({
 
         {/* signature — ONLY on a Signing step (item 2), with a multi-signature
             picker when the signer owns more than one (item 1). */}
-        {mode === 'approve' && isSigning && sigs.length > 0 && (
+        {mode === 'approve' && (isSigning || needsInitials) && sigs.length > 0 && (
           <div className="space-y-2">
             {sigs.length > 1 && (
               <div className="rounded-xl hairline bg-app p-2">
                 <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-muted mb-1.5">
                   <PenTool className="size-3" />
-                  {tr('Choose a signature', 'اختر توقيعاً')}
+                  {needsInitials ? tr('Choose your initials', 'اختر أحرفك الأولى') : tr('Choose a signature', 'اختر توقيعاً')}
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {sigs.map((s) => (
@@ -469,7 +474,11 @@ function ActionBar({
             >
               {selectedSig && <img src={selectedSig.dataUri} alt="signature" className="h-8 w-20 object-contain" />}
               <span className="flex-1 text-start text-[12px] text-ink-secondary">
-                {sigs.length > 1 ? tr('Apply selected signature', 'ختم التوقيع المحدد') : tr('Apply my signature', 'ختم توقيعي')}
+                {needsInitials
+                  ? tr('Apply my initials', 'وضع أحرفي الأولى')
+                  : sigs.length > 1
+                    ? tr('Apply selected signature', 'ختم التوقيع المحدد')
+                    : tr('Apply my signature', 'ختم توقيعي')}
               </span>
               <span className={cn('relative h-4 w-7 rounded-full transition-colors', applySig ? 'bg-ai' : 'bg-line-strong')}>
                 <span className={cn('absolute top-0.5 size-3 rounded-full bg-white transition-all', applySig ? 'start-3.5' : 'start-0.5')} />

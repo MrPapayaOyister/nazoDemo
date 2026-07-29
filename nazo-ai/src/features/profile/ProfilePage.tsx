@@ -14,6 +14,8 @@ import {
   CloudOff,
   Star,
   Trash2,
+  Type,
+  ShieldCheck,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -39,7 +41,8 @@ import {
   deleteSignature,
 } from '@/api/client'
 import { riseItem } from '@/lib/motion'
-import type { RoleId, SignatureMeta } from '@/types'
+import type { Capability, RoleId, SignatureMeta } from '@/types'
+import { hasCapability } from '@/lib/permissions'
 import { toast } from 'sonner'
 import { cn } from '@/lib/cn'
 
@@ -61,10 +64,23 @@ type Status =
   | { kind: 'offline'; msg: string }
   | null
 
+/** The capability labels worth showing a person about their own account. */
+const CAP_LABELS: { cap: Capability; en: string; ar: string }[] = [
+  { cap: 'correspondence.create', en: 'Create correspondence', ar: 'إنشاء المراسلات' },
+  { cap: 'correspondence.act', en: 'Approve & sign', ar: 'الاعتماد والتوقيع' },
+  { cap: 'attachment.add', en: 'Attach files', ar: 'إرفاق الملفات' },
+  { cap: 'document.download', en: 'Download PDFs', ar: 'تنزيل المستندات' },
+  { cap: 'template.author', en: 'Author templates', ar: 'إنشاء النماذج' },
+  { cap: 'broadcast.create', en: 'Send broadcasts', ar: 'إرسال التعميمات' },
+  { cap: 'template.manage_all', en: 'Manage all templates', ar: 'إدارة كل النماذج' },
+  { cap: 'users.manage', en: 'Manage users', ar: 'إدارة المستخدمين' },
+]
+
 export function ProfilePage() {
   const tr = useLocalized()
   const user = useCurrentUser()
   const setActiveUserSignature = useStore((s) => s.setActiveUserSignature)
+  const correspondences = useStore((s) => s.correspondences)
   const setUserSignatures = useStore((s) => s.setUserSignatures)
 
   // current signature: server value (if the API is live) wins, else custom/seeded.
@@ -203,6 +219,19 @@ export function ProfilePage() {
     }
   }
 
+  // My activity at a glance — the same store the lists read from.
+  const myStats = {
+    sent: correspondences.filter((c) => c.requesterId === user.id).length,
+    awaiting: correspondences.filter(
+      (c) => c.status === 'InReview' && c.currentAssigneeId === user.id,
+    ).length,
+    completed: correspondences.filter(
+      (c) => c.requesterId === user.id && c.status === 'Completed',
+    ).length,
+  }
+  const myInitials = (user.signatures ?? []).filter((s) => s.kind === 'initials')
+  const myCaps = CAP_LABELS.filter((c) => hasCapability(user, c.cap))
+
   return (
     <PageTransition>
       <PageHeader
@@ -287,6 +316,68 @@ export function ProfilePage() {
                 </span>
                 <LangToggle />
               </div>
+            </div>
+          </motion.section>
+
+          {/* my activity — a real sense of "this is my account" */}
+          <motion.section variants={riseItem} className="rounded-2xl hairline bg-surface shadow-e1 p-5">
+            <div className="text-[13px] font-semibold text-ink mb-3">
+              {tr('My activity', 'نشاطي')}
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {[
+                { n: myStats.sent, en: 'Sent by me', ar: 'أرسلتها' },
+                { n: myStats.awaiting, en: 'Awaiting me', ar: 'بانتظاري' },
+                { n: myStats.completed, en: 'Completed', ar: 'مكتملة' },
+              ].map((s) => (
+                <div key={s.en} className="rounded-xl hairline bg-app px-3 py-2.5 text-center">
+                  <div className="text-xl font-bold text-ink tnum leading-none">{s.n}</div>
+                  <div className="mt-1 text-[11px] text-ink-muted">{tr(s.en, s.ar)}</div>
+                </div>
+              ))}
+            </div>
+          </motion.section>
+
+          {/* initials — the mark applied when REVIEWING (distinct from a signature) */}
+          <motion.section variants={riseItem} className="rounded-2xl hairline bg-surface shadow-e1 p-5">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Type className="size-4 text-ai" />
+              <span className="text-[13px] font-semibold text-ink">{tr('My initials', 'أحرفي الأولى')}</span>
+            </div>
+            <p className="text-[11.5px] text-ink-muted mb-3">
+              {tr(
+                'Applied when you REVIEW a document. Your full signature is used only when you sign.',
+                'تُوضع عند مراجعتك للمستند. أما توقيعك الكامل فيُستخدم عند التوقيع فقط.',
+              )}
+            </p>
+            {myInitials.length ? (
+              <div className="flex flex-wrap gap-2">
+                {myInitials.map((s) => (
+                  <span key={s.id} className="inline-flex items-center gap-2 rounded-xl hairline bg-app px-3 py-2">
+                    <img src={s.dataUri} alt="initials" className="h-8 w-16 object-contain" />
+                    <span className="text-[11.5px] text-ink-secondary">{s.label || tr('Initials', 'الأحرف الأولى')}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl bg-warning-subtle px-3 py-2 text-[12px] text-warning">
+                {tr('No initials on file — you cannot mark a review yet.', 'لا توجد أحرف أولى محفوظة — لا يمكنك اعتماد مراجعة بعد.')}
+              </div>
+            )}
+          </motion.section>
+
+          {/* what this identity may do — capabilities come from the server */}
+          <motion.section variants={riseItem} className="rounded-2xl hairline bg-surface shadow-e1 p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <ShieldCheck className="size-4 text-success" />
+              <span className="text-[13px] font-semibold text-ink">{tr('Access', 'الصلاحيات')}</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {myCaps.map((c) => (
+                <span key={c.cap} className="rounded-lg bg-subtle px-2 py-1 text-[11px] font-medium text-ink-secondary">
+                  {tr(c.en, c.ar)}
+                </span>
+              ))}
             </div>
           </motion.section>
         </div>

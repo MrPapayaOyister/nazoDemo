@@ -23,6 +23,7 @@ import { LeftNav } from '@/app/LeftNav'
 import { CreateFab } from '@/app/CreateFab'
 import { AiSidebar } from '@/features/ai/AiSidebar'
 import { AdminOverview } from '@/features/admin/AdminOverview'
+import { ActivityLog } from '@/features/admin/ActivityLog'
 import { AdminUsers } from '@/features/admin/AdminUsers'
 import { TemplateStudio } from '@/features/admin/TemplateStudio'
 import { WorkflowEditor } from '@/features/workflow/WorkflowEditor'
@@ -82,6 +83,14 @@ function AnimatedRoutes() {
             // every participant (they all hold AUTHOR_TEMPLATE).
             <RequireCapability cap={MANAGE_ALL_TEMPLATES}>
               <AdminOverview />
+            </RequireCapability>
+          }
+        />
+        <Route
+          path="/admin/log"
+          element={
+            <RequireCapability cap={MANAGE_ALL_TEMPLATES}>
+              <ActivityLog />
             </RequireCapability>
           }
         />

@@ -19,6 +19,7 @@ import {
   ListChecks,
   Lightbulb,
   Send,
+  ScrollText,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -43,6 +44,7 @@ export const ICONS = {
   ListChecks,
   Lightbulb,
   Send,
+  ScrollText,
 } satisfies Record<string, LucideIcon>
 
 export type IconName = keyof typeof ICONS

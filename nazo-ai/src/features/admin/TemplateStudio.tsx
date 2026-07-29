@@ -14,6 +14,7 @@ import {
   Pencil,
   Workflow,
   Save,
+  FileUp,
 } from 'lucide-react'
 import { PageTransition } from '@/components/common/PageTransition'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -70,6 +71,8 @@ export function TemplateStudio() {
   const [phIdx, setPhIdx] = useState(0)
   const [size, setSize] = useState<TemplateSize>('large')
   const [genLang, setGenLang] = useState<GenLang>('auto')
+  // Placeholder affordance: marks this template as document-led (PDF is the content).
+  const [docLed, setDocLed] = useState(false)
 
   const generating = isRunning && runningAction === 'admin.generateTemplate'
 
@@ -162,6 +165,23 @@ export function TemplateStudio() {
                   <button className="inline-flex items-center gap-1.5 rounded-lg hairline bg-surface px-2.5 py-1.5 text-[12px] font-medium text-ink-secondary hover:bg-hover transition-colors">
                     <Upload className="size-3.5" />
                     <span className="hidden sm:inline">{tr('Upload .docx', 'رفع ملف .docx')}</span>
+                  </button>
+                  {/* Document-led template: the memo body is just a cover note and the
+                      real content is an attached PDF (e.g. a licence, a signed annex). */}
+                  <button
+                    onClick={() => setDocLed((v) => !v)}
+                    disabled={generating}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors',
+                      docLed ? 'bg-brand text-white' : 'hairline bg-surface text-ink-secondary hover:bg-hover',
+                    )}
+                    title={tr(
+                      'The attached PDF is the document — the memo body is only a cover note',
+                      'المرفق PDF هو المستند — نص المذكرة مجرد خطاب تغطية',
+                    )}
+                  >
+                    <FileUp className="size-3.5" />
+                    <span className="hidden sm:inline">{tr('Attach PDF', 'إرفاق PDF')}</span>
                   </button>
                   {/* generation length */}
                   <div className="flex items-center gap-0.5 rounded-lg hairline bg-app p-0.5" title={tr('Document length', 'طول المستند')}>

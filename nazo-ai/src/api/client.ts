@@ -478,6 +478,40 @@ export function markNotificationRead(id: string): Promise<AppNotification> {
   })
 }
 
+// ---------------------------------------------------------------------------
+// Admin: the complete cross-correspondence activity log (WorkflowEvent-backed).
+// ---------------------------------------------------------------------------
+export interface ActivityEvent {
+  id: string
+  correspondenceId: string
+  titleEn: string
+  titleAr: string
+  ref: string
+  status: string
+  eventType: string
+  actorId: string
+  fromStepOrder?: number | null
+  toStepOrder?: number | null
+  payload: Record<string, unknown>
+  at: string
+}
+
+export function fetchActivityLog(params: { limit?: number; eventType?: string; actorId?: string } = {}): Promise<ActivityEvent[]> {
+  const q = new URLSearchParams()
+  q.set('limit', String(params.limit ?? 200))
+  if (params.eventType) q.set('event_type', params.eventType)
+  if (params.actorId) q.set('actor_id', params.actorId)
+  return request<ActivityEvent[]>(`/admin/log?${q.toString()}`)
+}
+
+/** Grant or revoke admin access by changing a user's role (admin only). */
+export function setUserRole(userId: string, role: string): Promise<User> {
+  return request<User>(`/admin/users/${encodeURIComponent(userId)}/role`, {
+    method: 'POST',
+    json: { role },
+  })
+}
+
 export function markAllNotificationsRead(): Promise<{ updated: number }> {
   return request<{ updated: number }>(`/notifications/read-all`, { method: 'POST' })
 }

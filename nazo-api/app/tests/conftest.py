@@ -47,7 +47,14 @@ def _to_user(d: dict) -> AppUser:
 
 
 def _to_signature(d: dict) -> Signature:
-    return Signature(id=d["id"], owner_id=d["ownerId"], data_uri=d["dataUri"], style=d["style"])
+    return Signature(
+        id=d["id"],
+        owner_id=d["ownerId"],
+        data_uri=d["dataUri"],
+        style=d["style"],
+        label=d.get("label", ""),
+        kind=d.get("kind", "signature"),
+    )
 
 
 def _to_template(d: dict) -> Template:
