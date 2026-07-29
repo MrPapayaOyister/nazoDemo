@@ -39,6 +39,7 @@ from app.models import (
     CorrespondenceStep,
     WorkflowEvent,
     LayoutMaster,
+    Notification,
     OrgConfig,
     Signature,
     Template,
@@ -236,6 +237,28 @@ def _upsert_seed(session: Session) -> None:
         session.merge(_to_correspondence(c))
         for step in seed_data.derive_steps(c):
             session.merge(CorrespondenceStep(**step))
+            # A seeded in-flight step is waiting on its assignee, but nobody ever
+            # LIVE-transitioned it, so the engine wrote no notification and the bell
+            # reads 0 on a fresh demo. Mint the same row send() would have, with the
+            # engine's own dedupe_key so a later real transition can't duplicate it.
+            if step["status"] == "active" and step["assignee_id"] != c["requesterId"]:
+                session.merge(
+                    Notification(
+                        id=f"ntf_{step['id']}",
+                        recipient_id=step["assignee_id"],
+                        type="awaiting",
+                        correspondence_id=c["id"],
+                        payload={
+                            "titleEn": c["titleEn"],
+                            "titleAr": c["titleAr"],
+                            "ref": c["ref"],
+                            "actorId": c["requesterId"],
+                            "stepRole": step["role"],
+                        },
+                        dedupe_key=f"await:send:{step['id']}",
+                        created_at=c["updatedAt"],
+                    )
+                )
         for h in c.get("history", []):
             session.merge(
                 WorkflowEvent(
