@@ -30,6 +30,7 @@ from app.routers import (
     templates,
     users,
     workflow_definitions,
+    verify,
 )
 from app.services.rag import ensure_collection
 
@@ -92,6 +93,7 @@ app.include_router(correspondences.router)
 app.include_router(documents.router)
 app.include_router(notifications.router)
 app.include_router(ai.router)
+app.include_router(verify.router)
 
 # Mount the SPA last so /api/* routes take precedence. SPA fallback: any unknown
 # non-/api path (client routes like /profile) serves index.html instead of 404.

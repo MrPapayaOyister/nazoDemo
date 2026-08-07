@@ -49,6 +49,7 @@ from app.models import (
 from babel.numbers import format_decimal
 
 from app.seed import data as seed_data
+from app.services import doc_marks
 from app.services.amounts import format_date, group_number
 
 logger = logging.getLogger("nazo.documents")
@@ -407,13 +408,20 @@ def render_letter_html(
             session, doc_html, variables, dict(corr.values or {}), resolved, header, for_docx=False
         )
     footer_html = _footer_html(footer, resolved)
+    # The status watermark and the reference QR ride this same HTML — no post-processing
+    # pass over the PDF, so render_pdf gains no new failure path.
+    qr_html = doc_marks.qr_block_html(corr.ref, resolved)
+    watermark = doc_marks.watermark_html(corr.status, resolved)
+    if footer_html or qr_html:
+        footer_html = f'<div class="doc-footer-wrap">{footer_html}{qr_html}</div>'
     dir_attr = "rtl" if resolved == "ar" else "ltr"
     return (
         "<!doctype html>"
         f'<html lang="{resolved}" dir="{dir_attr}">'
         '<head><meta charset="utf-8"/>'
-        f"<style>{_document_css(resolved)}</style></head>"
-        f'<body><div class="nazo-doc"><div class="doc-body">{body}</div>{footer_html}</div></body>'
+        f"<style>{_document_css(resolved)}{doc_marks.marks_css()}</style></head>"
+        f'<body><div class="nazo-doc"><div class="doc-body">{body}</div>{footer_html}</div>'
+        f"{watermark}</body>"
         "</html>"
     )
 

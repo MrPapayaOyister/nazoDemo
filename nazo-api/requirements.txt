@@ -16,3 +16,4 @@ htmldocx>=0.0.6
 beautifulsoup4>=4.12
 # --- Signature normalization (Pillow only; arm64 wheel fine, NO torch) ---
 Pillow>=10
+segno>=1.6

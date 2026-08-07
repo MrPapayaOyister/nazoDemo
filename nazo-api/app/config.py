@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     # --- API ---
     api_port: int = 8200
 
+    # --- Public origin (the QR printed on every document resolves here, so it must be
+    # the address a PHONE can reach — not host.docker.internal and not localhost) ---
+    public_base_url: str = "https://nazo.meerana.ae"
+
     # --- Reference number allocation (MOET/REQ/2026/031 first) ---
     ref_prefix: str = "MOET/REQ"
     ref_year: int = 2026
