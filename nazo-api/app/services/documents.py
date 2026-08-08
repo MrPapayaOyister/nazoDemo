@@ -25,6 +25,7 @@ Design notes:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import uuid
@@ -591,9 +592,73 @@ def snapshot_version(
                 raise
             continue
         session.refresh(row)
+        seal_version(session, corr, row)
         return row
     # Unreachable: the loop returns or raises on the final attempt.
     raise RuntimeError("snapshot_version: exhausted version-number retries")
+
+
+def seal_version(
+    session: Session, corr: Correspondence, row: CorrespondenceVersion
+) -> Optional[str]:
+    """SEAL a finished document — the vault's tamper-evidence.
+
+    When a correspondence reaches its final state, the PDF bytes just frozen into the
+    CorrespondenceVersion are hashed and that hash is recorded as an append-only
+    WorkflowEvent. Later, /api/vault/{id}/verify re-hashes the STORED bytes and
+    compares: a match proves the archived document is the one that was signed off.
+
+    Deliberately an EVENT, not a column: workflow_event is already append-only, already
+    audited and already surfaced in the admin activity log, so the seal needs no schema
+    change and inherits an audit trail for free.
+
+    Returns the hash, or None when there is nothing to seal (no PDF rendered, or the
+    document is not final). Never raises — a sealing failure must not undo an approval.
+    """
+    if corr.status not in ("Completed", "Approved"):
+        return None
+    if not row.pdf_bytes:
+        return None
+    try:
+        digest = hashlib.sha256(bytes(row.pdf_bytes)).hexdigest()
+        _emit_seal_event(session, corr, row, digest)
+        return digest
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("sealing failed for %s v%s: %s", corr.id, row.version, exc)
+        return None
+
+
+def _emit_seal_event(
+    session: Session, corr: Correspondence, row: CorrespondenceVersion, digest: str
+) -> None:
+    """Append the seal record. Idempotent per (correspondence, version): re-running a
+    snapshot must not mint a second seal for the same bytes."""
+    from app.models import WorkflowEvent  # local import: avoids a cycle at module load
+
+    existing = session.exec(
+        select(WorkflowEvent).where(
+            WorkflowEvent.correspondence_id == corr.id,
+            WorkflowEvent.event_type == "sealed",
+        )
+    ).all()
+    if any((e.payload or {}).get("version") == row.version for e in existing):
+        return
+    session.add(
+        WorkflowEvent(
+            id=_gen_id("evt"),
+            correspondence_id=corr.id,
+            actor_id=corr.requester_id,
+            event_type="sealed",
+            payload={
+                "version": row.version,
+                "sha256": digest,
+                "bytes": len(row.pdf_bytes or b""),
+                "algorithm": "sha256",
+            },
+            at=_now_iso(),
+        )
+    )
+    session.commit()
 
 
 def snapshot_version_bg(corr_id: str) -> None:

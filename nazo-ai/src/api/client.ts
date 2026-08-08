@@ -804,3 +804,55 @@ export function deleteSignature(id: string, sigId: string): Promise<{ signatures
     { method: 'DELETE' },
   )
 }
+
+// ---------------------------------------------------------------------------
+// Archive / vault (F2) — terminal correspondence plus its integrity seal.
+// ---------------------------------------------------------------------------
+export type VaultSeal = {
+  version: number | null
+  sha256: string | null
+  bytes: number | null
+  algorithm: string
+  sealedAt: string
+}
+
+export type VaultRecord = {
+  id: string
+  ref: string
+  titleEn: string
+  titleAr: string
+  status: string
+  requesterId: string
+  createdAt: string
+  updatedAt: string
+  versionCount: number
+  latestVersion: number | null
+  signerIds: string[]
+  seal: VaultSeal | null
+  versions?: { version: number; createdAt: string; hasPdf: boolean; bytes: number }[]
+}
+
+/** 'verified' — the archived bytes still hash to the seal; 'mismatch' — they do not;
+ *  'unsealed' — nothing was sealed, reported plainly rather than as a pass. */
+export type VaultVerdict = {
+  result: 'verified' | 'mismatch' | 'unsealed'
+  ref: string
+  version?: number
+  expected?: string
+  actual?: string
+  bytes?: number
+  sealedAt?: string
+  detail?: string
+}
+
+export function fetchVault(scope: 'all' | 'mine' = 'all'): Promise<VaultRecord[]> {
+  return request<VaultRecord[]>(`/vault?scope=${scope}`)
+}
+
+export function fetchVaultRecord(corrId: string): Promise<VaultRecord> {
+  return request<VaultRecord>(`/vault/${encodeURIComponent(corrId)}`)
+}
+
+export function verifyVaultRecord(corrId: string): Promise<VaultVerdict> {
+  return request<VaultVerdict>(`/vault/${encodeURIComponent(corrId)}/verify`)
+}

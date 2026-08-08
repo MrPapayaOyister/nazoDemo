@@ -27,6 +27,10 @@ const sentByMeItem: NavItem = { to: '/sent', labelKey: 'nav.sent', icon: 'Send' 
 // missing from their navigation.
 const newDocItem: NavItem = { to: '/requester/new', labelKey: 'nav.newDoc', icon: 'PlusCircle' }
 
+// The archive is where a document goes once its chain closes — the app has promised
+// "Signed & archived" since day one, so every role gets somewhere to go.
+const archiveItem: NavItem = { to: '/archive', labelKey: 'nav.archive', icon: 'Archive' }
+
 const approverNav: NavSection[] = [
   {
     titleKey: 'section.workspace',
@@ -35,6 +39,7 @@ const approverNav: NavSection[] = [
       newDocItem,
       sentByMeItem,
       { to: '/tracking', labelKey: 'nav.tracking', icon: 'Radar' },
+      archiveItem,
     ],
   },
 ]
@@ -55,6 +60,7 @@ export const NAV_BY_ROLE: Record<RoleId, NavSection[]> = {
         newDocItem,
         sentByMeItem,
         { to: '/tracking', labelKey: 'nav.tracking', icon: 'Radar' },
+      archiveItem,
       ],
     },
     {
@@ -76,6 +82,7 @@ export const NAV_BY_ROLE: Record<RoleId, NavSection[]> = {
         { to: '/requester/new', labelKey: 'nav.newDoc', icon: 'PlusCircle' },
         sentByMeItem,
         { to: '/tracking', labelKey: 'nav.tracking', icon: 'Radar' },
+      archiveItem,
       ],
     },
   ],
