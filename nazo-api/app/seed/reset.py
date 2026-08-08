@@ -271,6 +271,7 @@ def _upsert_seed(session: Session) -> None:
                 )
             )
     session.commit()
+    _snapshot_terminal_documents(session)
     logger.info(
         "Seeded %d signatures, %d users, %d templates, %d correspondences",
         len(seed_data.SIGNATURES),
@@ -278,6 +279,39 @@ def _upsert_seed(session: Session) -> None:
         len(seed_data.TEMPLATES),
         len(seed_data.CORRESPONDENCES),
     )
+
+
+def _snapshot_terminal_documents(session: Session) -> None:
+    """Render and SEAL the archived documents so the vault is inhabited on a fresh demo.
+
+    A seeded correspondence never went through a live approval, so nothing ever called
+    snapshot_version for it: the archive would list finished letters with no stored PDF,
+    no seal and nothing to verify. This renders the real document through the same
+    Gotenberg path a live approval uses and seals the result, so the demo's archive is
+    made of genuine artifacts rather than placeholders.
+
+    BEST EFFORT by design: Gotenberg may be unreachable (it is a separate container, and
+    a reset must not depend on it). A failure is logged and skipped — the reset still
+    completes and the archive simply reports those documents as unsealed, which is the
+    honest state rather than a fabricated one.
+    """
+    from app.services.documents import snapshot_version  # deferred: heavy import chain
+
+    terminal = [
+        c for c in seed_data.CORRESPONDENCES if c["status"] in ("Completed", "Approved")
+    ]
+    sealed = 0
+    for entry in terminal:
+        corr = session.get(Correspondence, entry["id"])
+        if corr is None:
+            continue
+        try:
+            snapshot_version(session, corr)
+            sealed += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("could not snapshot %s: %s", entry["id"], exc)
+    if sealed:
+        logger.info("Sealed %d archived document(s)", sealed)
 
 
 def _backup_custom_signatures(session: Session) -> list[dict]:

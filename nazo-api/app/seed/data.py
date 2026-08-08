@@ -896,6 +896,123 @@ CORRESPONDENCES: list[dict] = [
         "createdAt": "2026-07-08T10:00:00Z",
         "updatedAt": "2026-07-08T15:20:20Z",
     },
+    # ---------------------------------------------------------------- archived
+    # A demo needs a REAL record behind it: an archive holding one document looks like a
+    # stub, and search over a single row proves nothing. These are closed files —
+    # signed-and-issued or returned — spread across the year, the templates and the
+    # signatories, so the archive, the integrity seal and search-by-person all have
+    # something genuine to show on a fresh demo.
+    {
+        "id": "corr_1006",
+        "ref": "MOET/REQ/2026/006",
+        "titleEn": "Approval — Trademark Registration (Gulf Pearl Foods)",
+        "titleAr": "اعتماد — تسجيل علامة تجارية (لؤلؤة الخليج للأغذية)",
+        "templateId": "tpl_trademark_en",
+        "requesterId": "u_req",
+        "status": "Completed",
+        "values": {
+            "{{REF_NO}}": "MOET/REQ/2026/006",
+            "{{DATE}}": "2026-03-11",
+            "{{APPLICANT}}": "Gulf Pearl Foods LLC",
+            "{{AMOUNT}}": "126,000",
+            "{{SIG_DT}}": "init_dt",
+            "{{SIG_DIR}}": "sig_dir",
+            "{{SIG_GM}}": "sig_gm",
+        },
+        "workflow": STANDARD_CHAIN,
+        "stepStatuses": ["done", "done", "done"],
+        "history": [
+            {"id": "h_1", "actorId": "u_req", "action": "Created", "comment": "", "at": "2026-03-09T08:15:00Z"},
+            {"id": "h_2", "actorId": "u_req", "action": "Sent", "comment": "Fees settled and the classification checked against Nice Class 29.", "commentAr": "تم سداد الرسوم والتحقق من التصنيف وفق الفئة 29 من نيس.", "at": "2026-03-09T08:20:00Z"},
+            {"id": "h_3", "actorId": "u_dt", "action": "Commented", "comment": "Reviewed and initialled — no conflicting mark on the register.", "commentAr": "روجع ووُقّع بالأحرف الأولى — لا توجد علامة متعارضة في السجل.", "at": "2026-03-10T10:05:00Z"},
+            {"id": "h_4", "actorId": "u_dir", "action": "Approved", "comment": "Approved.", "commentAr": "معتمد.", "at": "2026-03-10T15:40:00Z"},
+            {"id": "h_5", "actorId": "u_gm", "action": "Signed", "comment": "", "at": "2026-03-11T09:30:00Z"},
+            {"id": "h_6", "actorId": "u_gm", "action": "Completed", "comment": "", "at": "2026-03-11T09:30:10Z"},
+        ],
+        "createdAt": "2026-03-09T08:15:00Z",
+        "updatedAt": "2026-03-11T09:30:10Z",
+    },
+    {
+        "id": "corr_1007",
+        "ref": "MOET/CIR/2026/011",
+        "titleEn": "Circular — Tourism Establishment Classification Update",
+        "titleAr": "تعميم — تحديث تصنيف المنشآت السياحية",
+        "templateId": "tpl_circular_en",
+        "requesterId": "u_req",
+        "status": "Completed",
+        "values": {
+            "{{REF_NO}}": "MOET/CIR/2026/011",
+            "{{DATE}}": "2026-04-22",
+            "{{SUBJECT}}": "Tourism establishment classification update",
+            "{{SIG_DIR}}": "sig_dir",
+            "{{SIG_GM}}": "sig_gm",
+        },
+        "workflow": CIRCULAR_CHAIN,
+        "stepStatuses": ["done", "done"],
+        "history": [
+            {"id": "h_1", "actorId": "u_req", "action": "Created", "comment": "", "at": "2026-04-20T07:05:00Z"},
+            {"id": "h_2", "actorId": "u_req", "action": "Sent", "comment": "Circulation list: all classified hotels and licensed tour operators.", "commentAr": "قائمة التعميم: جميع الفنادق المصنفة ومنظمي الرحلات المرخصين.", "at": "2026-04-20T07:10:00Z"},
+            {"id": "h_3", "actorId": "u_dir", "action": "Approved", "comment": "Approved — effective from the start of the next quarter.", "commentAr": "معتمد — يسري اعتبارًا من بداية الربع القادم.", "at": "2026-04-21T11:25:00Z"},
+            {"id": "h_4", "actorId": "u_gm", "action": "Signed", "comment": "", "at": "2026-04-22T08:50:00Z"},
+            {"id": "h_5", "actorId": "u_gm", "action": "Completed", "comment": "", "at": "2026-04-22T08:50:15Z"},
+        ],
+        "createdAt": "2026-04-20T07:05:00Z",
+        "updatedAt": "2026-04-22T08:50:15Z",
+    },
+    {
+        "id": "corr_1008",
+        "ref": "MOET/HR/2026/004",
+        "titleEn": "Announcement — Eid Al Fitr Holiday",
+        "titleAr": "إعلان — عطلة عيد الفطر",
+        "templateId": "tpl_holiday_en",
+        "requesterId": "u_req",
+        "status": "Completed",
+        "values": {
+            "{{REF_NO}}": "MOET/HR/2026/004",
+            "{{DATE}}": "2026-02-26",
+            "{{OCCASION}}": "Eid Al Fitr",
+            "{{FROM_DATE}}": "2026-03-19",
+            "{{TO_DATE}}": "2026-03-22",
+            "{{SIG_GM}}": "sig_gm",
+        },
+        "workflow": HOLIDAY_CHAIN,
+        "stepStatuses": ["done"],
+        "history": [
+            {"id": "h_1", "actorId": "u_req", "action": "Created", "comment": "", "at": "2026-02-26T06:30:00Z"},
+            {"id": "h_2", "actorId": "u_req", "action": "Sent", "comment": "", "at": "2026-02-26T06:32:00Z"},
+            {"id": "h_3", "actorId": "u_gm", "action": "Approved", "comment": "Approved — circulate today.", "commentAr": "معتمد — يُعمم اليوم.", "at": "2026-02-26T10:10:00Z"},
+            {"id": "h_4", "actorId": "u_gm", "action": "Signed", "comment": "", "at": "2026-02-26T10:10:20Z"},
+            {"id": "h_5", "actorId": "u_gm", "action": "Completed", "comment": "", "at": "2026-02-26T10:10:25Z"},
+        ],
+        "createdAt": "2026-02-26T06:30:00Z",
+        "updatedAt": "2026-02-26T10:10:25Z",
+    },
+    {
+        "id": "corr_1009",
+        "ref": "MOET/REQ/2026/009",
+        "titleEn": "Approval — Foreign Branch Licence (Meridian Logistics)",
+        "titleAr": "اعتماد — ترخيص فرع أجنبي (ميريديان للخدمات اللوجستية)",
+        "templateId": "tpl_executive_en",
+        "requesterId": "u_req",
+        "status": "Rejected",
+        "values": {
+            "{{REF_NO}}": "MOET/REQ/2026/009",
+            "{{DATE}}": "2026-03-30",
+            "{{APPLICANT}}": "Meridian Logistics Holding",
+            "{{AMOUNT}}": "310,000",
+            "{{SIG_DIR}}": "",
+            "{{SIG_GM}}": "",
+        },
+        "workflow": DUAL_SIGN_CHAIN,
+        "stepStatuses": ["rejected", "pending", "pending"],
+        "history": [
+            {"id": "h_1", "actorId": "u_req", "action": "Created", "comment": "", "at": "2026-03-28T09:00:00Z"},
+            {"id": "h_2", "actorId": "u_req", "action": "Sent", "comment": "Parent-company documents attached.", "commentAr": "مرفق مستندات الشركة الأم.", "at": "2026-03-28T09:05:00Z"},
+            {"id": "h_3", "actorId": "u_dt", "action": "Rejected", "comment": "The parent-company incorporation certificate is not legalised. Please resubmit with attestation from the UAE mission.", "commentAr": "شهادة تأسيس الشركة الأم غير مصدقة. يرجى إعادة التقديم مع تصديق بعثة الدولة.", "at": "2026-03-30T13:20:00Z"},
+        ],
+        "createdAt": "2026-03-28T09:00:00Z",
+        "updatedAt": "2026-03-30T13:20:00Z",
+    },
 ]
 
 # The live-demo reference (created during the demo; cleared by resetDemo). NOT seeded.
@@ -913,20 +1030,57 @@ ROLE_TO_USER_ID: dict[str, str] = {
 }
 
 
+def mark_for_role(role: str, kind: str) -> Optional[str]:
+    """The signature asset a given role would apply, by kind ('signature'|'initials').
+
+    Mirrors the engine's own resolution (first owned asset of that kind, id-sorted) so a
+    seeded mark is indistinguishable from one a live transition would have written."""
+    owner = ROLE_TO_USER_ID.get(role)
+    if owner is None:
+        return None
+    owned = sorted(
+        (s for s in SIGNATURES if s["ownerId"] == owner and s.get("kind", "signature") == kind),
+        key=lambda s: s["id"],
+    )
+    return owned[0]["id"] if owned else None
+
+
 def derive_steps(corr: dict) -> list[dict]:
     """Build normalized correspondence_step rows from a correspondence's snapshot
     workflow + explicit stepStatuses. type is lowercased for the normalized column.
+
+    A COMPLETED step also carries the mark its actor applied — initials for a review,
+    the full signature for a signing step. Without this a finished document has no
+    recorded signatories at all, so the archive, the verification card and any search
+    by signatory come up empty on a fresh demo even though the letter is signed.
     """
     rows: list[dict] = []
     workflow = corr["workflow"]
     statuses = corr["stepStatuses"]
     for order, step in enumerate(workflow):
+        step_type = normalize_step_type(step["type"])
+        signed_at: Optional[str] = None
+        mark: Optional[str] = None
+        if statuses[order] == "done":
+            # A review is marked with INITIALS, an approval or signing with the full
+            # SIGNATURE. Marking approvals too keeps the record consistent with the
+            # letter itself, whose seeded values already carry that role's {{SIG_*}} —
+            # otherwise a document visibly signed by the Director lists no Director
+            # among its signatories.
+            if step_type == "reviewing":
+                mark = mark_for_role(step["role"], "initials")
+            else:
+                mark = mark_for_role(step["role"], "signature")
+            if mark is not None:
+                # The seed carries no per-step timestamp; the correspondence's own last
+                # update is the honest approximation for a historical demo record.
+                signed_at = corr["updatedAt"]
         rows.append(
             {
                 "id": f"{corr['id']}_s{order}",
                 "correspondence_id": corr["id"],
                 "step_order": order,
-                "type": normalize_step_type(step["type"]),
+                "type": step_type,
                 "role": step["role"],
                 "assignee_id": ROLE_TO_USER_ID[step["role"]],
                 "detour_of_step_id": None,
@@ -937,6 +1091,8 @@ def derive_steps(corr: dict) -> list[dict]:
                 "regenerate": step["regenerate"],
                 "status": statuses[order],
                 "position": step["position"],
+                "signed_at": signed_at,
+                "signature_asset_ref": mark,
             }
         )
     return rows
