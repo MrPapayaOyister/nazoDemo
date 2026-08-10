@@ -112,10 +112,9 @@ def placed_signatures_html(placements: list[dict]) -> str:
     fractions of the page box — normalized so a mark lands in the same place whatever
     the paper size or zoom, which a pixel offset could not promise.
 
-    Rendered as absolutely-positioned layers over the page. `page` is honoured by
-    offsetting each mark a full page height per page, so Chromium's own pagination
-    carries it onto the right sheet without needing to know the page count up front —
-    the same trick the watermark uses, in reverse.
+    Rendered as a PAGE-RELATIVE layer (position:fixed), the same mechanism the
+    watermark uses, so y is a fraction of the page rather than of the letter's content:
+    a short letter and a long one put y=0.8 in the same physical spot.
     """
     if not placements:
         return ""
@@ -127,9 +126,16 @@ def placed_signatures_html(placements: list[dict]) -> str:
         x = max(0.0, min(1.0, float(p.get("x", 0.5))))
         y = max(0.0, min(1.0, float(p.get("y", 0.8))))
         w = max(0.02, min(1.0, float(p.get("w", 0.18))))
-        page = max(1, int(p.get("page", 1) or 1))
-        # Each page is one A4 content box tall; page 2 sits one page-height down.
-        top = f"calc({y * 100:.3f}% + {(page - 1)} * (297mm - 36mm))"
+        # The layer is page-relative (position:fixed), so y is a true fraction of the
+        # PAGE box rather than of the letter's content — a short letter and a long one
+        # put y=0.8 in the same physical place.
+        #
+        # LIMITATION, stated rather than hidden: because Chromium repeats a fixed layer
+        # on every printed page, a placed mark appears on EVERY page of a multi-page
+        # letter. That is right for a one-page letter (every seeded document) and right
+        # for sig_all_pages, but per-page targeting is NOT delivered here — sig_page is
+        # persisted for when it is.
+        top = f"{y * 100:.3f}%"
         caption = ""
         if p.get("name"):
             caption = (
@@ -183,7 +189,7 @@ html[dir='rtl'] .doc-watermark span {{ font-size: 72px; letter-spacing: 0.06em; 
 .doc-qr-ref {{ font-size: 7.5px; color: #6b7a97; margin-top: 3px; word-break: break-all;
   line-height: 1.3; }}
 .doc-qr-cap {{ font-size: 7px; color: #9aa8c2; margin-top: 1px; }}
-.doc-placed-layer {{ position: absolute; inset: 0; pointer-events: none; z-index: 5; }}
+.doc-placed-layer {{ position: fixed; inset: 0; pointer-events: none; z-index: 5; }}
 .doc-placed {{ position: absolute; display: flex; flex-direction: column;
   align-items: center; transform: translate(-50%, -50%); }}
 html[dir='rtl'] .doc-placed {{ transform: translate(50%, -50%); }}

@@ -74,12 +74,15 @@ def test_placed_signature_renders_as_a_positioned_layer():
     assert "Mohammed Al Hashimi" in html
 
 
-def test_second_page_placement_offsets_by_a_full_page():
-    """Page 2 must land a page lower, so Chromium's own pagination carries it there."""
-    p1 = placed_signatures_html([{"dataUri": "d", "x": 0.5, "y": 0.5, "w": 0.2, "page": 1}])
-    p2 = placed_signatures_html([{"dataUri": "d", "x": 0.5, "y": 0.5, "w": 0.2, "page": 2}])
-    assert "+ 0 *" in p1
-    assert "+ 1 *" in p2
+def test_placement_is_relative_to_the_page_not_the_letter_content():
+    """y is a fraction of the PAGE box: a short letter and a long one must put y=0.8 in
+    the same physical spot. (An absolutely-positioned layer would measure the content
+    div instead, which put a mark in the wrong place on a short letter.)"""
+    html = placed_signatures_html([{"dataUri": "d", "x": 0.5, "y": 0.8, "w": 0.2, "page": 1}])
+    assert "top:80.000%" in html
+    css = __import__("app.services.doc_marks", fromlist=["marks_css"]).marks_css()
+    layer = css.split(".doc-placed-layer")[1][:80]
+    assert "position: fixed" in layer
 
 
 def test_nothing_renders_without_placements():
