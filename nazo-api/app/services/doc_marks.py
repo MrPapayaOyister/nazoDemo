@@ -104,6 +104,64 @@ def qr_block_html(ref: str, lang: str) -> str:
     )
 
 
+def placed_signatures_html(placements: list[dict]) -> str:
+    """Signatures the signer positioned FREELY on the letter, rather than in the
+    sign-block at the foot of the document.
+
+    Each placement is {dataUri, x, y, w, page, name, title} with x/y/w as 0..1
+    fractions of the page box — normalized so a mark lands in the same place whatever
+    the paper size or zoom, which a pixel offset could not promise.
+
+    Rendered as absolutely-positioned layers over the page. `page` is honoured by
+    offsetting each mark a full page height per page, so Chromium's own pagination
+    carries it onto the right sheet without needing to know the page count up front —
+    the same trick the watermark uses, in reverse.
+    """
+    if not placements:
+        return ""
+    layers = []
+    for p in placements:
+        src = (p.get("dataUri") or "").replace('"', "%22")
+        if not src:
+            continue
+        x = max(0.0, min(1.0, float(p.get("x", 0.5))))
+        y = max(0.0, min(1.0, float(p.get("y", 0.8))))
+        w = max(0.02, min(1.0, float(p.get("w", 0.18))))
+        page = max(1, int(p.get("page", 1) or 1))
+        # Each page is one A4 content box tall; page 2 sits one page-height down.
+        top = f"calc({y * 100:.3f}% + {(page - 1)} * (297mm - 36mm))"
+        caption = ""
+        if p.get("name"):
+            caption = (
+                '<span class="doc-placed-cap">'
+                f'{escape_html(str(p["name"]))}'
+                + (
+                    f'<span class="doc-placed-role">{escape_html(str(p.get("title") or ""))}</span>'
+                    if p.get("title")
+                    else ""
+                )
+                + "</span>"
+            )
+        layers.append(
+            f'<span class="doc-placed" style="inset-inline-start:{x * 100:.3f}%;'
+            f'top:{top};width:{w * 100:.3f}%">'
+            f'<img class="doc-placed-img" src="{src}" alt="signature"/>{caption}</span>'
+        )
+    return f'<div class="doc-placed-layer">{"".join(layers)}</div>' if layers else ""
+
+
+def escape_html(s: str) -> str:
+    """Local copy — importing documents.py here would create a circular import."""
+    return (
+        str(s)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
+
 def marks_css() -> str:
     """CSS for both marks, appended to the document stylesheet."""
     return f"""
@@ -125,4 +183,13 @@ html[dir='rtl'] .doc-watermark span {{ font-size: 72px; letter-spacing: 0.06em; 
 .doc-qr-ref {{ font-size: 7.5px; color: #6b7a97; margin-top: 3px; word-break: break-all;
   line-height: 1.3; }}
 .doc-qr-cap {{ font-size: 7px; color: #9aa8c2; margin-top: 1px; }}
+.doc-placed-layer {{ position: absolute; inset: 0; pointer-events: none; z-index: 5; }}
+.doc-placed {{ position: absolute; display: flex; flex-direction: column;
+  align-items: center; transform: translate(-50%, -50%); }}
+html[dir='rtl'] .doc-placed {{ transform: translate(50%, -50%); }}
+.doc-placed-img {{ width: 100%; height: auto; object-fit: contain; }}
+.doc-placed-cap {{ margin-top: 2px; padding-top: 3px; border-top: 1px solid #d7deea;
+  width: 100%; text-align: center; font-size: 9px; font-weight: 600; color: #24365a;
+  white-space: nowrap; }}
+.doc-placed-role {{ display: block; font-weight: 500; color: #7183a3; font-size: 8px; }}
 """.strip()

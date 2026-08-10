@@ -328,6 +328,14 @@ class CorrespondenceStep(SQLModel, table=True):
     acted_at: Optional[str] = Field(default=None)
     signed_at: Optional[str] = Field(default=None)
     signature_asset_ref: Optional[str] = Field(default=None)
+    # F4 — free placement of this actor's mark on the LETTER. Normalized 0..1 fractions
+    # of the page box so they survive any paper size or zoom; page is 1-based. All NULL
+    # means "use the letter's sign-block", which stays the default: placement is
+    # additive, and every existing document keeps rendering exactly as before.
+    sig_page: Optional[int] = Field(default=None)
+    sig_x: Optional[float] = Field(default=None)
+    sig_y: Optional[float] = Field(default=None)
+    sig_w: Optional[float] = Field(default=None)
 
 
 class RefCounter(SQLModel, table=True):
@@ -386,7 +394,9 @@ class Attachment(SQLModel, table=True):
     is_signed: bool = Field(default=False)
     signer_id: Optional[str] = Field(default=None, foreign_key="app_user.id")
     signed_at: Optional[str] = Field(default=None)
-    # SHA-256 of the signed bytes (== the parent's bytes) — proves what was signed.
+    # SHA-256 of THIS row's own bytes — the integrity of the artifact you downloaded.
+    # Identical to source_hash until the ink is actually burned in (F5), at which point
+    # the two deliberately diverge.
     content_hash: Optional[str] = Field(default=None)
     signature_asset_ref: Optional[str] = Field(default=None)
     # Normalized placement of the overlaid signature (0..1 fractions); page is 1-based.
@@ -395,6 +405,19 @@ class Attachment(SQLModel, table=True):
     sig_y: Optional[float] = Field(default=None)
     sig_w: Optional[float] = Field(default=None)
     sig_h: Optional[float] = Field(default=None)
+    # --- F5 forward-contract: shipped in this schema batch so burning the ink into the
+    # bytes later costs no further reset (every reset destroys all attachments). ---
+    # SHA-256 of the PARENT bytes — what was signed, as opposed to the artifact.
+    source_hash: Optional[str] = Field(default=None)
+    # 'stamped' (ink is in the bytes) | 'record' (a fallback fired) | 'n/a' (an image
+    # attachment, correctly never byte-stamped). Tri-state on purpose: a plain boolean
+    # would render every signed image as a failure.
+    sig_render_mode: Optional[str] = Field(default=None)
+    # Why a stamp degraded, diagnosable without log-diving: 'encrypted',
+    # 'gotenberg-timeout', 'too-large', 'too-many-pages', 'parse-failed', ...
+    stamp_note: Optional[str] = Field(default=None)
+    # Repeat the mark on every page, so sig_page never carries a magic sentinel.
+    sig_all_pages: bool = Field(default=False)
 
 
 # ===========================================================================

@@ -255,6 +255,28 @@ def _signature_tag_for_role(
     return None
 
 
+
+def _apply_placement(step: CorrespondenceStep, placement: Optional[dict]) -> None:
+    """Record a FREE placement for this step's mark on the letter (F4).
+
+    Coordinates are 0..1 fractions of the page box, CLAMPED here rather than trusted:
+    a caller cannot push a signature off the page or blow up its width. `None` leaves
+    the step unplaced, so the mark renders in the sign-block exactly as before."""
+    if not placement:
+        return
+    x, y = placement.get("x"), placement.get("y")
+    if x is None or y is None:
+        return  # a page or width alone does not describe a position
+    def _clamp01(v: float) -> float:
+        return max(0.0, min(1.0, float(v)))
+    step.sig_x = _clamp01(x)
+    step.sig_y = _clamp01(y)
+    width = placement.get("w")
+    step.sig_w = max(0.02, min(1.0, float(width))) if width is not None else 0.18
+    page = placement.get("page")
+    step.sig_page = max(1, int(page)) if page else 1
+
+
 def _initials_for(
     session: Session, user: AppUser, explicit_id: Optional[str] = None
 ) -> Optional[Signature]:
@@ -468,12 +490,17 @@ def approve(
     comment: Optional[str] = None,
     apply_signature: bool = True,
     signature_id: Optional[str] = None,
+    placement: Optional[dict] = None,
 ) -> Correspondence:
     """Approve (and optionally sign) the active step, then advance or return.
 
     `signature_id` (item 1) picks WHICH of the actor's signatures to stamp; it must
     be one the actor owns, else the request is rejected. Omitted → the actor's
-    default (current_user.signature_id)."""
+    default (current_user.signature_id).
+
+    `placement` (F4) optionally positions the mark FREELY on the letter as 0..1
+    fractions {page,x,y,w}; omitted, the mark renders in the document's sign-block as
+    it always has. Clamped server-side — a caller cannot push a signature off-page."""
     _lock_correspondence(session, corr)
     steps = _locked_steps(session, corr.id)
     step = _active_step(steps)
@@ -518,6 +545,7 @@ def approve(
             corr.values = {**corr.values, tag: chosen_sig_id}
         step.signed_at = now
         step.signature_asset_ref = chosen_sig_id
+        _apply_placement(step, placement)
         _append_history(corr, current_user.id, "Signed", at=now)
         _emit_event(
             session, corr, current_user.id, "signed", from_step_order=step.step_order
@@ -534,6 +562,7 @@ def approve(
         if initials is not None:
             step.signed_at = now
             step.signature_asset_ref = initials.id
+            _apply_placement(step, placement)
             _append_history(
                 corr,
                 current_user.id,

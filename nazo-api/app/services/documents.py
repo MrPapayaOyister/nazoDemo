@@ -42,6 +42,7 @@ from app.db import engine
 from app.models import (
     AppUser,
     Correspondence,
+    CorrespondenceStep,
     CorrespondenceVersion,
     OrgConfig,
     Signature,
@@ -255,7 +256,11 @@ def _substitute_body(
     header: dict,
     *,
     for_docx: bool,
+    suppress_sig_tags: Optional[set[str]] = None,
 ) -> str:
+    # Tags whose signature is FREELY PLACED elsewhere on the page (F4): the sign-block
+    # slot is dropped entirely, so the mark appears once rather than twice.
+    suppressed = suppress_sig_tags or set()
     sig_tags = {
         v["tag"]
         for v in (variables or [])
@@ -282,6 +287,8 @@ def _substitute_body(
         raw = values.get(tag, "")
 
         if is_sig:
+            if tag in suppressed:
+                return ""
             if raw:
                 return _signature_html(session, raw, lang, for_docx=for_docx)
             if for_docx:
@@ -331,7 +338,7 @@ body {{
   print-color-adjust: exact;
 }}
 {ar_font}
-.nazo-doc {{ background: #ffffff; color: #16233d; }}
+.nazo-doc {{ background: #ffffff; color: #16233d; position: relative; }}
 .doc-letterhead {{ margin-bottom: 22px; }}
 .doc-lh-row {{ display: flex; align-items: center; gap: 14px; }}
 .doc-crest {{ flex-shrink: 0; line-height: 0; }}
@@ -391,6 +398,10 @@ def render_letter_html(
     resolved = _resolve_lang(template, lang)
     header, footer = _load_org_config(session)
     doc_html, variables = _resolve_doc(corr, template)
+    # Free placements are resolved first: their sign-block slots must be suppressed
+    # during substitution, or the same signature would render twice.
+    placements = _placements_for(session, corr, resolved)
+    suppress = {p["tag"] for p in placements if p.get("tag")}
     if resolved == "ar" and corr.doc_html_ar:
         # Phase 8 — render the PERSISTED Arabic translation (additive). It already leads
         # with {{LETTERHEAD}} and is final text (no other variables). This replaces the old
@@ -399,20 +410,23 @@ def render_letter_html(
         # Pass the EFFECTIVE variables (not []) so the sign-block carried into the
         # translated body still resolves its {{SIG_*}} tokens to real signatures.
         body = _substitute_body(
-            session, corr.doc_html_ar, variables, dict(corr.values or {}), resolved, header, for_docx=False
+            session, corr.doc_html_ar, variables, dict(corr.values or {}), resolved, header,
+            for_docx=False, suppress_sig_tags=suppress,
         )
     elif not doc_html:
         # Degrade rather than 500: emit a minimal but valid document.
         body = _letterhead_html(header, resolved) + "<p>Template not found.</p>"
     else:
         body = _substitute_body(
-            session, doc_html, variables, dict(corr.values or {}), resolved, header, for_docx=False
+            session, doc_html, variables, dict(corr.values or {}), resolved, header,
+            for_docx=False, suppress_sig_tags=suppress,
         )
     footer_html = _footer_html(footer, resolved)
     # The status watermark and the reference QR ride this same HTML — no post-processing
     # pass over the PDF, so render_pdf gains no new failure path.
     qr_html = doc_marks.qr_block_html(corr.ref, resolved)
     watermark = doc_marks.watermark_html(corr.status, resolved)
+    placed = doc_marks.placed_signatures_html(placements)
     if footer_html or qr_html:
         footer_html = f'<div class="doc-footer-wrap">{footer_html}{qr_html}</div>'
     dir_attr = "rtl" if resolved == "ar" else "ltr"
@@ -421,10 +435,66 @@ def render_letter_html(
         f'<html lang="{resolved}" dir="{dir_attr}">'
         '<head><meta charset="utf-8"/>'
         f"<style>{_document_css(resolved)}{doc_marks.marks_css()}</style></head>"
-        f'<body><div class="nazo-doc"><div class="doc-body">{body}</div>{footer_html}</div>'
+        f'<body><div class="nazo-doc"><div class="doc-body">{body}</div>{footer_html}'
+        f"{placed}</div>"
         f"{watermark}</body>"
         "</html>"
     )
+
+
+
+def _effective_vars(corr: Correspondence, template: Optional[Template]) -> list[dict]:
+    if corr.variables_override is not None:
+        return list(corr.variables_override or [])
+    return list((template.variables if template is not None else []) or [])
+
+
+def _signature_tag_for_role_local(variables: list[dict], role: str) -> Optional[str]:
+    """The {{SIG_x}} tag this role signs on — mirrors the engine's own resolution so
+    the suppressed block is exactly the one the placed mark replaces."""
+    for v in variables:
+        if isinstance(v, dict) and v.get("type") == "Signature" and v.get("group") == role:
+            return v.get("tag")
+    return None
+
+
+def _placements_for(
+    session: Session, corr: Correspondence, lang: str
+) -> list[dict]:
+    """Signatures a signer POSITIONED on the letter, rather than leaving in the
+    sign-block. Only steps that actually signed AND carry coordinates qualify — a step
+    with no placement keeps the default block, so this is purely additive."""
+    steps = session.exec(
+        select(CorrespondenceStep)
+        .where(CorrespondenceStep.correspondence_id == corr.id)
+        .order_by(CorrespondenceStep.step_order)
+    ).all()
+    is_ar = lang == "ar"
+    out: list[dict] = []
+    for s in steps:
+        if not (s.signed_at and s.signature_asset_ref):
+            continue
+        if s.sig_x is None or s.sig_y is None:
+            continue  # no free placement — the sign-block renders it
+        sig = session.get(Signature, s.signature_asset_ref)
+        if sig is None:
+            continue
+        owner = session.get(AppUser, sig.owner_id)
+        template = session.get(Template, corr.template_id)
+        tag = _signature_tag_for_role_local(_effective_vars(corr, template), s.role)
+        out.append(
+            {
+                "tag": tag,
+                "dataUri": sig.data_uri,
+                "x": s.sig_x,
+                "y": s.sig_y,
+                "w": s.sig_w if s.sig_w is not None else 0.18,
+                "page": s.sig_page or 1,
+                "name": (owner.name_ar if is_ar else owner.name_en) if owner else "",
+                "title": (owner.title_ar if is_ar else owner.title_en) if owner else "",
+            }
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------

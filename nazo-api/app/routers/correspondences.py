@@ -80,6 +80,13 @@ class ApproveBody(BaseModel):
     applySignature: bool = True
     # Which of the actor's signatures to stamp (item 1). None → their default.
     signatureId: Optional[str] = None
+    # F4 — optional FREE placement of the mark on the letter: 0..1 fractions of the
+    # page box, 1-based page. Omitted (the default) keeps the sign-block, so every
+    # existing caller and every existing document is unaffected.
+    placePage: Optional[int] = None
+    placeX: Optional[float] = None
+    placeY: Optional[float] = None
+    placeW: Optional[float] = None
 
 
 class RejectBody(BaseModel):
@@ -333,6 +340,16 @@ def approve(
             comment=body.comment,
             apply_signature=body.applySignature,
             signature_id=body.signatureId,
+            placement=(
+                {
+                    "page": body.placePage,
+                    "x": body.placeX,
+                    "y": body.placeY,
+                    "w": body.placeW,
+                }
+                if body.placeX is not None and body.placeY is not None
+                else None
+            ),
         )
         session.commit()
         session.refresh(corr)
