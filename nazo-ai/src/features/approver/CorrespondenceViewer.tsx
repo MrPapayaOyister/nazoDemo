@@ -18,6 +18,7 @@ import {
   SkipForward,
 } from 'lucide-react'
 import { DocumentRenderer } from '@/components/common/DocumentRenderer'
+import { SignaturePlacer, type Placement } from './SignaturePlacer'
 import { DocumentHistory } from '@/components/common/DocumentHistory'
 import { AttachmentsCard, AttachmentUploader } from '@/features/shared/Attachments'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -287,6 +288,8 @@ function ActionBar({
   const [mode, setMode] = useState<'approve' | 'reject' | 'redirect'>('approve')
   const [busy, setBusy] = useState(false)
   const [applySig, setApplySig] = useState(true)
+  // Null = the mark goes in the document's sign-block, as it always has (F4).
+  const [placement, setPlacement] = useState<Placement | null>(null)
   const [selectedSigId, setSelectedSigId] = useState<string | undefined>(undefined)
   const [redirectTarget, setRedirectTarget] = useState('')
   const tr2 = useLocalized()
@@ -365,7 +368,13 @@ function ActionBar({
     // Signing → stamp the signature; Reviewing → record the initials. Both travel on
     // the same call; the engine picks the right artefact from the step type.
     const doMark = (isSigning || needsInitials) && applySig
-    await approveAndSign(corr.id, viewerComment, doMark, doMark ? activeSigId : undefined)
+    await approveAndSign(
+      corr.id,
+      viewerComment,
+      doMark,
+      doMark ? activeSigId : undefined,
+      doMark ? placement ?? undefined : undefined,
+    )
     setBusy(false)
     onSigned(doMark && isSigning ? sigVar?.tag : undefined, isLast)
     if (!isLast) toast(tr('Approved — routed to the next approver.', 'تم الاعتماد — أُرسلت للمعتمِد التالي.'))
@@ -442,6 +451,13 @@ function ActionBar({
             picker when the signer owns more than one (item 1). */}
         {mode === 'approve' && (isSigning || needsInitials) && sigs.length > 0 && (
           <div className="space-y-2">
+            {applySig && (
+              <SignaturePlacer
+                value={placement}
+                onChange={setPlacement}
+                inkUri={sigs.find((s) => s.id === activeSigId)?.dataUri}
+              />
+            )}
             {sigs.length > 1 && (
               <div className="rounded-xl hairline bg-app p-2">
                 <div className="flex items-center gap-1 text-[11px] font-semibold text-ink-muted mb-1.5">

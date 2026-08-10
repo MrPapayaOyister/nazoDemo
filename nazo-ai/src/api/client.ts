@@ -218,7 +218,14 @@ export function sendCorr(id: string): Promise<Correspondence> {
 
 export function approveCorr(
   id: string,
-  body?: { comment?: string; applySignature?: boolean; signatureId?: string },
+  body?: {
+    comment?: string
+    applySignature?: boolean
+    signatureId?: string
+    /** F4 — optional free placement on the letter, 0..1 fractions of the page box.
+     *  Omitted, the mark renders in the document's sign-block as it always has. */
+    placement?: { x: number; y: number; w: number; page: number }
+  },
 ): Promise<Correspondence> {
   return request<Correspondence>(`/correspondences/${encodeURIComponent(id)}/approve`, {
     method: 'POST',
@@ -226,6 +233,10 @@ export function approveCorr(
       comment: body?.comment ?? null,
       applySignature: body?.applySignature ?? true,
       signatureId: body?.signatureId ?? null,
+      placePage: body?.placement?.page ?? null,
+      placeX: body?.placement?.x ?? null,
+      placeY: body?.placement?.y ?? null,
+      placeW: body?.placement?.w ?? null,
     },
   })
 }

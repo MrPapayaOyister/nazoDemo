@@ -214,7 +214,13 @@ interface AppState {
 
   // correspondence lifecycle (backed by the real API)
   sendCorrespondence: (args?: { templateId?: string; values?: Record<string, string> }) => Promise<string>
-  approveAndSign: (corrId: string, comment?: string, applySig?: boolean, signatureId?: string) => Promise<void>
+  approveAndSign: (
+    corrId: string,
+    comment?: string,
+    applySig?: boolean,
+    signatureId?: string,
+    placement?: { x: number; y: number; w: number; page: number },
+  ) => Promise<void>
   rejectCorrespondence: (corrId: string, comment: string) => Promise<void>
   /** Resolves to the correspondence id on success, or '' on failure (so the caller
    *  doesn't show the success overlay for a revision that didn't actually resend). */
@@ -1158,10 +1164,15 @@ export const useStore = create<AppState>()(
         }
       },
 
-      approveAndSign: async (corrId, comment, applySig = true, signatureId) => {
+      approveAndSign: async (corrId, comment, applySig = true, signatureId, placement) => {
         const lang = get().ui.lang
         try {
-          const updated = await api.approveCorr(corrId, { comment, applySignature: applySig, signatureId })
+          const updated = await api.approveCorr(corrId, {
+            comment,
+            applySignature: applySig,
+            signatureId,
+            placement,
+          })
           set((s) => ({ correspondences: upsertCorr(s.correspondences, updated) }))
         } catch (e) {
           toast(t2(lang, 'Could not record your approval.', 'تعذّر تسجيل الاعتماد.'))
