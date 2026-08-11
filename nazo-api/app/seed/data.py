@@ -600,6 +600,87 @@ CIRCULAR_AR_BODY = """
 # than a circular, addressed person-to-person rather than broadcast, and routed
 # on the shorter CIRCULAR_CHAIN (director approves, undersecretary signs).
 # ---------------------------------------------------------------------------
+# ===========================================================================
+# A THREE-SIGNER chain. Every step after the reviewer actually SIGNS, and each
+# lands in its own {{SIG_x}} slot — the case that used to be impossible when the
+# slot was resolved by role. Used by the joint-decision memo below.
+# ===========================================================================
+TRIPLE_SIGN_CHAIN: list[dict] = [
+    {
+        "id": "ws_dt",
+        "role": "dtManager",
+        "unitEn": "Industrial Property Department",
+        "unitAr": "إدارة الملكية الصناعية",
+        "type": "Reviewing",
+        "rejectable": True,
+        "sign": False,
+        "regenerate": True,
+        "required": True,
+        "position": {"x": 120, "y": 160},
+    },
+    {
+        "id": "ws_dir",
+        "role": "director",
+        "unitEn": "Commercial Affairs Sector",
+        "unitAr": "قطاع الشؤون التجارية",
+        "type": "Signing",
+        "rejectable": True,
+        "sign": True,
+        "regenerate": True,
+        "required": True,
+        "position": {"x": 340, "y": 160},
+    },
+    {
+        "id": "ws_gm",
+        "role": "gm",
+        "unitEn": "Ministry Undersecretariat",
+        "unitAr": "وكالة الوزارة",
+        "type": "Signing",
+        "rejectable": True,
+        "sign": True,
+        "regenerate": True,
+        "required": True,
+        "position": {"x": 560, "y": 160},
+    },
+    {
+        "id": "ws_chair",
+        "role": "chair",
+        "unitEn": "Minister's Office",
+        "unitAr": "مكتب الوزير",
+        "type": "Signing",
+        "rejectable": True,
+        "sign": True,
+        "regenerate": True,
+        "required": True,
+        "position": {"x": 780, "y": 160},
+    },
+]
+
+JOINT_EN_BODY = """
+{{LETTERHEAD}}
+<h1>Memorandum — Joint Committee Decision</h1>
+<p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
+<h2>Subject: {{SUBJECT}}</h2>
+<p>{{BODY}}</p>
+<h2>Decision</h2>
+<p>{{DECISION}}</p>
+<p>This decision takes effect on {{EFFECTIVE_DATE}} and is issued under the joint
+signature of the undersigned.</p>
+<div class="sign-block">{{SIG_DIR}}{{SIG_GM}}{{SIG_CHAIR}}</div>
+"""
+
+JOINT_VARS: list[dict] = [
+    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "MOET/MEM/2026/__", "required": True},
+    {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
+    {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{BODY}}", "labelEn": "Background", "labelAr": "الخلفية", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{DECISION}}", "labelEn": "Decision", "labelAr": "القرار", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{EFFECTIVE_DATE}}", "labelEn": "Effective Date", "labelAr": "تاريخ السريان", "type": "Date", "group": "Requester", "required": True},
+    {"tag": "{{SIG_DIR}}", "labelEn": "Director Signature", "labelAr": "توقيع المدير", "type": "Signature", "group": "director", "required": True},
+    {"tag": "{{SIG_GM}}", "labelEn": "Undersecretary Signature", "labelAr": "توقيع وكيل الوزارة", "type": "Signature", "group": "gm", "required": True},
+    {"tag": "{{SIG_CHAIR}}", "labelEn": "Minister Signature", "labelAr": "توقيع الوزير", "type": "Signature", "group": "chair", "required": True},
+]
+
 MEMO_EN_BODY = """
 {{LETTERHEAD}}
 <h1>Internal Memorandum</h1>
@@ -834,6 +915,20 @@ TEMPLATES: list[dict] = [
         "workflow": DUAL_SIGN_CHAIN,
         "updatedAt": "2026-07-14T09:10:00Z",
         "usageCount": 12,
+    },
+    {
+        "id": "tpl_joint_en",
+        "nameEn": "Memorandum — Joint Committee Decision",
+        "nameAr": "مذكرة — قرار لجنة مشتركة",
+        "lang": "en",
+        "category": "Memo",
+        "descEn": "Requires THREE signatures — Director, Undersecretary and Minister — each in its own place on the page.",
+        "descAr": "يتطلب ثلاثة توقيعات — المدير ووكيل الوزارة والوزير — كلٌّ في موضعه على الصفحة.",
+        "docHtml": JOINT_EN_BODY,
+        "variables": JOINT_VARS,
+        "workflow": TRIPLE_SIGN_CHAIN,
+        "updatedAt": "2026-07-14T09:20:00Z",
+        "usageCount": 7,
     },
     {
         "id": "tpl_holiday_en",
@@ -1125,6 +1220,38 @@ CORRESPONDENCES: list[dict] = [
         ],
         "createdAt": "2026-03-28T09:00:00Z",
         "updatedAt": "2026-03-30T13:20:00Z",
+    },
+    {
+        # THE MULTI-SIGNATURE DEMO ITEM. Left mid-chain on purpose: the reviewer has
+        # initialled, and the Director, Undersecretary and Minister each still have to
+        # sign — three signatures, three people, three separate places on the page.
+        "id": "corr_1010",
+        "ref": "MOET/MEM/2026/021",
+        "titleEn": "Joint Committee Decision — SME Licensing Fee Review",
+        "titleAr": "قرار لجنة مشتركة — مراجعة رسوم تراخيص المنشآت الصغيرة والمتوسطة",
+        "templateId": "tpl_joint_en",
+        "requesterId": "u_req",
+        "status": "InReview",
+        "values": {
+            "{{REF_NO}}": "MOET/MEM/2026/021",
+            "{{DATE}}": "2026-07-13",
+            "{{SUBJECT}}": "Review of licensing fees for small and medium enterprises",
+            "{{BODY}}": "The joint committee convened to review the licensing fee schedule applied to small and medium enterprises, following representations from the National SME Programme and an analysis of comparable fees across the sector.",
+            "{{DECISION}}": "The committee resolves to reduce the annual licensing fee for enterprises with fewer than 20 employees by 25%, and to waive the renewal fee entirely for the first two years of operation.",
+            "{{EFFECTIVE_DATE}}": "2026-09-01",
+            "{{SIG_DIR}}": "",
+            "{{SIG_GM}}": "",
+            "{{SIG_CHAIR}}": "",
+        },
+        "workflow": TRIPLE_SIGN_CHAIN,
+        "stepStatuses": ["done", "active", "pending", "pending"],
+        "history": [
+            {"id": "h_1", "actorId": "u_req", "action": "Created", "comment": "", "at": "2026-07-13T08:00:00Z"},
+            {"id": "h_2", "actorId": "u_req", "action": "Sent", "comment": "Committee minutes and the fee analysis are attached for the joint signature.", "commentAr": "مرفق محضر اللجنة وتحليل الرسوم للتوقيع المشترك.", "at": "2026-07-13T08:05:00Z"},
+            {"id": "h_3", "actorId": "u_dt", "action": "Commented", "comment": "Reviewed and initialled — the fee analysis matches the committee minutes.", "commentAr": "روجع ووُقّع بالأحرف الأولى — تحليل الرسوم مطابق لمحضر اللجنة.", "at": "2026-07-13T11:30:00Z"},
+        ],
+        "createdAt": "2026-07-13T08:00:00Z",
+        "updatedAt": "2026-07-13T11:30:00Z",
     },
 ]
 
