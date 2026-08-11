@@ -8,16 +8,21 @@ interface LogoProps {
 }
 
 /**
- * The NAZO brand mark — the single source of truth for the product logo across the
- * app chrome (top bar) and the login gate. The in-document UAE crest (Letterhead.tsx)
- * is intentionally a SEPARATE emblem (the issuing authority's, not the product's).
- * Assets: public/nazo-logo.png (full, transparent), public/nazo-mark.png (mark on white).
+ * The Connect AI brand mark — the single source of truth for the product logo across
+ * the app chrome (top bar) and the login gate. The in-document UAE crest
+ * (Letterhead.tsx) is intentionally a SEPARATE emblem (the issuing authority's, not
+ * the product's).
+ *
+ * Assets are cut from the supplied Federal National Council artwork (English lockup):
+ * public/connect-logo.png is the full emblem + wordmark, public/connect-mark.png the
+ * emblem alone, squared for the rail chip. Both have the artwork's white card
+ * knocked out to transparency so they sit on any surface, light or dark.
  */
 export function Logo({ variant = 'mark', className }: LogoProps) {
   if (variant === 'full') {
     return (
       <img
-        src="/nazo-logo.png"
+        src="/connect-logo.png"
         alt="Connect AI"
         draggable={false}
         className={cn('block w-auto max-w-full object-contain select-none', className)}
@@ -29,7 +34,7 @@ export function Logo({ variant = 'mark', className }: LogoProps) {
   return (
     <span className={cn('grid place-items-center rounded-lg bg-white shadow-sm shrink-0', className)}>
       <img
-        src="/nazo-mark.png"
+        src="/connect-mark.png"
         alt="Connect AI"
         draggable={false}
         className="size-[78%] object-contain select-none"
