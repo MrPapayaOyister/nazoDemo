@@ -168,9 +168,23 @@ export function DocumentPlacementSurface({
     })
   }
 
+  const showSheet = active || value != null
+
   return (
     <div className="relative">
-      {children}
+      {/* When the letter is SHORTER than A4 — most of them are — printed page 1 extends
+          past the bottom of the document card. Without this backdrop the ghost appears
+          to float over whatever sits below (the attachments card), which reads as a
+          bug. The sheet makes the rest of the page visible, so the mark is clearly on
+          the PAGE rather than on the next card down. */}
+      {showSheet && (
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-0 rounded-2xl hairline bg-surface"
+          style={{ aspectRatio: `${210 / 297}` }}
+        />
+      )}
+      <div className="relative">{children}</div>
 
       {/* The A4 page-1 region. pointer-events only while placing, so the document
           stays readable and selectable the rest of the time. */}
