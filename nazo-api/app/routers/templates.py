@@ -141,6 +141,21 @@ def _require_signing_wiring(variables: list, workflow: list) -> None:
             ),
         )
 
+    # Count SIGNERS, not roles. Two signing steps with the same role need two Signature
+    # slots — with only one, the second signer would have nowhere to land and the
+    # document would come out carrying fewer signatures than the chain collected.
+    signers = [ws for ws in (workflow or []) if _is_signer(ws)]
+    slots = [v for v in (variables or []) if v.get("type") == "Signature"]
+    if len(signers) > len(slots):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                f"This workflow has {len(signers)} signing step(s) but only "
+                f"{len(slots)} signature field(s). Add a Signature variable for each "
+                "signer so every signature has somewhere to appear."
+            ),
+        )
+
 def _layout_is_locked(session: Session, tpl: Template) -> bool:
     """True if this template binds a LOCKED layout master (its letterhead/sign-block
     frame is protected unless the caller holds edit_layout). A template with no master

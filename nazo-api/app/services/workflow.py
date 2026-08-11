@@ -303,6 +303,69 @@ def _initials_for(
     return rows[0] if rows else None
 
 
+
+def _signature_tag_for_step(
+    session: Session,
+    corr: Correspondence,
+    variables: list[dict[str, Any]],
+    step: CorrespondenceStep,
+) -> Optional[str]:
+    """The Signature slot THIS STEP signs into.
+
+    Resolving by role alone caps a document at one signature per role: two Signing
+    steps with the same role both resolve to the same {{SIG_x}} tag, and the second
+    signer silently overwrites the first. That is the whole reason a letter could not
+    carry two countersigning directors.
+
+    Resolution, in order:
+      1. an explicit `sigTag` on the frozen workflow step, when it names a real
+         Signature variable — the author said exactly where this signer signs;
+      2. the role-matching slot, IF no earlier signing step already claimed it — this
+         is the historical behaviour and keeps every existing template identical;
+      3. the next unclaimed Signature slot, so a second same-role signer still lands
+         somewhere rather than overwriting a colleague.
+
+    Returns None when every slot is already taken, which the caller treats as "nothing
+    to stamp" rather than clobbering another signer's mark.
+    """
+    sig_vars = [v for v in (variables or []) if v.get("type") == "Signature"]
+    if not sig_vars:
+        return None
+
+    snapshot = list(corr.workflow_snapshot or [])
+    explicit = None
+    if 0 <= step.step_order < len(snapshot):
+        wanted = (snapshot[step.step_order] or {}).get("sigTag")
+        if wanted and any(v.get("tag") == wanted for v in sig_vars):
+            explicit = wanted
+    if explicit:
+        return explicit
+
+    # Which slots earlier signing steps already occupy. `signature_asset_ref` alone is
+    # not enough — the claim is recorded on corr.values, keyed by tag.
+    claimed: set[str] = set()
+    for other in _locked_steps(session, corr.id):
+        if other.id == step.id or not other.signed_at:
+            continue
+        if 0 <= other.step_order < len(snapshot):
+            ot = (snapshot[other.step_order] or {}).get("sigTag")
+            if ot:
+                claimed.add(ot)
+                continue
+        for v in sig_vars:
+            if v.get("group") == other.role and v.get("tag") not in claimed:
+                claimed.add(v.get("tag"))
+                break
+
+    for v in sig_vars:
+        if v.get("group") == step.role and v.get("tag") not in claimed:
+            return v.get("tag")
+    for v in sig_vars:
+        if v.get("tag") not in claimed:
+            return v.get("tag")
+    return None
+
+
 def _effective_variables(
     corr: Correspondence, template: Optional[Template]
 ) -> list[dict[str, Any]]:
@@ -540,7 +603,9 @@ def approve(
         template = session.get(Template, corr.template_id)
         # Stamp on the tag the DOCUMENT actually renders (override-first), so a
         # per-instance/frozen signature-tag rename can't drop the signature.
-        tag = _signature_tag_for_role(_effective_variables(corr, template), step.role)
+        tag = _signature_tag_for_step(
+            session, corr, _effective_variables(corr, template), step
+        )
         if tag:
             corr.values = {**corr.values, tag: chosen_sig_id}
         step.signed_at = now
