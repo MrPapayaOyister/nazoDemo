@@ -18,7 +18,7 @@ export function Logo({ variant = 'mark', className }: LogoProps) {
     return (
       <img
         src="/nazo-logo.png"
-        alt="NAZO"
+        alt="Connect AI"
         draggable={false}
         className={cn('block w-auto max-w-full object-contain select-none', className)}
       />
@@ -30,7 +30,7 @@ export function Logo({ variant = 'mark', className }: LogoProps) {
     <span className={cn('grid place-items-center rounded-lg bg-white shadow-sm shrink-0', className)}>
       <img
         src="/nazo-mark.png"
-        alt="NAZO"
+        alt="Connect AI"
         draggable={false}
         className="size-[78%] object-contain select-none"
       />

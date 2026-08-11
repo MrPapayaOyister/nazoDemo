@@ -595,6 +595,72 @@ CIRCULAR_AR_BODY = """
 <div class="sign-block">{{SIG_GM}}</div>
 """
 
+# ---------------------------------------------------------------------------
+# Internal memoranda. A memo is the everyday instrument of a ministry — shorter
+# than a circular, addressed person-to-person rather than broadcast, and routed
+# on the shorter CIRCULAR_CHAIN (director approves, undersecretary signs).
+# ---------------------------------------------------------------------------
+MEMO_EN_BODY = """
+{{LETTERHEAD}}
+<h1>Internal Memorandum</h1>
+<p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
+<p class="meta"><strong>To:</strong> {{TO}} &nbsp;&nbsp; <strong>From:</strong> {{FROM}}</p>
+<h2>Subject: {{SUBJECT}}</h2>
+<p>{{BODY}}</p>
+<p>{{ACTION_REQUIRED}}</p>
+<p>Your cooperation is appreciated.</p>
+<div class="sign-block">{{SIG_GM}}</div>
+"""
+
+MEMO_AR_BODY = """
+{{LETTERHEAD}}
+<h1>مذكرة داخلية</h1>
+<p class="meta"><strong>الإشارة:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>التاريخ:</strong> {{DATE}}</p>
+<p class="meta"><strong>إلى:</strong> {{TO}} &nbsp;&nbsp; <strong>من:</strong> {{FROM}}</p>
+<h2>الموضوع: {{SUBJECT}}</h2>
+<p>{{BODY}}</p>
+<p>{{ACTION_REQUIRED}}</p>
+<p>شاكرين لكم حسن تعاونكم.</p>
+<div class="sign-block">{{SIG_GM}}</div>
+"""
+
+MEMO_VARS: list[dict] = [
+    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "MOET/MEM/2026/__", "required": True},
+    {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
+    {"tag": "{{TO}}", "labelEn": "To", "labelAr": "إلى", "type": "Text", "group": "Requester", "placeholder": "Director of Commercial Affairs", "required": True},
+    {"tag": "{{FROM}}", "labelEn": "From", "labelAr": "من", "type": "Text", "group": "Requester", "placeholder": "Trademarks & Commercial Registry", "required": True},
+    {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{BODY}}", "labelEn": "Body", "labelAr": "النص", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{ACTION_REQUIRED}}", "labelEn": "Action Required", "labelAr": "الإجراء المطلوب", "type": "Text", "group": "Requester", "placeholder": "Kindly review and advise by the end of the week.", "required": False},
+    {"tag": "{{SIG_GM}}", "labelEn": "Undersecretary Signature", "labelAr": "توقيع وكيل الوزارة", "type": "Signature", "group": "gm", "required": True},
+]
+
+MINUTES_EN_BODY = """
+{{LETTERHEAD}}
+<h1>Memorandum — Minutes of Meeting</h1>
+<p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
+<p class="meta"><strong>Meeting:</strong> {{MEETING}} &nbsp;&nbsp; <strong>Held on:</strong> {{HELD_ON}}</p>
+<h2>Attendees</h2>
+<p>{{ATTENDEES}}</p>
+<h2>Discussion</h2>
+<p>{{DISCUSSION}}</p>
+<h2>Decisions &amp; Follow-up</h2>
+<p>{{DECISIONS}}</p>
+<div class="sign-block">{{SIG_DIR}}{{SIG_GM}}</div>
+"""
+
+MINUTES_VARS: list[dict] = [
+    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "MOET/MEM/2026/__", "required": True},
+    {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
+    {"tag": "{{MEETING}}", "labelEn": "Meeting", "labelAr": "الاجتماع", "type": "Text", "group": "Requester", "placeholder": "Commercial Affairs Coordination Meeting", "required": True},
+    {"tag": "{{HELD_ON}}", "labelEn": "Held On", "labelAr": "تاريخ الانعقاد", "type": "Date", "group": "Requester", "required": True},
+    {"tag": "{{ATTENDEES}}", "labelEn": "Attendees", "labelAr": "الحضور", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{DISCUSSION}}", "labelEn": "Discussion", "labelAr": "المناقشة", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{DECISIONS}}", "labelEn": "Decisions & Follow-up", "labelAr": "القرارات والمتابعة", "type": "Text", "group": "Requester", "required": True},
+    {"tag": "{{SIG_DIR}}", "labelEn": "Director Signature", "labelAr": "توقيع المدير", "type": "Signature", "group": "director", "required": True},
+    {"tag": "{{SIG_GM}}", "labelEn": "Undersecretary Signature", "labelAr": "توقيع وكيل الوزارة", "type": "Signature", "group": "gm", "required": True},
+]
+
 HOLIDAY_EN_BODY = """
 {{LETTERHEAD}}
 <h1>Announcement: Official Holiday</h1>
@@ -721,6 +787,53 @@ TEMPLATES: list[dict] = [
         "twinId": "tpl_circular_en",
         "updatedAt": "2026-07-01T11:44:00Z",
         "usageCount": 18,
+    },
+    {
+        "id": "tpl_memo_en",
+        "nameEn": "Internal Memorandum",
+        "nameAr": "مذكرة داخلية",
+        "lang": "en",
+        "category": "Memo",
+        "descEn": "Everyday internal memo between departments — shorter than a circular and addressed to a named recipient.",
+        "descAr": "مذكرة داخلية بين الإدارات — أقصر من التعميم وموجّهة إلى جهة محددة.",
+        "docHtml": MEMO_EN_BODY,
+        "variables": MEMO_VARS,
+        "workflow": CIRCULAR_CHAIN,
+        "twinId": "tpl_memo_ar",
+        "updatedAt": "2026-07-14T09:00:00Z",
+        "usageCount": 34,
+    },
+    {
+        "id": "tpl_memo_ar",
+        "nameEn": "Internal Memorandum (AR)",
+        "nameAr": "مذكرة داخلية",
+        "lang": "ar",
+        "category": "Memo",
+        "descEn": "Arabic variant of the internal memorandum.",
+        "descAr": "النسخة العربية من المذكرة الداخلية.",
+        "docHtml": MEMO_AR_BODY,
+        "variables": MEMO_VARS,
+        "workflow": CIRCULAR_CHAIN,
+        "twinId": "tpl_memo_en",
+        "updatedAt": "2026-07-14T09:04:00Z",
+        "usageCount": 21,
+    },
+    {
+        "id": "tpl_minutes_en",
+        "nameEn": "Memorandum — Minutes of Meeting",
+        "nameAr": "مذكرة — محضر اجتماع",
+        "lang": "en",
+        "category": "Memo",
+        "descEn": "Records attendees, discussion and decisions, countersigned by the Director and the Undersecretary.",
+        "descAr": "يوثّق الحضور والمناقشة والقرارات، بتوقيع المدير ووكيل الوزارة.",
+        "docHtml": MINUTES_EN_BODY,
+        "variables": MINUTES_VARS,
+        # DUAL_SIGN_CHAIN, not CIRCULAR_CHAIN: minutes carry TWO signatures, and the
+        # circular chain's director step only APPROVES (sign=False), so {{SIG_DIR}}
+        # would have rendered an empty slot on every issued document.
+        "workflow": DUAL_SIGN_CHAIN,
+        "updatedAt": "2026-07-14T09:10:00Z",
+        "usageCount": 12,
     },
     {
         "id": "tpl_holiday_en",
@@ -880,8 +993,8 @@ CORRESPONDENCES: list[dict] = [
             "{{REF_NO}}": "MOET/CIR/2026/029",
             "{{DATE}}": "2026-07-08",
             "{{AUDIENCE}}": "All Licensed Commercial Establishments",
-            "{{SUBJECT}}": "Adoption of the NAZO Digital Correspondence System",
-            "{{BODY}}": "All units are requested to route official correspondence through the NAZO platform effective immediately, ensuring reference numbers and approvals are recorded digitally.",
+            "{{SUBJECT}}": "Adoption of the Connect AI Digital Correspondence System",
+            "{{BODY}}": "All units are requested to route official correspondence through the Connect AI platform effective immediately, ensuring reference numbers and approvals are recorded digitally.",
             "{{SIG_DIR}}": "sig_dir",
             "{{SIG_GM}}": "",
         },

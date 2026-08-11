@@ -20,7 +20,7 @@ const en: Dict = {
   'common.comingSoon': 'Coming soon',
   'ai.title': 'AI Assistant',
   'ai.subtitle': 'Context-aware, always on',
-  'ai.placeholder': 'Ask NAZO AI, or pick an action…',
+  'ai.placeholder': 'Ask Connect AI, or pick an action…',
   'section.workspace': 'Workspace',
   'section.manage': 'Manage',
 }
@@ -41,7 +41,7 @@ const ar: Dict = {
   'common.comingSoon': 'قريباً',
   'ai.title': 'مساعد الذكاء الاصطناعي',
   'ai.subtitle': 'مدرك للسياق ودائم التفعيل',
-  'ai.placeholder': 'اسأل NAZO AI أو اختر إجراءً…',
+  'ai.placeholder': 'اسأل Connect AI أو اختر إجراءً…',
   'section.workspace': 'مساحة العمل',
   'section.manage': 'الإدارة',
 }

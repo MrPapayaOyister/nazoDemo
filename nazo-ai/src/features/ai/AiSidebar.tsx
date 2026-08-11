@@ -181,7 +181,7 @@ function PanelBody({ onCollapse }: { onCollapse: () => void }) {
             className="w-full resize-none bg-transparent px-2 py-1 text-[13px] text-ink placeholder:text-ink-muted outline-none"
           />
           <div className="flex items-center justify-between px-1">
-            <span className="text-[10px] text-ink-muted">{tr('NAZO AI', 'مساعد NAZO AI')}</span>
+            <span className="text-[10px] text-ink-muted">{tr('Connect AI', 'مساعد Connect AI')}</span>
             <button
               onClick={onSend}
               disabled={isRunning}

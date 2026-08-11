@@ -48,4 +48,4 @@ export const DEMO_REF = 'MOET/REQ/2026/031'
 /** Uniformly scales every scripted AI delay. 1 = cinematic default; 0.4 = rehearsal; 2 = quick. */
 export const AI_SPEED = 1
 
-export const APP_NAME = 'NAZO AI'
+export const APP_NAME = 'Connect AI'
