@@ -2,7 +2,7 @@ import { ORG } from '@/lib/constants'
 import { useOrgConfig } from '@/store'
 import type { Lang } from '@/types'
 
-/** MoET document letterhead — pure vector, no external assets. The org text
+/** Neonax document letterhead — pure vector, no external assets. The org text
  *  comes from the editable GLOBAL letterhead config (item 2); it falls back to the
  *  ORG constants so it always renders even before bootstrap hydrates. */
 export function Letterhead({ lang = 'en' }: { lang?: Lang }) {

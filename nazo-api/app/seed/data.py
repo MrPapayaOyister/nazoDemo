@@ -27,7 +27,7 @@ from app.models import normalize_step_type
 ORG_CONFIG: dict = {
     "id": "default",
     "header": {
-        "code": "MOET",
+        "code": "NEONAX",
         "nameEn": "United Arab Emirates",
         "nameAr": "الإمارات العربية المتحدة",
         "subEn": "Ministry of Economy & Tourism",
@@ -35,11 +35,11 @@ ORG_CONFIG: dict = {
         "poBox": "P.O. Box 901",
         "cityEn": "Abu Dhabi, United Arab Emirates",
         "cityAr": "أبوظبي، الإمارات العربية المتحدة",
-        "web": "www.moet.gov.ae",
+        "web": "www.neonax.gov.ae",
     },
     "footer": {
-        "lineEn": "This is an official document of the Ministry of Economy & Tourism e-correspondence system. Verify at www.moet.gov.ae.",
-        "lineAr": "هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية بوزارة الاقتصاد والسياحة. للتحقق: www.moet.gov.ae.",
+        "lineEn": "This is an official document of the Ministry of Economy & Tourism e-correspondence system. Verify at www.neonax.gov.ae.",
+        "lineAr": "هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية بوزارة الاقتصاد والسياحة. للتحقق: www.neonax.gov.ae.",
         "contactEn": "P.O. Box 901 · Abu Dhabi, UAE · 800 1222",
         "contactAr": "ص.ب ٩٠١ · أبوظبي، الإمارات · ٨٠٠ ١٢٢٢",
         "showPageNumbers": True,
@@ -56,7 +56,7 @@ ORG_CONFIG: dict = {
 LAYOUT_MASTERS: list[dict] = [
     {
         "id": "lm_default",
-        "name": "MoET Official Letterhead",
+        "name": "Neonax Official Letterhead",
         "header": {},
         "footer": {},
         "locked": True,
@@ -78,7 +78,7 @@ USERS: list[dict] = [
         "titleAr": "مسؤول النظام",
         "unitEn": "Information Technology Department",
         "unitAr": "إدارة تقنية المعلومات",
-        "email": "admin@moet.gov.ae",
+        "email": "admin@neonax.gov.ae",
         "initials": "LM",
         "color": "#1552b5",
     },
@@ -91,7 +91,7 @@ USERS: list[dict] = [
         "titleAr": "أخصائي السجل التجاري",
         "unitEn": "Trademarks & Commercial Registry",
         "unitAr": "إدارة العلامات التجارية والسجل التجاري",
-        "email": "registry.officer@moet.gov.ae",
+        "email": "registry.officer@neonax.gov.ae",
         "initials": "NS",
         "color": "#0e7c86",
     },
@@ -104,7 +104,7 @@ USERS: list[dict] = [
         "titleAr": "مدير الملكية الصناعية",
         "unitEn": "Industrial Property Department",
         "unitAr": "إدارة الملكية الصناعية",
-        "email": "ip.manager@moet.gov.ae",
+        "email": "ip.manager@neonax.gov.ae",
         "initials": "KM",
         "color": "#6e56cf",
         "signatureId": "sig_dt",
@@ -118,7 +118,7 @@ USERS: list[dict] = [
         "titleAr": "مدير الشؤون التجارية",
         "unitEn": "Commercial Affairs Sector",
         "unitAr": "قطاع الشؤون التجارية",
-        "email": "commercial.director@moet.gov.ae",
+        "email": "commercial.director@neonax.gov.ae",
         "initials": "AZ",
         "color": "#b0871c",
         "signatureId": "sig_dir",
@@ -132,7 +132,7 @@ USERS: list[dict] = [
         "titleAr": "وكيل الوزارة",
         "unitEn": "Ministry Undersecretariat",
         "unitAr": "وكالة الوزارة",
-        "email": "undersecretary@moet.gov.ae",
+        "email": "undersecretary@neonax.gov.ae",
         "initials": "MH",
         "color": "#12336b",
         "signatureId": "sig_gm",
@@ -146,7 +146,7 @@ USERS: list[dict] = [
         "titleAr": "وزير الاقتصاد والسياحة",
         "unitEn": "Minister's Office",
         "unitAr": "مكتب الوزير",
-        "email": "minister.office@moet.gov.ae",
+        "email": "minister.office@neonax.gov.ae",
         "initials": "AN",
         "color": "#d64550",
     },
@@ -162,7 +162,7 @@ USERS: list[dict] = [
         "titleAr": "مدير الاتصال الحكومي",
         "unitEn": "Government Communication",
         "unitAr": "إدارة الاتصال الحكومي",
-        "email": "comms.lead@moet.gov.ae",
+        "email": "comms.lead@neonax.gov.ae",
         "initials": "FB",
         "color": "#0891b2",
         "accessLevel": "broadcaster",
@@ -177,7 +177,7 @@ USERS: list[dict] = [
         "titleAr": "منسق المكتب التنفيذي",
         "unitEn": "Executive Office",
         "unitAr": "المكتب التنفيذي",
-        "email": "exec.office@moet.gov.ae",
+        "email": "exec.office@neonax.gov.ae",
         "initials": "YR",
         "color": "#7c3aed",
         "accessLevel": "broadcaster",
@@ -192,7 +192,7 @@ USERS: list[dict] = [
         "titleAr": "أخصائي برنامج المنشآت الصغيرة والمتوسطة",
         "unitEn": "National SME Programme",
         "unitAr": "البرنامج الوطني للمنشآت الصغيرة والمتوسطة",
-        "email": "sme.programme@moet.gov.ae",
+        "email": "sme.programme@neonax.gov.ae",
         "initials": "MA",
         "color": "#059669",
         "accessLevel": "viewer",
@@ -207,7 +207,7 @@ USERS: list[dict] = [
         "titleAr": "مستشار الشؤون القانونية",
         "unitEn": "Legal Affairs Department",
         "unitAr": "إدارة الشؤون القانونية",
-        "email": "legal.affairs@moet.gov.ae",
+        "email": "legal.affairs@neonax.gov.ae",
         "initials": "OH",
         "color": "#b45309",
         "accessLevel": "viewer",
@@ -222,7 +222,7 @@ USERS: list[dict] = [
         "titleAr": "أخصائي حماية المستهلك",
         "unitEn": "Consumer Protection Department",
         "unitAr": "إدارة حماية المستهلك",
-        "email": "consumer.protection@moet.gov.ae",
+        "email": "consumer.protection@neonax.gov.ae",
         "initials": "HM",
         "color": "#be185d",
         "accessLevel": "viewer",
@@ -237,7 +237,7 @@ USERS: list[dict] = [
         "titleAr": "أخصائي تنمية السياحة",
         "unitEn": "Tourism Sector",
         "unitAr": "قطاع السياحة",
-        "email": "tourism.dev@moet.gov.ae",
+        "email": "tourism.dev@neonax.gov.ae",
         "initials": "SD",
         "color": "#475569",
         "accessLevel": "viewer",
@@ -670,7 +670,7 @@ signature of the undersigned.</p>
 """
 
 JOINT_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "MOET/MEM/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "NEONAX/MEM/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
     {"tag": "{{BODY}}", "labelEn": "Background", "labelAr": "الخلفية", "type": "Text", "group": "Requester", "required": True},
@@ -706,7 +706,7 @@ MEMO_AR_BODY = """
 """
 
 MEMO_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "MOET/MEM/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "NEONAX/MEM/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{TO}}", "labelEn": "To", "labelAr": "إلى", "type": "Text", "group": "Requester", "placeholder": "Director of Commercial Affairs", "required": True},
     {"tag": "{{FROM}}", "labelEn": "From", "labelAr": "من", "type": "Text", "group": "Requester", "placeholder": "Trademarks & Commercial Registry", "required": True},
@@ -731,7 +731,7 @@ MINUTES_EN_BODY = """
 """
 
 MINUTES_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "MOET/MEM/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Memo Number", "labelAr": "رقم المذكرة", "type": "Text", "group": "Requester", "placeholder": "NEONAX/MEM/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{MEETING}}", "labelEn": "Meeting", "labelAr": "الاجتماع", "type": "Text", "group": "Requester", "placeholder": "Commercial Affairs Coordination Meeting", "required": True},
     {"tag": "{{HELD_ON}}", "labelEn": "Held On", "labelAr": "تاريخ الانعقاد", "type": "Date", "group": "Requester", "required": True},
@@ -747,7 +747,7 @@ HOLIDAY_EN_BODY = """
 <h1>Announcement: Official Holiday</h1>
 <p class="meta"><strong>Reference:</strong> {{REF_NO}} &nbsp;&nbsp; <strong>Date:</strong> {{DATE}}</p>
 <p>Dear Colleagues,</p>
-<p>In line with the official holiday schedule approved for the federal government, the Ministry of Economy &amp; Tourism is pleased to announce that <strong>{{OCCASION}}</strong> will be an official paid holiday. The Ministry’s offices and customer happiness centres will be closed from <strong>{{FROM_DATE}}</strong> to <strong>{{TO_DATE}}</strong>, resuming work on the following business day. Digital services remain available on www.moet.gov.ae throughout.</p>
+<p>In line with the official holiday schedule approved for the federal government, the Ministry of Economy &amp; Tourism is pleased to announce that <strong>{{OCCASION}}</strong> will be an official paid holiday. The Ministry’s offices and customer happiness centres will be closed from <strong>{{FROM_DATE}}</strong> to <strong>{{TO_DATE}}</strong>, resuming work on the following business day. Digital services remain available on www.neonax.gov.ae throughout.</p>
 <p>We extend our warmest wishes to you and your families.</p>
 <div class="sign-block">{{SIG_GM}}</div>
 """
@@ -769,7 +769,7 @@ DUAL_EN_BODY = """
 # Template variables (TemplateVariable[] verbatim).
 # ---------------------------------------------------------------------------
 TRADEMARK_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "MOET/REQ/2026/___", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "NEONAX/REQ/2026/___", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{APPLICANT}}", "labelEn": "Applicant / Company", "labelAr": "مقدّم الطلب / الشركة", "type": "Text", "group": "Requester", "placeholder": "e.g. Al Noor Trading LLC", "required": True},
     {"tag": "{{AMOUNT}}", "labelEn": "Registration Fee (AED)", "labelAr": "رسوم التسجيل (درهم)", "type": "Text", "group": "Requester", "placeholder": "6,700", "required": True},
@@ -777,7 +777,7 @@ TRADEMARK_VARS: list[dict] = [
 ]
 
 CIRCULAR_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Circular Number", "labelAr": "رقم التعميم", "type": "Text", "group": "Requester", "placeholder": "MOET/CIR/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Circular Number", "labelAr": "رقم التعميم", "type": "Text", "group": "Requester", "placeholder": "NEONAX/CIR/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{AUDIENCE}}", "labelEn": "Audience", "labelAr": "الجهة المستهدفة", "type": "Text", "group": "Requester", "placeholder": "All Departments and Licensed Establishments", "required": True},
     {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
@@ -786,7 +786,7 @@ CIRCULAR_VARS: list[dict] = [
 ]
 
 HOLIDAY_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "MOET/HR/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "NEONAX/HR/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{OCCASION}}", "labelEn": "Occasion", "labelAr": "المناسبة", "type": "Text", "group": "Requester", "placeholder": "Eid Al Adha", "required": True},
     {"tag": "{{FROM_DATE}}", "labelEn": "Holiday Start", "labelAr": "بداية العطلة", "type": "Date", "group": "Requester", "required": True},
@@ -796,7 +796,7 @@ HOLIDAY_VARS: list[dict] = [
 
 # Dual-signature vars: a Signature variable for BOTH the Director and the Undersecretary.
 DUAL_VARS: list[dict] = [
-    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "MOET/EXE/2026/__", "required": True},
+    {"tag": "{{REF_NO}}", "labelEn": "Reference Number", "labelAr": "الرقم المرجعي", "type": "Text", "group": "Requester", "placeholder": "NEONAX/EXE/2026/__", "required": True},
     {"tag": "{{DATE}}", "labelEn": "Date", "labelAr": "التاريخ", "type": "Date", "group": "Requester", "required": True},
     {"tag": "{{SUBJECT}}", "labelEn": "Subject", "labelAr": "الموضوع", "type": "Text", "group": "Requester", "required": True},
     {"tag": "{{SIG_DIR}}", "labelEn": "Director Signature", "labelAr": "توقيع المدير", "type": "Signature", "group": "director"},
@@ -969,14 +969,14 @@ TEMPLATES: list[dict] = [
 CORRESPONDENCES: list[dict] = [
     {
         "id": "corr_1001",
-        "ref": "MOET/REQ/2026/012",
+        "ref": "NEONAX/REQ/2026/012",
         "titleEn": "Approval — Trademark Registration (Al Noor Trading)",
         "titleAr": "اعتماد — تسجيل علامة تجارية (النور للتجارة)",
         "templateId": "tpl_trademark_en",
         "requesterId": "u_req",
         "status": "InReview",
         "values": {
-            "{{REF_NO}}": "MOET/REQ/2026/012",
+            "{{REF_NO}}": "NEONAX/REQ/2026/012",
             "{{DATE}}": "2026-07-06",
             "{{APPLICANT}}": "Al Noor Trading LLC",
             "{{AMOUNT}}": "6,700",
@@ -997,14 +997,14 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1002",
-        "ref": "MOET/CIR/2026/031",
+        "ref": "NEONAX/CIR/2026/031",
         "titleEn": "Circular — Consumer Protection Compliance",
         "titleAr": "تعميم — الامتثال لحماية المستهلك",
         "templateId": "tpl_circular_en",
         "requesterId": "u_req",
         "status": "Rejected",
         "values": {
-            "{{REF_NO}}": "MOET/CIR/2026/031",
+            "{{REF_NO}}": "NEONAX/CIR/2026/031",
             "{{DATE}}": "2026-07-02",
             "{{AUDIENCE}}": "All Licensed Commercial Establishments",
             "{{SUBJECT}}": "Updated Consumer Protection Compliance Requirements",
@@ -1024,14 +1024,14 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1003",
-        "ref": "MOET/HR/2026/019",
+        "ref": "NEONAX/HR/2026/019",
         "titleEn": "Announcement — Eid Al Adha Holiday",
         "titleAr": "إعلان — عطلة عيد الأضحى",
         "templateId": "tpl_holiday_en",
         "requesterId": "u_req",
         "status": "Completed",
         "values": {
-            "{{REF_NO}}": "MOET/HR/2026/019",
+            "{{REF_NO}}": "NEONAX/HR/2026/019",
             "{{DATE}}": "2026-05-28",
             "{{OCCASION}}": "Eid Al Adha",
             "{{FROM_DATE}}": "2026-06-05",
@@ -1052,14 +1052,14 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1004",
-        "ref": "MOET/REQ/2026/018",
+        "ref": "NEONAX/REQ/2026/018",
         "titleEn": "Approval — Industrial Design Registration",
         "titleAr": "اعتماد — تسجيل تصميم صناعي",
         "templateId": "tpl_trademark_en",
         "requesterId": "u_req",
         "status": "InReview",
         "values": {
-            "{{REF_NO}}": "MOET/REQ/2026/018",
+            "{{REF_NO}}": "NEONAX/REQ/2026/018",
             "{{DATE}}": "2026-07-09",
             "{{APPLICANT}}": "InsightLearn Analytics",
             "{{AMOUNT}}": "48,500",
@@ -1078,14 +1078,14 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1005",
-        "ref": "MOET/CIR/2026/029",
+        "ref": "NEONAX/CIR/2026/029",
         "titleEn": "Circular — National SME Programme Rollout",
         "titleAr": "تعميم — إطلاق البرنامج الوطني للمنشآت الصغيرة والمتوسطة",
         "templateId": "tpl_circular_en",
         "requesterId": "u_req",
         "status": "InReview",
         "values": {
-            "{{REF_NO}}": "MOET/CIR/2026/029",
+            "{{REF_NO}}": "NEONAX/CIR/2026/029",
             "{{DATE}}": "2026-07-08",
             "{{AUDIENCE}}": "All Licensed Commercial Establishments",
             "{{SUBJECT}}": "Adoption of the Connect AI Digital Correspondence System",
@@ -1112,14 +1112,14 @@ CORRESPONDENCES: list[dict] = [
     # something genuine to show on a fresh demo.
     {
         "id": "corr_1006",
-        "ref": "MOET/REQ/2026/006",
+        "ref": "NEONAX/REQ/2026/006",
         "titleEn": "Approval — Trademark Registration (Gulf Pearl Foods)",
         "titleAr": "اعتماد — تسجيل علامة تجارية (لؤلؤة الخليج للأغذية)",
         "templateId": "tpl_trademark_en",
         "requesterId": "u_req",
         "status": "Completed",
         "values": {
-            "{{REF_NO}}": "MOET/REQ/2026/006",
+            "{{REF_NO}}": "NEONAX/REQ/2026/006",
             "{{DATE}}": "2026-03-11",
             "{{APPLICANT}}": "Gulf Pearl Foods LLC",
             "{{AMOUNT}}": "126,000",
@@ -1142,14 +1142,14 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1007",
-        "ref": "MOET/CIR/2026/011",
+        "ref": "NEONAX/CIR/2026/011",
         "titleEn": "Circular — Tourism Establishment Classification Update",
         "titleAr": "تعميم — تحديث تصنيف المنشآت السياحية",
         "templateId": "tpl_circular_en",
         "requesterId": "u_req",
         "status": "Completed",
         "values": {
-            "{{REF_NO}}": "MOET/CIR/2026/011",
+            "{{REF_NO}}": "NEONAX/CIR/2026/011",
             "{{DATE}}": "2026-04-22",
             "{{SUBJECT}}": "Tourism establishment classification update",
             "{{SIG_DIR}}": "sig_dir",
@@ -1169,14 +1169,14 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1008",
-        "ref": "MOET/HR/2026/004",
+        "ref": "NEONAX/HR/2026/004",
         "titleEn": "Announcement — Eid Al Fitr Holiday",
         "titleAr": "إعلان — عطلة عيد الفطر",
         "templateId": "tpl_holiday_en",
         "requesterId": "u_req",
         "status": "Completed",
         "values": {
-            "{{REF_NO}}": "MOET/HR/2026/004",
+            "{{REF_NO}}": "NEONAX/HR/2026/004",
             "{{DATE}}": "2026-02-26",
             "{{OCCASION}}": "Eid Al Fitr",
             "{{FROM_DATE}}": "2026-03-19",
@@ -1197,14 +1197,14 @@ CORRESPONDENCES: list[dict] = [
     },
     {
         "id": "corr_1009",
-        "ref": "MOET/REQ/2026/009",
+        "ref": "NEONAX/REQ/2026/009",
         "titleEn": "Approval — Foreign Branch Licence (Meridian Logistics)",
         "titleAr": "اعتماد — ترخيص فرع أجنبي (ميريديان للخدمات اللوجستية)",
         "templateId": "tpl_executive_en",
         "requesterId": "u_req",
         "status": "Rejected",
         "values": {
-            "{{REF_NO}}": "MOET/REQ/2026/009",
+            "{{REF_NO}}": "NEONAX/REQ/2026/009",
             "{{DATE}}": "2026-03-30",
             "{{APPLICANT}}": "Meridian Logistics Holding",
             "{{AMOUNT}}": "310,000",
@@ -1226,14 +1226,14 @@ CORRESPONDENCES: list[dict] = [
         # initialled, and the Director, Undersecretary and Minister each still have to
         # sign — three signatures, three people, three separate places on the page.
         "id": "corr_1010",
-        "ref": "MOET/MEM/2026/021",
+        "ref": "NEONAX/MEM/2026/021",
         "titleEn": "Joint Committee Decision — SME Licensing Fee Review",
         "titleAr": "قرار لجنة مشتركة — مراجعة رسوم تراخيص المنشآت الصغيرة والمتوسطة",
         "templateId": "tpl_joint_en",
         "requesterId": "u_req",
         "status": "InReview",
         "values": {
-            "{{REF_NO}}": "MOET/MEM/2026/021",
+            "{{REF_NO}}": "NEONAX/MEM/2026/021",
             "{{DATE}}": "2026-07-13",
             "{{SUBJECT}}": "Review of licensing fees for small and medium enterprises",
             "{{BODY}}": "The joint committee convened to review the licensing fee schedule applied to small and medium enterprises, following representations from the National SME Programme and an analysis of comparable fees across the sector.",

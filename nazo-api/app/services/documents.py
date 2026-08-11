@@ -72,7 +72,7 @@ _ORG = {
     "cityEn": "Abu Dhabi, United Arab Emirates",
     "cityAr": "أبوظبي، الإمارات العربية المتحدة",
     "poBox": "P.O. Box 901",
-    "web": "www.moet.gov.ae",
+    "web": "www.neonax.gov.ae",
 }
 
 

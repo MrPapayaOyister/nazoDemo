@@ -59,12 +59,12 @@ def _corr(session, corr_id: str) -> Correspondence:
 
 # ---------------------------------------------------------------- reference slug / URL
 def test_ref_slug_is_path_safe_and_readable():
-    assert doc_marks.ref_slug("MOET/REQ/2026/012") == "MOET-REQ-2026-012"
+    assert doc_marks.ref_slug("NEONAX/REQ/2026/012") == "NEONAX-REQ-2026-012"
 
 
 def test_verify_url_uses_the_public_origin():
-    url = doc_marks.verify_url("MOET/REQ/2026/012")
-    assert url.endswith("/r/MOET-REQ-2026-012")
+    url = doc_marks.verify_url("NEONAX/REQ/2026/012")
+    assert url.endswith("/r/NEONAX-REQ-2026-012")
     assert url.startswith("http")
     # A QR is scanned by a PHONE — an internal hostname would be unreachable.
     assert "host.docker.internal" not in url and "localhost" not in url
@@ -160,5 +160,5 @@ def test_verify_discloses_nothing_beyond_the_narrow_projection(session):
 
 def test_verify_404s_on_an_unknown_reference(session):
     with pytest.raises(HTTPException) as exc:
-        V.verify_reference("MOET-REQ-2026-999", session=session)
+        V.verify_reference("NEONAX-REQ-2026-999", session=session)
     assert exc.value.status_code == 404

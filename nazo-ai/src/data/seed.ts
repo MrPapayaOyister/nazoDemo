@@ -147,7 +147,7 @@ const HOLIDAY_EN_BODY = `
 `
 
 const TRADEMARK_VARS: Template['variables'] = [
-  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'MOET/REQ/2026/___', required: true },
+  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'NEONAX/REQ/2026/___', required: true },
   { tag: '{{DATE}}', labelEn: 'Date', labelAr: 'التاريخ', type: 'Date', group: 'Requester', required: true },
   { tag: '{{APPLICANT}}', labelEn: 'Applicant / Company', labelAr: 'مقدّم الطلب / الشركة', type: 'Text', group: 'Requester', placeholder: 'e.g. Al Noor Trading LLC', required: true },
   { tag: '{{AMOUNT}}', labelEn: 'Registration Fee (AED)', labelAr: 'رسوم التسجيل (درهم)', type: 'Text', group: 'Requester', placeholder: '75,000', required: true },
@@ -155,7 +155,7 @@ const TRADEMARK_VARS: Template['variables'] = [
 ]
 
 const CIRCULAR_VARS: Template['variables'] = [
-  { tag: '{{REF_NO}}', labelEn: 'Circular Number', labelAr: 'رقم التعميم', type: 'Text', group: 'Requester', placeholder: 'MOET/CIR/2026/__', required: true },
+  { tag: '{{REF_NO}}', labelEn: 'Circular Number', labelAr: 'رقم التعميم', type: 'Text', group: 'Requester', placeholder: 'NEONAX/CIR/2026/__', required: true },
   { tag: '{{DATE}}', labelEn: 'Date', labelAr: 'التاريخ', type: 'Date', group: 'Requester', required: true },
   { tag: '{{AUDIENCE}}', labelEn: 'Audience', labelAr: 'الجهة المستهدفة', type: 'Text', group: 'Requester', placeholder: 'All Departments and Licensed Establishments', required: true },
   { tag: '{{SUBJECT}}', labelEn: 'Subject', labelAr: 'الموضوع', type: 'Text', group: 'Requester', required: true },
@@ -164,7 +164,7 @@ const CIRCULAR_VARS: Template['variables'] = [
 ]
 
 const HOLIDAY_VARS: Template['variables'] = [
-  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'MOET/HR/2026/__', required: true },
+  { tag: '{{REF_NO}}', labelEn: 'Reference Number', labelAr: 'الرقم المرجعي', type: 'Text', group: 'Requester', placeholder: 'NEONAX/HR/2026/__', required: true },
   { tag: '{{DATE}}', labelEn: 'Date', labelAr: 'التاريخ', type: 'Date', group: 'Requester', required: true },
   { tag: '{{OCCASION}}', labelEn: 'Occasion', labelAr: 'المناسبة', type: 'Text', group: 'Requester', placeholder: 'Eid Al Adha', required: true },
   { tag: '{{FROM_DATE}}', labelEn: 'Holiday Start', labelAr: 'بداية العطلة', type: 'Date', group: 'Requester', required: true },
@@ -263,14 +263,14 @@ export const TEMPLATE_BY_ID = Object.fromEntries(
 export const SEED_CORRESPONDENCES: Correspondence[] = [
   {
     id: 'corr_1001',
-    ref: 'MOET/REQ/2026/012',
+    ref: 'NEONAX/REQ/2026/012',
     titleEn: 'Approval — Trademark Registration (Al Noor Trading)',
     titleAr: 'اعتماد — تسجيل علامة تجارية (النور للتجارة)',
     templateId: 'tpl_trademark_en',
     requesterId: 'u_req',
     status: 'InReview',
     values: {
-      '{{REF_NO}}': 'MOET/REQ/2026/012',
+      '{{REF_NO}}': 'NEONAX/REQ/2026/012',
       '{{DATE}}': '2026-07-06',
       '{{APPLICANT}}': 'Al Noor Trading LLC',
       '{{AMOUNT}}': '75,000',
@@ -291,14 +291,14 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
   },
   {
     id: 'corr_1002',
-    ref: 'MOET/CIR/2026/031',
+    ref: 'NEONAX/CIR/2026/031',
     titleEn: 'Circular — Consumer Protection Compliance',
     titleAr: 'تعميم — الامتثال لحماية المستهلك',
     templateId: 'tpl_circular_en',
     requesterId: 'u_req',
     status: 'Rejected',
     values: {
-      '{{REF_NO}}': 'MOET/CIR/2026/031',
+      '{{REF_NO}}': 'NEONAX/CIR/2026/031',
       '{{DATE}}': '2026-07-02',
       '{{AUDIENCE}}': 'All Departments',
       '{{SUBJECT}}': 'Updated Remote Work Guidelines',
@@ -318,14 +318,14 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
   },
   {
     id: 'corr_1003',
-    ref: 'MOET/HR/2026/019',
+    ref: 'NEONAX/HR/2026/019',
     titleEn: 'Announcement — Eid Al Adha Holiday',
     titleAr: 'إعلان — عطلة عيد الأضحى',
     templateId: 'tpl_holiday_en',
     requesterId: 'u_req',
     status: 'Completed',
     values: {
-      '{{REF_NO}}': 'MOET/HR/2026/019',
+      '{{REF_NO}}': 'NEONAX/HR/2026/019',
       '{{DATE}}': '2026-05-28',
       '{{OCCASION}}': 'Eid Al Adha',
       '{{FROM_DATE}}': '2026-06-05',
@@ -347,14 +347,14 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
   {
     // dtManager PENDING (stage 0)
     id: 'corr_1004',
-    ref: 'MOET/REQ/2026/018',
+    ref: 'NEONAX/REQ/2026/018',
     titleEn: 'Approval — Industrial Design Registration',
     titleAr: 'اعتماد — إضافة تحليلات نظام التعلّم',
     templateId: 'tpl_trademark_en',
     requesterId: 'u_req',
     status: 'InReview',
     values: {
-      '{{REF_NO}}': 'MOET/REQ/2026/018',
+      '{{REF_NO}}': 'NEONAX/REQ/2026/018',
       '{{DATE}}': '2026-07-09',
       '{{APPLICANT}}': 'InsightLearn Analytics',
       '{{AMOUNT}}': '48,500',
@@ -374,14 +374,14 @@ export const SEED_CORRESPONDENCES: Correspondence[] = [
   {
     // gm PENDING (circular stage 1 — director already signed)
     id: 'corr_1005',
-    ref: 'MOET/CIR/2026/029',
+    ref: 'NEONAX/CIR/2026/029',
     titleEn: 'Circular — National SME Programme Rollout',
     titleAr: 'تعميم — إطلاق المراسلات الرقمية',
     templateId: 'tpl_circular_en',
     requesterId: 'u_req',
     status: 'InReview',
     values: {
-      '{{REF_NO}}': 'MOET/CIR/2026/029',
+      '{{REF_NO}}': 'NEONAX/CIR/2026/029',
       '{{DATE}}': '2026-07-08',
       '{{AUDIENCE}}': 'All Departments',
       '{{SUBJECT}}': 'Adoption of the NAZO Digital Correspondence System',

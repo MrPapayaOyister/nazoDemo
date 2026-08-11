@@ -113,7 +113,7 @@ const resolvers: Record<AiActionId, ScenarioResolver> = {
     undoable: true,
     thinkingEn: [
       'Reading your request…',
-      'Drafting an official MoET memo…',
+      'Drafting an official Neonax memo…',
       'Structuring justification & budget…',
       'Detecting fields to make reusable…',
     ],

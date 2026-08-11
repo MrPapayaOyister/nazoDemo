@@ -2,7 +2,7 @@
 // NAZO AI — domain + AI types.
 // Canonical bindings (master prompt §3.1): RoleId literals, dotted AiActionId
 // registry, 10-member SideEffect union, chain node ids n_start/n_dt/n_dir/n_gm/
-// n_end, DEMO_REF = MOET/REQ/2026/031, currency AED, demo clock base 2026-07-10.
+// n_end, DEMO_REF = NEONAX/REQ/2026/031, currency AED, demo clock base 2026-07-10.
 // ============================================================================
 
 // ---------- Enums / unions ----------
@@ -357,7 +357,7 @@ export interface Attachment {
 
 export interface Correspondence {
   id: string // 'corr_1001'
-  ref: string // 'MOET/REQ/2026/031'
+  ref: string // 'NEONAX/REQ/2026/031'
   titleEn: string
   titleAr: string
   templateId: string

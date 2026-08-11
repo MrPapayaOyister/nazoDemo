@@ -304,7 +304,7 @@ def create_template(
         template_type=template_type,
         owner_id=current_user.id,
         visibility=visibility,
-        # Phase 2b: bind the layout master (default = the locked MoET letterhead).
+        # Phase 2b: bind the layout master (default = the locked Neonax letterhead).
         layout_master_id=layout_master_id,
         # Phase 3: reusable-workflow provenance (None = ad-hoc inline chain).
         workflow_version_id=workflow_version_id,

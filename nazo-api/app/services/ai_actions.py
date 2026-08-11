@@ -97,7 +97,7 @@ def render_letter_text(template: Template, values: dict[str, str]) -> str:
     for tag, val in (values or {}).items():
         replacement = "" if tag in sig_tags else str(val or "")
         doc = doc.replace(tag, replacement)
-    doc = doc.replace("{{LETTERHEAD}}", "Ministry of Economy & Tourism (MoET)")
+    doc = doc.replace("{{LETTERHEAD}}", "Ministry of Economy & Tourism (Neonax)")
     doc = _LEFTOVER_TAG_RE.sub("", doc)
     return strip_html(doc)
 
@@ -545,7 +545,7 @@ async def _translate(session: Session, user: AppUser, ctx: dict[str, Any], provi
         and paragraphs
     ):
         # Lead with the letterhead token so BOTH the viewer's DocumentRenderer and the
-        # backend PDF render the MoET header identically, and CARRY OVER the source
+        # backend PDF render the Neonax header identically, and CARRY OVER the source
         # document's locked sign-block (its {{SIG_*}} tokens) so the translated view/PDF
         # still stamps the approvers' signatures instead of appearing unsigned.
         src_doc = (
@@ -775,7 +775,7 @@ STAGES: dict[str, list[dict[str, str]]] = {
     ],
     "admin.generateTemplate": [
         _stage("read", "Reading your request…", "قراءة طلبك…", "Understanding the request…", "فهم الطلب…"),
-        _stage("draft", "Drafting an official MoET memo…", "صياغة مذكرة رسمية…", "Writing the letter…", "كتابة الخطاب…"),
+        _stage("draft", "Drafting an official Neonax memo…", "صياغة مذكرة رسمية…", "Writing the letter…", "كتابة الخطاب…"),
         _stage("structure", "Structuring justification & budget…", "هيكلة المبررات والميزانية…", "Structuring the memo…", "هيكلة المذكرة…"),
         _stage("detect", "Detecting fields to make reusable…", "اكتشاف الحقول القابلة لإعادة الاستخدام…", "Detecting fields…", "اكتشاف الحقول…"),
     ],

@@ -2,14 +2,14 @@
 import type { OrgConfig } from '@/types'
 
 export const ORG = {
-  code: 'MOET',
+  code: 'NEONAX',
   nameEn: 'United Arab Emirates',
   nameAr: 'الإمارات العربية المتحدة',
-  authority: 'MoET',
+  authority: 'Neonax',
   cityEn: 'Abu Dhabi, United Arab Emirates',
   cityAr: 'أبوظبي، الإمارات العربية المتحدة',
   poBox: 'P.O. Box 901',
-  web: 'www.moet.gov.ae',
+  web: 'www.neonax.gov.ae',
 } as const
 
 /** Frontend fallback for the global letterhead config (item 2) — used before the
@@ -28,8 +28,8 @@ export const DEFAULT_ORG_CONFIG: OrgConfig = {
     web: ORG.web,
   },
   footer: {
-    lineEn: 'This is an official document of the Ministry of Economy & Tourism e-correspondence system. Verify at www.moet.gov.ae.',
-    lineAr: 'هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية بوزارة الاقتصاد والسياحة. للتحقق: www.moet.gov.ae.',
+    lineEn: 'This is an official document of the Ministry of Economy & Tourism e-correspondence system. Verify at www.neonax.gov.ae.',
+    lineAr: 'هذا مستند رسمي صادر عن نظام المراسلات الإلكترونية بوزارة الاقتصاد والسياحة. للتحقق: www.neonax.gov.ae.',
     contactEn: 'P.O. Box 901 · Abu Dhabi, UAE · 800 1222',
     contactAr: 'ص.ب ٩٠١ · أبوظبي، الإمارات · ٨٠٠ ١٢٢٢',
     showPageNumbers: true,
@@ -43,7 +43,7 @@ export const CURRENCY = 'AED'
  *  timestamps is timezone-independent (deterministic across machines). */
 export const DEMO_CLOCK = new Date('2026-07-10T09:12:00Z')
 
-export const DEMO_REF = 'MOET/REQ/2026/031'
+export const DEMO_REF = 'NEONAX/REQ/2026/031'
 
 /** Uniformly scales every scripted AI delay. 1 = cinematic default; 0.4 = rehearsal; 2 = quick. */
 export const AI_SPEED = 1

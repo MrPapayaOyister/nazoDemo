@@ -40,7 +40,7 @@ STANDARD_VARS: list[dict[str, Any]] = [
         "labelAr": "الرقم المرجعي",
         "type": "Text",
         "group": "Requester",
-        "placeholder": "MOET/REQ/2026/___",
+        "placeholder": "NEONAX/REQ/2026/___",
         "required": True,
     },
     {

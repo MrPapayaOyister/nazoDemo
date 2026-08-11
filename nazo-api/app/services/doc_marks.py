@@ -67,7 +67,7 @@ def watermark_html(status: str, lang: str) -> str:
 
 
 def ref_slug(ref: str) -> str:
-    """URL-safe form of a reference number: MOET/REQ/2026/012 -> MOET-REQ-2026-012.
+    """URL-safe form of a reference number: NEONAX/REQ/2026/012 -> NEONAX-REQ-2026-012.
 
     Slashes are the only character the seeded refs carry that a path segment cannot
     hold. Kept deliberately reversible and human-readable so someone can type it."""

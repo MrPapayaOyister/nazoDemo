@@ -10,14 +10,14 @@ export function genId(prefix: string): string {
   return `${prefix}_${counter}`
 }
 
-// Reference numbers: MOET/REQ/2026/### (master §3.1 rule 7). The counter is
+// Reference numbers: NEONAX/REQ/2026/### (master §3.1 rule 7). The counter is
 // positioned so the FIRST live-created correspondence gets 031 — matching the
 // scripted requester.genRef result (DEMO_REF).
 let refCounter = 30
 
 export function genRef(): string {
   refCounter += 1
-  return `MOET/REQ/2026/${String(refCounter).padStart(3, '0')}`
+  return `NEONAX/REQ/2026/${String(refCounter).padStart(3, '0')}`
 }
 
 /** Reset both counters to their seed positions (used by resetDemo). */
@@ -28,5 +28,5 @@ export function resetIdCounters(): void {
 
 /** Peek the next reference without consuming it. */
 export function peekNextRef(): string {
-  return `MOET/REQ/2026/${String(refCounter + 1).padStart(3, '0')}`
+  return `NEONAX/REQ/2026/${String(refCounter + 1).padStart(3, '0')}`
 }

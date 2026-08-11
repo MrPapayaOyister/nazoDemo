@@ -1,7 +1,7 @@
 """Reference-number allocation backed by the ref_counter table.
 
-allocate_ref() consumes the counter and formats MOET/REQ/2026/### (zero-padded to
-3). With REF_START=31 the first allocation yields MOET/REQ/2026/031.
+allocate_ref() consumes the counter and formats NEONAX/REQ/2026/### (zero-padded to
+3). With REF_START=31 the first allocation yields NEONAX/REQ/2026/031.
 """
 
 from __future__ import annotations

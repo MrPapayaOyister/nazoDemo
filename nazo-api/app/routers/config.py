@@ -4,7 +4,7 @@
   * GET   /api/config/org  -> the singleton letterhead header + footer config.
   * PATCH /api/config/org  -> shallow-merge header/footer edits (admin authoring).
 
-GLOBAL, not per-template: the MoET letterhead is uniform across every memo, so
+GLOBAL, not per-template: the Neonax letterhead is uniform across every memo, so
 one editable config drives the on-screen document AND the rendered PDF/DOCX with the
 least data-model disruption. The row is created lazily from the seed default if the
 reset seed has not run.
