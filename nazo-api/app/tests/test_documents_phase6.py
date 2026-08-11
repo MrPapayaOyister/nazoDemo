@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import hashlib
 
+from app.tests.pdf_fixtures import PDF_A4, make_pdf
+
 import pytest
 from fastapi import HTTPException
 from sqlmodel import select
@@ -29,7 +31,7 @@ def _user(session, uid: str) -> AppUser:
 
 
 def _corr_with_attachment(
-    session, user, *, ctype: str = "application/pdf", data: bytes = b"%PDF-1.4 test"
+    session, user, *, ctype: str = "application/pdf", data: bytes = PDF_A4
 ):
     corr = workflow.create_correspondence(session, user, "tpl_trademark_en", {})
     session.commit()
@@ -72,7 +74,7 @@ def test_view_attachment_is_inline(session):
     corr, att = _corr_with_attachment(session, req)
     resp = C.view_attachment(corr.id, att.id, session, req, req)
     assert resp.headers["Content-Disposition"].startswith("inline")
-    assert bytes(resp.body) == b"%PDF-1.4 test"
+    assert bytes(resp.body) == PDF_A4
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ def test_view_attachment_is_inline(session):
 # ---------------------------------------------------------------------------
 def test_sign_creates_immutable_signed_variant(session):
     req, gm = _user(session, "u_req"), _user(session, "u_gm")
-    data = b"%PDF-1.4 hello-sign"
+    data = make_pdf()  # a REAL pdf: a fake one cannot prove the bytes were stamped
     corr, att = _corr_with_attachment(session, req, data=data)
 
     C.sign_attachment(

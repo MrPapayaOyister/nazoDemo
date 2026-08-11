@@ -17,3 +17,4 @@ beautifulsoup4>=4.12
 # --- Signature normalization (Pillow only; arm64 wheel fine, NO torch) ---
 Pillow>=10
 segno>=1.6
+pypdf==6.15.0
