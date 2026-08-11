@@ -18,7 +18,7 @@ import {
   SkipForward,
 } from 'lucide-react'
 import { DocumentRenderer } from '@/components/common/DocumentRenderer'
-import { SignaturePlacer, type Placement } from './SignaturePlacer'
+import { SignaturePlacer, DocumentPlacementSurface, type Placement } from './SignaturePlacer'
 import { DocumentHistory } from '@/components/common/DocumentHistory'
 import { AttachmentsCard, AttachmentUploader } from '@/features/shared/Attachments'
 import { StatusBadge } from '@/components/common/StatusBadge'
@@ -35,6 +35,12 @@ import type { Lang, ResultCard, SignatureMeta } from '@/types'
 import { cn } from '@/lib/cn'
 
 export function CorrespondenceViewer() {
+  // F4 — signature placement lives HERE, not in the action bar, because the click
+  // surface is the DOCUMENT in the left pane: you place your mark on the thing you are
+  // actually reading rather than on a proxy thumbnail beside it.
+  const [placement, setPlacement] = useState<Placement | null>(null)
+  const [placing, setPlacing] = useState(false)
+  const [placingInkUri, setPlacingInkUri] = useState<string | undefined>()
   const { id } = useParams()
   const tr = useLocalized()
   const navigate = useNavigate()
@@ -168,14 +174,24 @@ export function CorrespondenceViewer() {
         <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-5">
           {/* document + its attachments (a clear, prominent place to view files) */}
           <div className="space-y-4">
-            <DocumentRenderer
-              docHtml={previewDoc}
-              values={corr.values}
-              variables={previewVars}
-              lang={docLang}
-              showTokens={false}
-              stampTag={stampTag}
-            />
+            <DocumentPlacementSurface
+              active={placing}
+              value={placement}
+              onChange={(p) => {
+                setPlacement(p)
+                setPlacing(false)
+              }}
+              inkUri={placingInkUri}
+            >
+              <DocumentRenderer
+                docHtml={previewDoc}
+                values={corr.values}
+                variables={previewVars}
+                lang={docLang}
+                showTokens={false}
+                stampTag={stampTag}
+              />
+            </DocumentPlacementSurface>
             <AttachmentsCard corrId={corr.id} attachments={corr.attachments ?? []} />
           </div>
 
@@ -185,6 +201,11 @@ export function CorrespondenceViewer() {
             {isMyTurn && (
               <ActionBar
                 corr={corr}
+                placement={placement}
+                setPlacement={setPlacement}
+                placing={placing}
+                setPlacing={setPlacing}
+                onInkChange={setPlacingInkUri}
                 onSigned={(tag, completed, skipped) => {
                   setStampTag(tag)
                   if (completed)
@@ -267,11 +288,21 @@ function AISummaryCard() {
 
 // ---------------------------------------------------------------------------
 function ActionBar({
+  placement,
+  setPlacement,
+  placing,
+  setPlacing,
+  onInkChange,
   corr,
   onSigned,
 }: {
   corr: import('@/types').Correspondence
   onSigned: (tag: string | undefined, completed: boolean, skipped?: boolean) => void
+  placement: Placement | null
+  setPlacement: (p: Placement | null) => void
+  placing: boolean
+  setPlacing: (v: boolean) => void
+  onInkChange: (uri: string | undefined) => void
 }) {
   const tr = useLocalized()
   const user = useCurrentUser()
@@ -288,8 +319,6 @@ function ActionBar({
   const [mode, setMode] = useState<'approve' | 'reject' | 'redirect'>('approve')
   const [busy, setBusy] = useState(false)
   const [applySig, setApplySig] = useState(true)
-  // Null = the mark goes in the document's sign-block, as it always has (F4).
-  const [placement, setPlacement] = useState<Placement | null>(null)
   const [selectedSigId, setSelectedSigId] = useState<string | undefined>(undefined)
   const [redirectTarget, setRedirectTarget] = useState('')
   const tr2 = useLocalized()
@@ -455,6 +484,11 @@ function ActionBar({
               <SignaturePlacer
                 value={placement}
                 onChange={setPlacement}
+                placing={placing}
+                onPlaceOnDocument={() => {
+                  onInkChange(sigs.find((s) => s.id === activeSigId)?.dataUri)
+                  setPlacing(true)
+                }}
                 inkUri={sigs.find((s) => s.id === activeSigId)?.dataUri}
               />
             )}
